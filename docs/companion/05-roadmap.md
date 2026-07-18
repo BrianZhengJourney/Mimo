@@ -53,6 +53,10 @@
 3. focus 引擎上移 Swift,`mimo.*` 进条件绑定;现有全部情绪表现改写为
    默认行为包(victoryWalk、idle 变体、萎靡集)。
 4. 三 lane 声明 motion tier;`can()` 门控;渲染协议改造。
+5. 【D8】内置像素包 / Lane A 抽象伴灵**各挂一份 `behaviors.json`**
+   (只有行为、无图集,`kind: "procedural"`),**渲染仍走代码**。
+   加载器识别 `behavior-pack` / `procedural` 两种包。
+   程序化角色恒为全 motion tier,所以 `can()` 门控实际只对栅格 lane 生效。
 - 验收:不改一行 Swift 能通过编辑 JSON 加一个新 idle 行为;故意写错变量名
   会在**加载时**报错并指出位置(而不是静默 false)。
 
