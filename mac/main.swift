@@ -411,6 +411,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     let gitWatcher = GitWatcher()
     let petGenerator = PetGenerationCoordinator()
     let customPetStore = CustomPetStore(root: logDir)
+    let companionRuntime = CompanionRuntime()
     let generationDraftStore = FamiliarGenerationDraftStore(root: logDir)
     var studioGenerationLedger = StudioGenerationLedger()
     var studioCleanupTimer: Timer?
@@ -451,6 +452,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         watchApps()
         registerHotKey()
         startHoverTracking()
+        startNativeCompanionIfAvailable()
         pruneOldLogs()
         startStudioCleanup()
         gitWatcher.onCommit = { [weak self] repo in
@@ -780,9 +782,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         clickable.toggle()
     }
 
+    // ── native companion layer ──────────────────────────────────────────
+    // Raster familiars render in their own CALayer host with real physics
+    // (see companion_runtime.swift). Built-in procedural packs still draw in
+    // the webview and keep the legacy path below until they are ported.
+    //
+    // `defaults write com.brianzheng.mimo companionNativeRuntime -bool false`
+    // forces every familiar back to the webview path.
+    var nativeCompanionActive: Bool { !companionRuntime.isEmpty }
+
+    func nativeCompanionEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: "companionNativeRuntime") as? Bool ?? true
+    }
+
+    func startNativeCompanionIfAvailable() {
+        guard nativeCompanionEnabled(),
+              let spec = storedCustomPetSpec(),
+              let asset = spec["assetURL"] as? String,
+              let assetURL = URL(string: asset),
+              let data = try? customPetStore.assetData(for: assetURL),
+              let sprite = CompanionSprite.load(data: data,
+                                                frameCount: CustomPetStore.expressionStageCount)
+        else { return }
+
+        companionRuntime.onClick = { [weak self] in
+            guard let self else { return }
+            if self.hidden { self.unhide() } else { self.showContext() }
+        }
+        companionRuntime.onRightClick = { [weak self] in self?.showCompanionMenu() }
+        companionRuntime.start()
+        companionRuntime.spawn(sprite: sprite)
+        // The webview is told to hide its own stage in webView(_:didFinish:),
+        // not here — at launch the page has not loaded yet and the call would
+        // be silently dropped, leaving the familiar drawn twice.
+        syncNativeHosting()
+    }
+
+    /// Tells the webview which host owns the familiar. Safe to call before the
+    /// page exists; it is re-sent on every load.
+    func syncNativeHosting() {
+        js("typeof famSetNativeHosted === 'function' && famSetNativeHosted(\(nativeCompanionActive))")
+    }
+
+    func stopNativeCompanion() {
+        companionRuntime.stop()
+        syncNativeHosting()
+    }
+
+    /// The familiar's right-click menu. Shared by the webview bridge and the
+    /// native layer so both hosts offer exactly the same three items.
+    func showCompanionMenu() {
+        let m = NSMenu()
+        let hideIt = NSMenuItem(title: overlayHidden ? voice("显示米墨", "Show Mimo") : voice("藏起米墨", "Hide Mimo"),
+                                action: #selector(toggleOverlay(_:)), keyEquivalent: "")
+        hideIt.target = self
+        hideIt.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
+        m.addItem(hideIt)
+        let settingsIt = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: "")
+        settingsIt.target = self
+        settingsIt.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+        m.addItem(settingsIt)
+        m.addItem(NSMenuItem.separator())
+        let quitIt = NSMenuItem(title: voice("退出 Mimo", "Quit Mimo"), action: #selector(quitApp(_:)), keyEquivalent: "")
+        quitIt.target = self
+        m.addItem(quitIt)
+        m.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
     // ── hover hot-zone: click-through everywhere except over the creature ──
     // the stage sits in the panel's bottom-right (right:10 bottom:6); raster
     // familiars render up to 240px, so the zone covers the larger footprint
+    //
+    // Legacy path, used only while the webview still owns the familiar. The
+    // native layer hit-tests the sprite's baked alpha every frame instead of
+    // polling this rectangle at 10Hz — the rectangle has no relationship to
+    // the artwork, so it both swallows clicks beside the familiar and misses
+    // thin parts of it.
     func creatureRect() -> NSRect {
         let f = panel.frame
         return NSRect(x: f.maxX - 260, y: f.minY, width: 260, height: 265)
@@ -790,8 +865,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func startHoverTracking() {
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self, !self.dragging else { return }
-            let interactive = self.bubbleOpen || self.clickable
-                || self.creatureRect().contains(NSEvent.mouseLocation)
+            let overCreature = !self.nativeCompanionActive
+                && self.creatureRect().contains(NSEvent.mouseLocation)
+            let interactive = self.bubbleOpen || self.clickable || overCreature
             self.panel.ignoresMouseEvents = !interactive
         }
     }
@@ -1006,21 +1082,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "openPage":
             openJournalPage()
         case "ctxMenu":
-            let m = NSMenu()
-            let hideIt = NSMenuItem(title: overlayHidden ? voice("显示米墨", "Show Mimo") : voice("藏起米墨", "Hide Mimo"),
-                                    action: #selector(toggleOverlay(_:)), keyEquivalent: "")
-            hideIt.target = self
-            hideIt.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
-            m.addItem(hideIt)
-            let settingsIt = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: "")
-            settingsIt.target = self
-            settingsIt.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
-            m.addItem(settingsIt)
-            m.addItem(NSMenuItem.separator())
-            let quitIt = NSMenuItem(title: voice("退出 Mimo", "Quit Mimo"), action: #selector(quitApp(_:)), keyEquivalent: "")
-            quitIt.target = self
-            m.addItem(quitIt)
-            m.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+            showCompanionMenu()
         case "log":
             if let entry = body["entry"] as? [String: Any] { appendLog(entry) }
         case "levelUp":
@@ -1082,6 +1144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if webView === settingsWeb { pushSettingsState(); return }
         js("famSetLanguage('\(voiceLanguage())')")
+        syncNativeHosting()
         restoreCustomPetIfNeeded()
         js("famLoadHistory(\(readTodayLog()))")
         js("famLoadWeek(\(readWeekLog()))")

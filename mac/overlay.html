@@ -21,6 +21,8 @@ html,body{ width:100%; height:100%; background:transparent; overflow:hidden; }
 body{ font-family:var(--font-ui); -webkit-user-select:none; }
 
 .stage{ position:absolute; right:10px; bottom:6px; width:150px; }
+/* set by famSetNativeHosted() when companion_runtime.swift owns the familiar */
+body.native-hosted .stage{ display:none; }
 
 /* ── creature container ── */
 .familiar{ position:relative; width:150px; height:150px;
@@ -1541,6 +1543,14 @@ function famUnregisterCustomPet(id){
   if(localStorage.getItem('ff-char')===id)localStorage.setItem('ff-char','lulu');
 }
 function famPause(p){ Fam.paused = p; Fam.setState(p ? 'idle' : Fam.state); }
+
+/* The native companion layer (companion_runtime.swift) renders the familiar
+   itself for raster packs, with real physics. When it owns the familiar we
+   hide the stage here — otherwise it draws twice and both hosts fight over
+   the cursor. The journal, HUD and status badge are unaffected. */
+function famSetNativeHosted(on){
+  document.body.classList.toggle('native-hosted', !!on);
+}
 
 /* user went idle / screen locked: close the open entry so away-time
    never counts as work. Swift re-sends the frontmost app on return. */

@@ -10,6 +10,9 @@ APP_SOURCES=(
   panel_geometry.swift
   companion_geometry.swift
   companion_physics.swift
+  companion_sprite.swift
+  companion_window.swift
+  companion_runtime.swift
   activity_log.swift
   app_menu.swift
   custom_pet.swift
