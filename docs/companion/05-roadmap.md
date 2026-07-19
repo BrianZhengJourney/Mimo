@@ -1,5 +1,5 @@
 > 伴灵模式计划 · 模块文档 — [索引与阅读顺序](README.md)
-> 章节编号(§0–§7)沿用拆分前的全局编号,跨文件引用见索引的对照表。
+> 章节编号(§0–§8)沿用拆分前的全局编号,跨文件引用见索引的对照表。
 
 ## 5. 实施路线
 
@@ -19,8 +19,12 @@
 2. `mac/tests/` 新增 `companion_physics_test.swift`、`companion_state_test.swift`
    骨架并登记进 `test.sh` 映射表;针对 CursorTracker 的 EMA、积分器的
    亚像素累加各写一个测试。
-3. **把 `test.sh` 的手工源文件映射表改成自动发现** —— 否则 P0 会一次性
-   加十几个文件,每个都要手动登记。
+3. **把 `test.sh` 的 `test_sources()` 映射表搬进各测试文件的头部注释**
+   (`// sources: panel_geometry.swift`),`test.sh` grep 出来。
+   否则 P0 会一次性加十几个文件,每个都要改两处。
+   > 更正:早前写的是"改成自动发现"。读过 `test.sh` 后确认那条不成立 ——
+   > 每个测试是独立 `@main` 可执行文件、需各自的源文件子集,真正的自动发现
+   > 要解析 Swift 依赖关系。搬进文件头解决同样的摩擦,成本低一个数量级。
 4. 录当前行为基线(截图/录屏)作为回归对照。
 - 验收:`build.sh` + `test.sh` 全绿,app 行为无变化。
 
@@ -53,7 +57,10 @@
 3. focus 引擎上移 Swift,`mimo.*` 进条件绑定;现有全部情绪表现改写为
    默认行为包(victoryWalk、idle 变体、萎靡集)。
 4. 三 lane 声明 motion tier;`can()` 门控;渲染协议改造。
-5. 【D8】内置像素包 / Lane A 抽象伴灵**各挂一份 `behaviors.json`**
+5. 【§8.4】**temperament 从"选一个 CSS 动画"升级为"选一份行为权重 +
+   程序化变换参数"** —— 这是**动态神态层**(idle 快慢、对光标的反应积极度、
+   驻留时长、步频、重心/歪头偏移)。神态不只是美术问题,第三层在这里解决。
+6. 【D8】内置像素包 / Lane A 抽象伴灵**各挂一份 `behaviors.json`**
    (只有行为、无图集,`kind: "procedural"`),**渲染仍走代码**。
    加载器识别 `behavior-pack` / `procedural` 两种包。
    程序化角色恒为全 motion tier,所以 `can()` 门控实际只对栅格 lane 生效。
@@ -80,27 +87,31 @@
    先只**记录距离不拦截**,跑在现有的进化表/表情表上收集分布。
 3. **阈值标定**:约 100 对帧人工标注,拟合 `T_pass`/`T_fail`/`T_var`。
    若 Vision 区分度不足 → 评估打包 Core ML DINOv2。
-4. 【D5】**绿幕 matte A/B**:同一批角色分别用 `#00FF00`(+2–3px 白色描边)
+4. 【§8.5】**神态 prompt 改动**:拆开"防泄漏"与"取姿态"、
+   `neutral standing pose` → `canonical idle stance`、新增独立的 BEARING 描述槽
+   (物理描述而非形容词)、人形伴灵改 bust 构图。
+   同时加 §8.6 的**中性化预警指标**(肩线/重心/视线/嘴角四项同时≈0 则标记)。
+5. 【D5】**绿幕 matte A/B**:同一批角色分别用 `#00FF00`(+2–3px 白色描边)
    与现有 `#F1ECE2` 生成,比较抠图后的边缘质量。**重点看浅色/白色角色**
    ——绿色溢出对它们伤害最大。通过则全量切换,暖白保留为 fallback 配置。
 - 验收:重构前后产物逐字节一致;度量能对已知漂移的历史样本给出显著更大的
   距离;绿幕 A/B 有明确结论(含浅色角色的边缘对比图)。
 
 **P3b — actionSheet 生成**
-4. `actionSheet` artifact(2048×2048,3×3=9 帧)+ prompt + R×C 网格切分泛化;
+6. `actionSheet` artifact(2048×2048,3×3=9 帧)+ prompt + R×C 网格切分泛化;
    §4.10 的验收标准接上闸门与分级重掷(**重试上限硬编码兜底**)。
-5. `custom_pet.swift` 升 `schemaVersion: 2`;**旧 manifest 自动迁移器**
+7. `custom_pet.swift` 升 `schemaVersion: 2`;**旧 manifest 自动迁移器**
    (老资产落 T0,不失效)。
-6. **T1 动作集(walk / dragged / fall-land)领养后自动生成,+1 次付费调用**;
+8. **T1 动作集(walk / dragged / fall-land)领养后自动生成,+1 次付费调用**;
    从图集烘焙 `.hitmask`。
-7. `settings.html`:生成动作入口 + 帧预览 + 单格/整表重掷 + **生成前成本预估**。
+9. `settings.html`:生成动作入口 + 帧预览 + 单格/整表重掷 + **生成前成本预估**。
 
 **P3c — provider A/B 与其余 lane**
-8. 【D4】接入 Gemini provider(角色参考走**类型槽**,这是它相对 OpenAI 的
+10. 【D4】接入 Gemini provider(角色参考走**类型槽**,这是它相对 OpenAI 的
    真实优势);两家都保留为可切换选项。用 §4.10 的评分函数在**我们自己的
    角色**上跑 A/B,用数据决定推荐默认值。【§4.9 —— 不要凭口碑决定】
    选择 Gemini 时 UI 明示 SynthID 水印。
-9. 像素 lane 手工补 T1 运动帧;程序化抽象 lane(diy-strategy Lane A)
+11. 像素 lane 手工补 T1 运动帧;程序化抽象 lane(diy-strategy Lane A)
    按渲染协议实现,天生全 tier。
 
 - 验收:走完整 DIY 流程,产出的伴灵会走路、被拖时摆动、落地压扁;
@@ -118,8 +129,8 @@
    不是异常)。攀爬 + 显式转角动作。
 3. Manager 化(单 tick 驱动 N 只)、Breed/Transform/SelfDestruct、
    totalCount 限流。【待拍板 §6-Q4】
-2. Affordance + ScanMove/Interact 双人握手(两只伴灵互相拜访)。
-3. (彩蛋,默认关)ThrowIE 式搬窗口,需 AX 权限。
+4. Affordance + ScanMove/Interact 双人握手(两只伴灵互相拜访)。
+5. (彩蛋,默认关)ThrowIE 式搬窗口,需 AX 权限。
 
 ---
 
