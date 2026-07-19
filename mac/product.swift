@@ -1664,6 +1664,7 @@ extension AppDelegate {
                 if allowed {
                     js("famSetCharacter(\(jsonStr(id)))")
                     d.set(id, forKey: "character")
+                    refreshNativeCompanion()
                 }
             }
         case "petPrototype":
@@ -1675,6 +1676,7 @@ extension AppDelegate {
                 d.set(json, forKey: "customPetSpec")
                 d.set("prototype", forKey: "character")
                 js("famSetPrototypePet(\(json))")
+                refreshNativeCompanion()
                 revealOverlay()
             }
         case "petUpload":
@@ -1960,6 +1962,7 @@ extension AppDelegate {
                 }
                 d.set(characterID, forKey: "character")
                 js("famSetCustomPet(\(json))")
+                refreshNativeCompanion()
                 settingsCall("customPetAdopted", ["spec": spec])
                 pushSettingsState()
                 revealOverlay()
@@ -2038,6 +2041,7 @@ extension AppDelegate {
                 if d.string(forKey: "character") == characterID {
                     d.set("lulu", forKey: "character")
                     js("famSetCharacter('lulu')")
+                    refreshNativeCompanion()
                 }
                 pushSettingsState()
             } catch {

@@ -84,6 +84,7 @@ final class CompanionRuntime {
     private weak var clockHost: CompanionHostView?
     private var lastTimestamp: CFTimeInterval = 0
     private var held: Companion?
+    private var observingScreens = false
 
     /// Raised on a click that was a click, not a drag.
     var onClick: (() -> Void)?
@@ -97,9 +98,14 @@ final class CompanionRuntime {
 
     func start() {
         rebuildWindows()
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(screensChanged),
-            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        // Switching familiars re-enters this; without the guard every switch
+        // would stack another screen-parameters observer.
+        if !observingScreens {
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(screensChanged),
+                name: NSApplication.didChangeScreenParametersNotification, object: nil)
+            observingScreens = true
+        }
         startClock()
     }
 
@@ -108,6 +114,7 @@ final class CompanionRuntime {
         displayLink = nil
         clockHost = nil
         NotificationCenter.default.removeObserver(self)
+        observingScreens = false
         companions.forEach { $0.layer.removeFromSuperlayer() }
         companions.removeAll()
         windows.values.forEach { $0.orderOut(nil) }
@@ -203,6 +210,7 @@ final class CompanionRuntime {
         companions.forEach { $0.layer.removeFromSuperlayer() }
         companions.removeAll()
         held = nil
+        releaseClickThrough()
     }
 
     // MARK: - Clock
@@ -230,7 +238,14 @@ final class CompanionRuntime {
     // MARK: - The tick
 
     private func tick(now: CFTimeInterval) {
-        guard !companions.isEmpty else { return }
+        guard !companions.isEmpty else {
+            // Nothing to draw — hand every click back to the desktop. Bailing
+            // out without this leaves a full-screen transparent window latched
+            // interactive, swallowing every click on the machine.
+            releaseClickThrough()
+            lastTimestamp = 0
+            return
+        }
         let dt = lastTimestamp > 0 ? CGFloat(now - lastTimestamp) : 1.0 / 60
         lastTimestamp = now
         guard dt > 0 else { return }
@@ -347,6 +362,13 @@ final class CompanionRuntime {
     /// Evaluated every frame against the baked alpha mask, versus a 10Hz poll of
     /// a fixed 260x265 rectangle today — which both swallows clicks in the empty
     /// space beside the companion and misses thin parts of it.
+    /// Forces every window back to click-through.
+    private func releaseClickThrough() {
+        for window in windows.values where !window.ignoresMouseEvents {
+            window.ignoresMouseEvents = true
+        }
+    }
+
     private func updateClickThrough(mouseDown: Bool) {
         let point = cursor.position
         let interactive = held != nil || companions.contains { $0.isOpaque(atScreenPoint: point) }

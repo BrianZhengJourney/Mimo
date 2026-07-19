@@ -766,6 +766,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard let id = sender.representedObject as? String else { return }
         js("famSetCharacter(\(jsonStr(id)))")
         UserDefaults.standard.set(id, forKey: "character")
+        refreshNativeCompanion()
     }
     @objc func toggleContextMenu() { showContext() }
     @objc func openJournal() {
