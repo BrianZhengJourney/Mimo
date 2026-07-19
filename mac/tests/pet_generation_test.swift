@@ -181,11 +181,25 @@ struct PetGenerationTests {
                candidateBody.contains("same user-selected") &&
                candidateBody.contains("subject from useful views"),
                "candidate prompt must treat the prepared multi-view board as one selected identity")
-        for ignoredArtifact in ["source pose", "background", "social-app chrome", "play control",
+        for ignoredArtifact in ["source crop", "background", "social-app chrome", "play control",
                                 "product tile", "text"] {
             expect(candidateBody.contains(ignoredArtifact),
                    "candidate identity evidence must explicitly ignore \(ignoredArtifact)")
         }
+        // Pose is two things wearing one name. The momentary action belongs to
+        // the photograph and must not be copied, or the familiar ends up frozen
+        // mid-gesture; the habitual bearing belongs to the person and must be
+        // carried, or the likeness is accurate and still unrecognisable.
+        expect(candidateBody.contains("Do NOT copy the source pose or gesture"),
+               "candidate prompt must still refuse the snapshot's momentary action")
+        expect(candidateBody.contains("canonical idle stance"),
+               "candidate prompt must ask for a stance the familiar can hold indefinitely")
+        expect(candidateBody.contains("CHARACTERISTIC BEARING") &&
+               candidateBody.contains("head tilt") &&
+               candidateBody.contains("weight distribution"),
+               "candidate prompt must carry the subject's habitual bearing")
+        expect(candidateBody.contains("Asymmetry is expected"),
+               "candidate prompt must reject the symmetric A-pose that reads as generic")
         expect(candidateBody.contains("three controlled design lenses") &&
                candidateBody.contains("LEFT emphasizes the clearest face/head") &&
                candidateBody.contains("CENTER emphasizes the strongest readable silhouette") &&
