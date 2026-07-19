@@ -21,7 +21,7 @@ enum CompanionMotionState: Equatable {
 
 /// One companion: where it is, what it is doing, and what it looks like.
 final class Companion {
-    let sprite: CompanionSprite
+    private(set) var sprite: CompanionSprite
     let displayHeight: CGFloat
     let layer: CALayer
 
@@ -50,6 +50,14 @@ final class Companion {
     }
 
     var currentFrame: CompanionFrame { sprite.frame(frameIndex) }
+
+    /// Keeps the anchor fixed across an art swap. Cells carry different
+    /// padding, so re-deriving position from the layer rect would make the
+    /// familiar hop sideways every time it blinked.
+    func replaceSprite(_ next: CompanionSprite, frameIndex index: Int) {
+        sprite = next
+        frameIndex = max(0, min(index, next.frameCount - 1))
+    }
 
     /// On-screen rect in global (screen) coordinates.
     func screenRect() -> CGRect {
@@ -181,6 +189,14 @@ final class CompanionRuntime {
         companions.append(companion)
         reattachLayers()
         commit(companion)
+    }
+
+    /// Swaps the artwork every companion draws. The webview owns the mood and
+    /// evolution state, so it decides which sheet and frame; this just applies it.
+    func setArt(sprite: CompanionSprite, frameIndex: Int) {
+        for companion in companions {
+            companion.replaceSprite(sprite, frameIndex: frameIndex)
+        }
     }
 
     func removeAll() {

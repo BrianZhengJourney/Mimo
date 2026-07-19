@@ -412,6 +412,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     let petGenerator = PetGenerationCoordinator()
     let customPetStore = CustomPetStore(root: logDir)
     let companionRuntime = CompanionRuntime()
+    var companionSpriteCache: [String: CompanionSprite] = [:]
+    var activeCompanionSpec: [String: Any]?
     let generationDraftStore = FamiliarGenerationDraftStore(root: logDir)
     var studioGenerationLedger = StudioGenerationLedger()
     var studioCleanupTimer: Timer?
@@ -806,19 +808,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard nativeCompanionEnabled() else {
             return decline("disabled via the companionNativeRuntime default")
         }
-        guard let spec = storedCustomPetSpec() else {
-            return decline("no generated familiar is active (built-in packs still render in the webview)")
+        guard let spec = activeRasterPetSpec() else {
+            return decline("the active familiar is not a generated raster pack "
+                           + "(built-in procedural packs still render in the webview)")
         }
         guard let asset = spec["assetURL"] as? String, let assetURL = URL(string: asset) else {
             return decline("the active familiar has no usable assetURL")
         }
-        guard let data = try? customPetStore.assetData(for: assetURL) else {
-            return decline("could not read the sheet for \(assetURL.lastPathComponent)")
+        guard let sprite = loadCompanionSprite(assetURL: assetURL) else {
+            return decline("could not slice the sheet at \(assetURL.lastPathComponent)")
         }
-        guard let sprite = CompanionSprite.load(data: data,
-                                                frameCount: CustomPetStore.expressionStageCount) else {
-            return decline("the sheet did not slice into \(CustomPetStore.expressionStageCount) usable frames")
-        }
+        activeCompanionSpec = spec
         NSLog("Mimo companion: native layer active, %d frames", sprite.frameCount)
 
         companionRuntime.onClick = { [weak self] in
@@ -831,6 +831,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         // The webview is told to hide its own stage in webView(_:didFinish:),
         // not here — at launch the page has not loaded yet and the call would
         // be silently dropped, leaving the familiar drawn twice.
+        syncNativeHosting()
+    }
+
+    /// The active familiar, if it is a generated raster pack.
+    ///
+    /// The selection lives under "character", not "customPetSpec" — the latter
+    /// only holds the one-off prototype pet. Store-adopted familiars are named
+    /// by characterID and resolved through the store.
+    func activeRasterPetSpec() -> [String: Any]? {
+        let builtins: Set<String> = ["lulu", "clawd", "nat"]
+        let requested = UserDefaults.standard.string(forKey: "character") ?? "lulu"
+        if builtins.contains(requested) { return nil }
+        if requested == "prototype" { return storedCustomPetSpec() }
+        return try? customPetStore.runtimeSpec(characterID: requested)
+    }
+
+    /// Slices a sheet into frames, memoised — art changes on every expression
+    /// swap and re-decoding a 1536x512 PNG per swap would be wasteful.
+    func loadCompanionSprite(assetURL: URL) -> CompanionSprite? {
+        if let cached = companionSpriteCache[assetURL.absoluteString] { return cached }
+        guard let data = try? customPetStore.assetData(for: assetURL),
+              let sprite = CompanionSprite.load(data: data,
+                                                frameCount: CustomPetStore.expressionStageCount)
+        else { return nil }
+        companionSpriteCache[assetURL.absoluteString] = sprite
+        return sprite
+    }
+
+    /// Points the native layer at the art the webview would be showing.
+    ///
+    /// The base sheet's three cells are evolution stages, while an expression
+    /// sheet's three cells are NEUTRAL/JOY/REST for one stage — so which sheet
+    /// is in play decides what the frame index means. The level that selects
+    /// the stage lives in the webview, so it reports rather than Swift guessing;
+    /// without this the native layer would sit on the seed form forever.
+    func updateCompanionArt(stage: Int, expression: Int, hasExpressions: Bool) {
+        guard nativeCompanionActive, let spec = activeCompanionSpec else { return }
+        let expressionURLs = spec["expressionURLs"] as? [String: String] ?? [:]
+
+        if hasExpressions, let asset = expressionURLs[String(stage)],
+           let url = URL(string: asset), let sprite = loadCompanionSprite(assetURL: url) {
+            companionRuntime.setArt(sprite: sprite, frameIndex: expression)
+            return
+        }
+        guard let asset = spec["assetURL"] as? String, let url = URL(string: asset),
+              let sprite = loadCompanionSprite(assetURL: url) else { return }
+        companionRuntime.setArt(sprite: sprite, frameIndex: stage)
+    }
+
+    /// Re-resolves the familiar after the user picks a different one.
+    func refreshNativeCompanion() {
+        companionRuntime.removeAll()
+        activeCompanionSpec = nil
+        startNativeCompanionIfAvailable()
         syncNativeHosting()
     }
 
@@ -1097,6 +1151,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if hidden { unhide() } else { showContext() }
         case "openPage":
             openJournalPage()
+        case "companionArt":
+            updateCompanionArt(stage: body["stage"] as? Int ?? 0,
+                               expression: body["expression"] as? Int ?? 0,
+                               hasExpressions: body["hasExpressions"] as? Bool ?? false)
         case "ctxMenu":
             showCompanionMenu()
         case "log":
