@@ -796,14 +796,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     func startNativeCompanionIfAvailable() {
-        guard nativeCompanionEnabled(),
-              let spec = storedCustomPetSpec(),
-              let asset = spec["assetURL"] as? String,
-              let assetURL = URL(string: asset),
-              let data = try? customPetStore.assetData(for: assetURL),
-              let sprite = CompanionSprite.load(data: data,
-                                                frameCount: CustomPetStore.expressionStageCount)
-        else { return }
+        // Every bail-out says why. Falling back to the webview silently is how
+        // you end up staring at a familiar that drags but cannot be thrown with
+        // no idea which of four preconditions failed.
+        func decline(_ reason: String) {
+            NSLog("Mimo companion: staying on the webview path — %@", reason)
+        }
+
+        guard nativeCompanionEnabled() else {
+            return decline("disabled via the companionNativeRuntime default")
+        }
+        guard let spec = storedCustomPetSpec() else {
+            return decline("no generated familiar is active (built-in packs still render in the webview)")
+        }
+        guard let asset = spec["assetURL"] as? String, let assetURL = URL(string: asset) else {
+            return decline("the active familiar has no usable assetURL")
+        }
+        guard let data = try? customPetStore.assetData(for: assetURL) else {
+            return decline("could not read the sheet for \(assetURL.lastPathComponent)")
+        }
+        guard let sprite = CompanionSprite.load(data: data,
+                                                frameCount: CustomPetStore.expressionStageCount) else {
+            return decline("the sheet did not slice into \(CustomPetStore.expressionStageCount) usable frames")
+        }
+        NSLog("Mimo companion: native layer active, %d frames", sprite.frameCount)
 
         companionRuntime.onClick = { [weak self] in
             guard let self else { return }
