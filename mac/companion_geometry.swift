@@ -1,0 +1,167 @@
+import CoreGraphics
+
+// Geometry primitives for the companion runtime.
+//
+// Coordinates are AppKit's: y grows upward, origin at the bottom-left of the
+// main display. Shimeji is y-down (Java), so every borrowed constant that has a
+// vertical sign is flipped here — gravity pulls toward -y, a floor is the
+// surface a companion rests on top of, and a ceiling is above it.
+//
+// Positions are continuous (CGFloat), not integer pixels. That is a deliberate
+// departure from Shimeji, whose `isOn` is exact integer equality on one axis
+// (`getY() == location.y`). Equality cannot survive fractional scaling or
+// HiDPI, and it forced Shimeji into a -80..0 landing probe to stop fast falls
+// from tunnelling through surfaces. With continuous coordinates, resting on a
+// surface is a tolerance test and landing is a segment-crossing test, so the
+// probe is unnecessary. See docs/companion/01-shimeji-research.md §1.5.
+
+enum SurfaceKind {
+    /// Supports a companion from below. Anchor rests at `position`.
+    case floor
+    /// Vertical surface a companion can cling to or bounce off.
+    case wall
+    /// Overhead surface a companion can hang from.
+    case ceiling
+}
+
+/// Identifies where a surface came from, so a companion can tell that the
+/// ground it is standing on has moved or disappeared.
+///
+/// P0 only ever produces work-area cases. Window cases exist now so that P4 can
+/// add window terrain by appending to `SurfaceSet.surfaces` without touching
+/// physics or behavior — see docs/companion/03-runtime-architecture.md §4.5.
+enum SurfaceID: Hashable {
+    case workAreaBottom(displayID: UInt32)
+    case workAreaTop(displayID: UInt32)
+    case workAreaLeft(displayID: UInt32)
+    case workAreaRight(displayID: UInt32)
+    case windowTop(windowID: UInt32)
+    case windowBottom(windowID: UInt32)
+    case windowLeft(windowID: UInt32)
+    case windowRight(windowID: UInt32)
+}
+
+/// An axis-aligned line segment a companion can rest on, cling to, or hang from.
+///
+/// `position` is the constant axis: y for floor/ceiling, x for wall.
+/// `span` covers the other axis.
+struct Surface {
+    let id: SurfaceID
+    let kind: SurfaceKind
+    let position: CGFloat
+    let span: ClosedRange<CGFloat>
+
+    var isVertical: Bool { kind == .wall }
+
+    /// Whether `anchor` is resting on this surface, within `tolerance`.
+    func contains(_ anchor: CGPoint, tolerance: CGFloat = CompanionPhysics.surfaceTolerance) -> Bool {
+        if isVertical {
+            return abs(anchor.x - position) <= tolerance && span.contains(anchor.y)
+        }
+        return abs(anchor.y - position) <= tolerance && span.contains(anchor.x)
+    }
+
+    /// Whether a straight move from `from` to `to` crosses this surface from the
+    /// supported side. This replaces Shimeji's landing probe: a fast fall cannot
+    /// tunnel because we test the segment, not the endpoint.
+    ///
+    /// A floor is only crossed while descending, a ceiling only while ascending;
+    /// otherwise a companion launching upward off the ground would immediately
+    /// re-land on it.
+    func isCrossed(from: CGPoint, to: CGPoint) -> Bool {
+        if isVertical {
+            guard from.x != to.x else { return false }
+            let low = min(from.x, to.x), high = max(from.x, to.x)
+            guard low <= position && position <= high else { return false }
+            let t = (position - from.x) / (to.x - from.x)
+            return span.contains(from.y + t * (to.y - from.y))
+        }
+
+        switch kind {
+        case .floor where to.y > from.y: return false
+        case .ceiling where to.y < from.y: return false
+        default: break
+        }
+        guard from.y != to.y else { return false }
+        let low = min(from.y, to.y), high = max(from.y, to.y)
+        guard low <= position && position <= high else { return false }
+        let t = (position - from.y) / (to.y - from.y)
+        return span.contains(from.x + t * (to.x - from.x))
+    }
+}
+
+/// Every surface in the world this frame.
+///
+/// Deliberately a flat collection rather than "screen edges, plus a special case
+/// for windows". P4 appends window surfaces here and nothing downstream changes.
+struct SurfaceSet {
+    var surfaces: [Surface]
+
+    init(_ surfaces: [Surface] = []) { self.surfaces = surfaces }
+
+    /// The four edges of one display's work area, as seen from inside it: the
+    /// bottom edge is a floor, the top edge is a ceiling, the sides are walls.
+    ///
+    /// Note the inversion that catches people out — for a *window* it is the
+    /// reverse (a window's top edge is a floor you stand on, its underside is a
+    /// ceiling). That is why `SurfaceID` names edges rather than roles.
+    static func workArea(_ rect: CGRect, displayID: UInt32) -> SurfaceSet {
+        SurfaceSet([
+            Surface(id: .workAreaBottom(displayID: displayID), kind: .floor,
+                    position: rect.minY, span: rect.minX...rect.maxX),
+            Surface(id: .workAreaTop(displayID: displayID), kind: .ceiling,
+                    position: rect.maxY, span: rect.minX...rect.maxX),
+            Surface(id: .workAreaLeft(displayID: displayID), kind: .wall,
+                    position: rect.minX, span: rect.minY...rect.maxY),
+            Surface(id: .workAreaRight(displayID: displayID), kind: .wall,
+                    position: rect.maxX, span: rect.minY...rect.maxY),
+        ])
+    }
+
+    func surface(with id: SurfaceID) -> Surface? {
+        surfaces.first { $0.id == id }
+    }
+
+    /// The surface of `kind` that `anchor` is currently resting on, if any.
+    func resting(on kind: SurfaceKind, at anchor: CGPoint,
+                 tolerance: CGFloat = CompanionPhysics.surfaceTolerance) -> Surface? {
+        surfaces.first { $0.kind == kind && $0.contains(anchor, tolerance: tolerance) }
+    }
+
+    /// The first surface a straight move from `from` to `to` runs into, and where.
+    ///
+    /// Ties are broken by distance travelled, so a companion falling into a
+    /// corner lands on whichever surface it actually reaches first.
+    func firstCrossing(from: CGPoint, to: CGPoint) -> (surface: Surface, point: CGPoint)? {
+        var best: (surface: Surface, point: CGPoint, distance: CGFloat)?
+        for surface in surfaces where surface.isCrossed(from: from, to: to) {
+            let point: CGPoint
+            if surface.isVertical {
+                let t = (surface.position - from.x) / (to.x - from.x)
+                point = CGPoint(x: surface.position, y: from.y + t * (to.y - from.y))
+            } else {
+                let t = (surface.position - from.y) / (to.y - from.y)
+                point = CGPoint(x: from.x + t * (to.x - from.x), y: surface.position)
+            }
+            let distance = hypot(point.x - from.x, point.y - from.y)
+            if best == nil || distance < best!.distance {
+                best = (surface, point, distance)
+            }
+        }
+        guard let best else { return nil }
+        return (best.surface, best.point)
+    }
+}
+
+/// Rounds a point to the display's physical pixel grid.
+///
+/// Physics runs in continuous coordinates so slow drift stays smooth; the
+/// renderer snaps to device pixels so sprite art stays crisp. Shimeji got both
+/// properties from an integer position plus a sub-pixel carry (`modX`/`modY`);
+/// splitting it this way is the same trade made one layer later, and it also
+/// works when two displays have different backing scales.
+func devicePixelSnapped(_ point: CGPoint, scale: CGFloat) -> CGPoint {
+    guard scale > 0 else { return point }
+    return CGPoint(x: (point.x * scale).rounded() / scale,
+                   y: (point.y * scale).rounded() / scale)
+}
