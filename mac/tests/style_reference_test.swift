@@ -1,3 +1,4 @@
+// sources: style_reference.swift
 import Cocoa
 import Foundation
 

@@ -1,3 +1,4 @@
+// sources: custom_pet.swift character_sheet.swift
 import Foundation
 import CoreGraphics
 import ImageIO

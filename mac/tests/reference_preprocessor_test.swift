@@ -1,3 +1,4 @@
+// sources: reference_preprocessor.swift
 import AppKit
 import Foundation
 import ImageIO

@@ -1,3 +1,4 @@
+// sources: character_sheet.swift
 import Cocoa
 
 private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

@@ -1,3 +1,5 @@
+// sources: 
+// compile-only: diagnostic CLI; not safe to run unattended
 import CoreGraphics
 import Foundation
 

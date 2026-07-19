@@ -1,3 +1,4 @@
+// sources: panel_geometry.swift
 import Cocoa
 
 @main

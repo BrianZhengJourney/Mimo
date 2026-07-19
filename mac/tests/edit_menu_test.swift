@@ -1,3 +1,4 @@
+// sources: app_menu.swift
 import Cocoa
 
 @main
