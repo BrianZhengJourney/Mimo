@@ -18,6 +18,7 @@
 | [03-runtime-architecture.md](03-runtime-architecture.md) | §3, §4.1–4.7 | 设计原则 + 运行时架构:窗口/渲染、引擎分层、行为包格式、物理参数、窗口地形、资源包分级 | 实施 P0–P2、P4 |
 | [04-generation-and-consistency.md](04-generation-and-consistency.md) | §4.8–4.10 | **生成后端 provider 接口、跨帧一致性对比、验收标准与度量** | 实施 P3 |
 | [08-likeness-and-demeanor.md](08-likeness-and-demeanor.md) | §8 | **神似与神态** —— 为什么生成的伴灵"不像本人",prompt 根因与改法。与 §4.9 的一致性**正交** | 实施 P3;人形伴灵相关 |
+| [09-action-inventory.md](09-action-inventory.md) | §9 | **动作清单定稿** —— 分层帧预算、六套气质签名集、道具内嵌决策(D9–D11)、打包规则与首验计划 | 生成任何帧之前 |
 | [05-roadmap.md](05-roadmap.md) | §5 | P00 → P4 分阶段路线与验收标准 | 排期 |
 | [06-open-questions.md](06-open-questions.md) | §6 | 已拍板汇总 + 仍待拍板项 | 决策时 |
 | [07-unverified-and-sources.md](07-unverified-and-sources.md) | §7, 附录 | **未证实的事实断言清单** + 源码/文献引用 | 引用本文任何事实之前 |
@@ -42,6 +43,7 @@
 | §6 待拍板 | `06-open-questions.md` |
 | §7 待核实断言 + 附录 | `07-unverified-and-sources.md` |
 | §8 神似与神态 | `08-likeness-and-demeanor.md` |
+| §9 动作清单 | `09-action-inventory.md` |
 
 ---
 
@@ -58,7 +60,10 @@
 | **D7** | T1 动作表**领养后默认自动生成**,明示成本并可关 | §6 |
 | **D8** | 代码绘制的角色(内置像素包 / Lane A 抽象伴灵)**不资产化**,渲染保持程序化,但**接入同一套行为引擎** | §6 |
 | — | 自动重掷上限 **3 次**;开发期保留全部 1–3 次尝试用于阈值标定 | §6 |
-| **Q11** | *待拍板* — 人形伴灵的进化轴是否与 chibi 轴解耦(初生最不像本人) | §8.3 |
+| **D9** | 签名动作**按气质共享 6 套**(设计/prompt/行为包共享,图仍按每只生成) | §9 |
+| **D10** | **Mimo 状态集要做**(得意/萎靡/困倦/深工 + 音乐律动) | §9 |
+| **D11** | 道具 **v1 内嵌帧内**,独立道具 sprite 推 v2 | §9 |
+| ~~Q11~~ | 已被取代:去掉视觉进化轴,永远画最成熟形态(2026-07-20) | §8.3, handoff §8 |
 
 ## 三条最重要的约束(读完就走也要记住这三条)
 
