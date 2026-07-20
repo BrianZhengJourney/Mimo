@@ -12,6 +12,7 @@ APP_SOURCES=(
   companion_physics.swift
   companion_sprite.swift
   companion_window.swift
+  companion_expression.swift
   companion_runtime.swift
   activity_log.swift
   app_menu.swift
