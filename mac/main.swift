@@ -803,7 +803,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         // you end up staring at a familiar that drags but cannot be thrown with
         // no idea which of four preconditions failed.
         func decline(_ reason: String) {
-            NSLog("Mimo companion: staying on the webview path — %@", reason)
+            recordCompanionStatus("webview path — \(reason)")
         }
 
         guard nativeCompanionEnabled() else {
@@ -820,7 +820,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return decline("could not slice the sheet at \(assetURL.lastPathComponent)")
         }
         activeCompanionSpec = spec
-        NSLog("Mimo companion: native layer active, %d frames", sprite.frameCount)
+        recordCompanionStatus("native layer active, \(sprite.frameCount) frames")
 
         companionRuntime.onClick = { [weak self] in
             guard let self else { return }
@@ -833,6 +833,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         // not here — at launch the page has not loaded yet and the call would
         // be silently dropped, leaving the familiar drawn twice.
         syncNativeHosting()
+    }
+
+    /// Records which host owns the familiar, to a file rather than only the
+    /// unified log.
+    ///
+    /// NSLog alone proved undiagnosable here: an ad-hoc signed build produced
+    /// zero retrievable lines, so a silent fallback to the webview looked
+    /// identical to the native layer working. A file always survives.
+    func recordCompanionStatus(_ text: String) {
+        NSLog("Mimo companion: %@", text)
+        let stamped = "\(ISO8601DateFormatter().string(from: Date()))  \(text)\n"
+        let url = logDir.appendingPathComponent("companion-status.txt", isDirectory: false)
+        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+        try? stamped.data(using: .utf8)?.write(to: url, options: [.atomic])
     }
 
     /// The active familiar, if it is a generated raster pack.
