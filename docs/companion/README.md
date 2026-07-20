@@ -11,6 +11,7 @@
 
 | 文件 | 含章节 | 内容 | 谁该读 |
 |---|---|---|---|
+| [SESSION-HANDOFF.md](SESSION-HANDOFF.md) | — | **会话交接:当前进度、下一步、已知缺口、踩过的坑** | **新会话先读这个** |
 | [00-overview-and-decisions.md](00-overview-and-decisions.md) | TL;DR, §0 | 摘要 + **全部已拍板架构决策(D1–D8)** | **所有人先读这个** |
 | [01-shimeji-research.md](01-shimeji-research.md) | §1 | Shimeji 交互模型源码级拆解:行为系统、物理、环境模型、资源包、以及**哪些不该抄** | 想理解"为什么这样设计" |
 | [02-mimo-baseline.md](02-mimo-baseline.md) | §2 | Mimo 现状读码结论 + 瓶颈清单 + 要保住的资产 | 上手改代码前 |

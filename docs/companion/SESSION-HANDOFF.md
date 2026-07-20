@@ -1,0 +1,178 @@
+> 伴灵模式计划 · 会话交接 — [索引](README.md)
+
+# 会话交接(2026-07-20)
+
+给下一个会话看的。**先读这份,再读 [README](README.md)。**
+
+---
+
+## 1. 现在在哪
+
+分支 `feat/companion-runtime`,working tree 干净,**未 push**。
+21 个测试文件全绿,`./mac/build.sh` + `./mac/test.sh` 通过。
+
+已完成 **P00 / P0 / P1 / P3(代码部分)**。跳过了 P2(多屏漫游),未开始 P4。
+
+```
+76edccf fix(companion): stop behavior packs driving stage sheets, and add a gait
+223ba34 feat: always draw the mature form, and report what the familiar is doing
+dce41fd fix(companion): recover a familiar thrown off the screen
+3566ccb feat(generation): add the action sheet retry and spend policy
+86cbbf1 feat(generation): add the action sheet artifact and prompt
+4cd5bb7 feat(generation): slice action sheets into a shared-scale frame strip
+ace2efa feat(generation): measure sheet consistency, thresholds fitted to real data
+68b4b64 refactor(generation): put the image backend behind a provider interface
+9abfbc1 feat(companion): let behavior packs drive the familiar
+e9ae256 feat(companion): add behavior packs and the weighted selector
+2e426a4 feat(companion): add a sandboxed expression language for behavior packs
+```
+(再往前 8 个是文档 commit)
+
+## 2. 眼下正在做的事 ← 从这里继续
+
+**正在设计动作清单。** 这是纯产品设计,零成本,决定后面所有花销。
+
+用户的产品愿景:**每只伴灵要有独特风格** —— 例如一只在颠网球,点她会被打断;或者靠墙时能倚着墙。
+
+已提议的分层(等用户确认):
+
+| 分层 | 帧数 | 内容 |
+|---|---|---|
+| 通用 · 移动姿态 | ~30 | 站立呼吸4 走8 转身2 坐下4 坐着4 起身3 睡4 |
+| 通用 · 被摆弄 | ~22 | 拎着晃6 挣扎6 下落3 落地4 弹跳3 |
+| 通用 · 反应 | ~12 | **被打断5** 看鼠标3 摸头4 |
+| 表面相关 | ~16 | **倚墙4 坐边缘晃腿6** 爬6 |
+| Mimo 状态集 | ~19 | 深工安静4 得意6 萎靡5 困倦4 |
+| 签名集(每只) | 20–25 | 例:颠球10 发球6 接空5 |
+
+合计 **~120–125 帧**,约 11 张 2048² 的 3×4 网格(每格 512px = 输出尺寸),
+low 画质估 **~$0.26 总计**。用户预算 3–5 元/只,够。
+
+**三个待用户回答的问题:**
+1. 签名动作跟**气质**走(6 套共享)还是**每只伴灵**一套?
+2. Mimo 状态集(因摸鱼萎靡/因专注得意)要不要做?那是相对普通桌宠的差异化。
+3. 第一批先验证哪个?(建议"走 8 帧"单张,最常看到、最容易看出帧数够不够)
+
+**用户还没列出网球和倚墙之外想要的签名动作。** 需要继续问。
+
+### 两个设计洞察(别丢)
+
+**过渡帧决定质感。** 站→坐直接切会"啪"一下;真正让它自然的是中间 3–4 帧坐下的过程。行为包已支持链式(`Stand → SitDown → SitIdle`),但过渡帧要单独画。
+
+**同样的帧 + 不同权重 = 不同性格。** "贪玩"= 颠球权重高、链向自己、被打断后很快回去;"沉静"= 同样的帧但权重低、驻留久、被打断后不再继续。**所以签名帧可以做成共享库,不必每只都重新生成。**
+
+### 关于"100+ 帧"的关键重构
+
+用户最初说"要 100 多帧"。我一开始理解成"一个走路循环 100 帧",担心一致性。
+**正确的理解是:~10 个动作 × ~10 帧。** 这个切分对一致性友好得多 ——
+每个动作自己一张图(内部一次前向传播,一致性最强),而且你不会在同一瞬间
+看到两个动作,所以跨图微差不易察觉。**之前"跨调用没有一致性机制"的担忧
+在这个切分下大部分消解了。**
+
+## 3. 已建成且能用的东西
+
+| 层 | 文件 | 作用 |
+|---|---|---|
+| 渲染 | `companion_window.swift` `companion_runtime.swift` | 每显示器一个透明全屏层,CALayer 合成,`NSView.displayLink` 单时钟,per-display HiDPI,**alpha 命中掩码** |
+| 精灵 | `companion_sprite.swift` | 切帧、**从美术推导脚底锚点**、烘焙命中掩码、帧语义标记 |
+| 物理 | `companion_physics.swift` `companion_geometry.swift` | 闭式解积分器、表面容差判定+扫掠、光标 EMA、拖拽阻尼弹簧、**越界自愈** |
+| 表达式 | `companion_expression.swift` | 沙箱表达式语言,`${}`/`#{}` 语义,加载期变量校验 |
+| 行为 | `companion_behavior.swift` `companion_director.swift` | 加权瓮+条件门控+链、显式状态机、加载期图校验 |
+| 行为包 | `mac/assets/behavior/default.json` | 9 行为 12 动作,**改它不用改 Swift** |
+| provider | `pet_provider.swift` | OpenAI/Gemini 双实现、尺寸规则、能力声明 |
+| 一致性 | `consistency_metric.swift` | Vision feature print,**阈值已用真实数据标定** |
+| 动作表 | `action_sheet.swift` `action_sheet_run.swift` | R×C 切分(共享缩放+基线)、重掷与花费策略 |
+
+## 4. 已知缺口(用户的愿景需要这些)
+
+- **道具**:球/书这类独立小物件**完全不存在**。一只伴灵就是一张精灵图。
+  Shimeji 用 `BornTransient` 做短命道具,可照抄思路。**颠球需要它。**
+- **贴墙状态**:墙面在物理层**已存在**,但状态机只有
+  `grounded / airborne / held`,**没有 attached**。加了之后倚墙/爬墙/挂天花板都通。
+- **点击 → 打断**:"抓起来立刻打断"已实现,但**点击**目前接到"打开日志气泡",
+  没走到行为层。改成可被行为包指定的反应行为是小改动。
+- **动作表从未真跑过**:切分器/prompt/闸门/重掷策略全部写好并测好,
+  但**世界上不存在任何一张 9 帧动作表**。磁盘上的 3 帧全是老资产。
+- 表情帧在原生层不会切(恒用报上来的那一帧)。
+- 贴边收起、victory walk 对原生伴灵不生效(仍操作旧 panel)。
+- 墙/天花板碰到只会滑走。
+- 内置像素包仍走旧 WebView 路径(D8:不资产化,但要接行为引擎 —— 未做)。
+
+## 5. 花钱的事(等用户拍板)
+
+**一次都没调用过付费 API。** 用户预算 3–5 元/只伴灵。
+
+建议顺序:先设计清单(零成本)→ 补道具和贴墙(零成本)→
+**挑一个动作生成一张验证 low 画质够不够**(~$0.05)→ 验证通过再批量。
+
+`ActionSheetRunPolicy`:自动重掷上限 3 次 + 独立于配置的硬天花板。
+DEBUG 构建保留全部尝试(用于验证"3 次"这个数字是否合理)。
+
+## 6. 昂贵的教训 —— 别重新踩
+
+**一致性度量的距离尺度是 8–29,不是 0–1。** 我最初凭直觉写 `0.55/0.9`,
+那会拒绝掉有史以来生成的每一张图。已标定值:`pass 9.0 / fail 13.0`,
+且有测试把它钉在实测尺度上。
+
+**标定时差点测错对象。** 第一次比"进化阶段之间"的距离,结论是 Vision 几乎
+无信息量(95.2% 准确率 vs 92.3% 朴素基线),差点据此去打包 CoreML DINOv2。
+**但阶段本来就该不同。** 换成同阶段的表情表重测,立刻干净分离:
+可容忍 ≤7.90 / 不同角色 ≥11.14。**推论:格子只能与同一阶段的基准比较。**
+
+**两家 provider 都没有 seed。** 所以一致性只能"生成后验证并修复",
+不能"事前保证"。这是整个度量循环存在的理由。
+
+**gpt-image-2 不支持透明背景**(相对 gpt-image-1 的回退),alpha 靠 matte 抠图。
+尺寸规则:长边≤3840、边长16倍数、比例≤3:1、总像素∈[655360, 8294400]。
+**最大正方形约 2880²。** `/v1/images/edits` 的默认 model 是 `gpt-image-1.5`,
+所以显式指定 model 是必需的。
+
+**"nano banana 一致性更好"未获证实**,唯一可核实的公开榜单反而指向 gpt-image-2
+(但测的是通用编辑,不是跨帧身份)。**用自己的角色跑 A/B,别凭口碑。**
+
+**同一个 frameIndex 在三种图里含义不同** —— 基础表=阶段、表情表=表情、
+动作表=姿势。混用导致过"出场是最高形态、落地变初生"。已用
+`CompanionFrameSemantics` 修复:**只有动作表的帧允许被行为包驱动。**
+
+**deepWork 会门控掉漫游** —— 写代码的人永远看不到自己做的漫游功能,
+而桌宠用户里程序员占比很高。**这是个未解决的产品问题。**
+
+## 7. 操作须知
+
+**Claude 每次改完自己 build + test。用户只需退出重开:**
+```
+pkill -f "Mimo.app/Contents/MacOS/Mimo"; sleep 1; open "mac/build/Mimo.app"
+```
+**`open` 对已在运行的 app 只会拉到前台,不会用新二进制重启。** 踩过。
+
+**`log show` 对这个 ad-hoc 签名的 app 返回 0 行。** 用状态文件:
+```
+cat ~/Library/Application\ Support/Mimo/companion-status.txt
+```
+会显示 `Stand [state=grounded mood=focused focus=3m]`。三种"不动"能区分:
+`no behavior pack loaded`(真 bug)/ `nothing selectable`(条件全门控掉了)/
+`QuietBreathe [mood=deepWork]`(正确地不打扰)。
+
+**当前伴灵存在 UserDefaults 的 `character` 键**(值形如 `custom:UUID`),
+**不是** `customPetSpec`(那只用于 prototype)。踩过一整轮。
+
+**逃生阀**:`defaults write com.brianzheng.mimo companionNativeRuntime -bool false`
+强制所有伴灵回到 WebView 路径。
+
+**用户偏好:Claude 只 build 不启动 app,由用户自己跑。** 破例过一次(为确诊),
+已致歉。
+
+**测试的 `// sources:` 声明在文件第一行**,加新源文件时要同步更新,
+否则测试会响亮失败(这是设计如此)。
+
+## 8. 已拍板决策速查
+
+D1 原生 CALayer · D2 N 帧行为包 · D3 窗口地形推后 P4 · D4 两家 provider 都实现
+D5 绿幕 matte(**未实施**)· D6 deepWork 安静 · D7 T1 领养后自动生成
+D8 代码绘制角色不资产化但接行为引擎(**未实施**)
+
+**新增(本会话)**:去掉视觉进化轴,永远画最成熟形态;XP/等级保留为专注计数,
+不再改变长相。生成 prompt 从"三个进化阶段"改为"同一形态的三次独立绘制"
+(同样成本,换来冗余而非两个没人看的形态)。
+
+仍待拍板:Q2 窗口交互边界 · Q4 多实例上限 · Q11 已被上一条取代
