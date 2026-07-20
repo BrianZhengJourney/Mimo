@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // Behavior packs: what a companion does when nobody is touching it.

@@ -14,6 +14,7 @@ APP_SOURCES=(
   companion_window.swift
   companion_expression.swift
   companion_behavior.swift
+  companion_director.swift
   companion_runtime.swift
   activity_log.swift
   app_menu.swift

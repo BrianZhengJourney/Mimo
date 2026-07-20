@@ -22,6 +22,7 @@ cp Info.plist "$APP/Contents/"
 cp overlay.html settings.html "$APP/Contents/Resources/"
 cp AppIcon.icns "$APP/Contents/Resources/"
 cp -R assets/style-reference "$APP/Contents/Resources/style-reference"
+cp -R assets/behavior "$APP/Contents/Resources/behavior"
 
 frameworks=()
 for framework in "${APP_FRAMEWORKS[@]}"; do frameworks+=(-framework "$framework"); done

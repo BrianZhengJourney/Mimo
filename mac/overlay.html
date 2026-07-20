@@ -1083,7 +1083,14 @@ const Mascot = (() => {
     }
     bridge({ type:'companionArt', stage: stage,
              expression: hasExpressions ? expression : 0,
-             hasExpressions: hasExpressions });
+             hasExpressions: hasExpressions,
+             /* Mimo's semantic layer. Behavior packs gate on these, so the
+                companion goes quiet during deep work by condition rather than
+                by a hardcoded rule in Swift. */
+             mood: current || 'idle',
+             focusMinutes: Fam.streakMin ? Fam.streakMin() : 0,
+             streakMinutes: Fam.streakMin ? Fam.streakMin() : 0,
+             level: +(document.body.dataset.famLevel || 1) });
   }
   function stopBlink(){
     clearTimeout(blinkTimer);

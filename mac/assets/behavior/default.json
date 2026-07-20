@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+
+  "_comment": [
+    "Default behavior pack. Every generated familiar falls back to this until",
+    "it ships its own.",
+    "",
+    "Authored against three frames, because that is what the generation",
+    "pipeline produces today (see docs/companion/04-generation-and-consistency.md).",
+    "Motion therefore comes from velocity plus the runtime's procedural",
+    "transforms rather than from a drawn walk cycle. When action sheets land in",
+    "P3b, the Walk animation gains real frames and nothing else here changes.",
+    "",
+    "Durations are seconds and velocities are px/second. Shimeji counts ticks,",
+    "which bakes its 25fps into every pack.",
+    "",
+    "The quiet set is not decoration: D6 says the companion stays silent during",
+    "deep work. That is expressed as a condition on mimo.mood, not as a global",
+    "if — same shape as Shimeji's environment gating, over Mimo's semantic layer."
+  ],
+
+  "actions": [
+    {
+      "name": "Stand",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${1.5 + random() * 3}",
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 2.0, "velocity": [0, 0] } ] }
+      ]
+    },
+    {
+      "name": "LookAround",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${2 + random() * 2}",
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 1.4, "velocity": [0, 0] } ] }
+      ]
+    },
+    {
+      "name": "Sit",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${4 + random() * 8}",
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 2.5, "velocity": [0, 0] } ] }
+      ]
+    },
+    {
+      "name": "WalkLeft",
+      "type": "move",
+      "requires": "grounded",
+      "targetX": "${world.display.workArea.left + 80 + random() * 220}",
+      "duration": "${3 + random() * 5}",
+      "animations": [
+        { "poses": [
+          { "frame": 0, "hold": 0.18, "velocity": [-46, 0] },
+          { "frame": 0, "hold": 0.18, "velocity": [-46, 0] }
+        ] }
+      ]
+    },
+    {
+      "name": "WalkRight",
+      "type": "move",
+      "requires": "grounded",
+      "targetX": "${world.display.workArea.right - 80 - random() * 220}",
+      "duration": "${3 + random() * 5}",
+      "animations": [
+        { "poses": [
+          { "frame": 0, "hold": 0.18, "velocity": [46, 0] },
+          { "frame": 0, "hold": 0.18, "velocity": [46, 0] }
+        ] }
+      ]
+    },
+    {
+      "name": "Wander",
+      "type": "move",
+      "requires": "grounded",
+      "targetX": "${world.display.workArea.left + 60 + random() * (world.display.workArea.right - world.display.workArea.left - 120)}",
+      "duration": "${4 + random() * 6}",
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 0.2, "velocity": [34, 0] } ] }
+      ]
+    },
+
+    {
+      "name": "QuietBreathe",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${8 + random() * 14}",
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 3.0, "velocity": [0, 0] } ] }
+      ]
+    },
+    {
+      "name": "GlanceAtYou",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${1 + random() * 1.5}",
+      "animations": [
+        { "poses": [ { "frame": 1, "hold": 1.2, "velocity": [0, 0] } ] }
+      ]
+    },
+
+    {
+      "name": "Slump",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${5 + random() * 6}",
+      "animations": [
+        { "poses": [ { "frame": 2, "hold": 2.2, "velocity": [0, 0] } ] }
+      ]
+    },
+
+    { "name": "Fall",    "type": "embedded", "requires": "airborne", "impl": "fall" },
+    { "name": "Dragged", "type": "embedded", "requires": "held",     "impl": "dragged" },
+    { "name": "Thrown",  "type": "embedded", "requires": "airborne", "impl": "thrown" }
+  ],
+
+  "behaviors": [
+    {
+      "name": "Stand",
+      "frequency": 100,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "next": { "additive": true, "refs": [
+        { "name": "WalkLeft",   "frequency": 60 },
+        { "name": "WalkRight",  "frequency": 60 },
+        { "name": "LookAround", "frequency": 40 },
+        { "name": "Sit",        "frequency": 35 }
+      ] }
+    },
+    {
+      "name": "LookAround",
+      "frequency": 40,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "next": { "additive": true, "refs": [
+        { "name": "Wander", "frequency": 70 },
+        { "name": "Stand",  "frequency": 40 }
+      ] }
+    },
+    {
+      "name": "WalkLeft",
+      "frequency": 45,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "next": { "additive": true, "refs": [
+        { "name": "Stand", "frequency": 80 },
+        { "name": "Sit",   "frequency": 30 }
+      ] }
+    },
+    {
+      "name": "WalkRight",
+      "frequency": 45,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "next": { "additive": true, "refs": [
+        { "name": "Stand", "frequency": 80 },
+        { "name": "Sit",   "frequency": 30 }
+      ] }
+    },
+    {
+      "name": "Wander",
+      "frequency": 30,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "next": { "additive": true, "refs": [
+        { "name": "Stand",      "frequency": 70 },
+        { "name": "LookAround", "frequency": 30 }
+      ] }
+    },
+
+    {
+      "name": "Sit",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "Sit",   "frequency": 100 },
+        { "name": "Stand", "frequency": 6 }
+      ] }
+    },
+
+    {
+      "name": "QuietBreathe",
+      "frequency": 300,
+      "when": "#{self.state == 'grounded' && mimo.mood == 'deepWork'}",
+      "next": { "additive": true, "refs": [
+        { "name": "QuietBreathe", "frequency": 100 },
+        { "name": "GlanceAtYou",  "frequency": 8 }
+      ] }
+    },
+    {
+      "name": "GlanceAtYou",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "QuietBreathe", "frequency": 100 }
+      ] }
+    },
+
+    {
+      "name": "Slump",
+      "frequency": 200,
+      "when": "#{self.state == 'grounded' && (mimo.mood == 'poisoned' || mimo.mood == 'dizzy')}",
+      "next": { "additive": true, "refs": [
+        { "name": "Slump", "frequency": 100 }
+      ] }
+    }
+  ]
+}

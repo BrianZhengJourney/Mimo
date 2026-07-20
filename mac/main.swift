@@ -827,12 +827,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if self.hidden { self.unhide() } else { self.showContext() }
         }
         companionRuntime.onRightClick = { [weak self] in self?.showCompanionMenu() }
+        companionRuntime.setBehaviorPack(loadDefaultBehaviorPack())
         companionRuntime.start()
         companionRuntime.spawn(sprite: sprite)
         // The webview is told to hide its own stage in webView(_:didFinish:),
         // not here — at launch the page has not loaded yet and the call would
         // be silently dropped, leaving the familiar drawn twice.
         syncNativeHosting()
+    }
+
+    /// The behaviour pack every familiar runs until it ships its own.
+    ///
+    /// A malformed pack must not take the companion down with it: the loader's
+    /// error is recorded and the familiar simply stands still, which is far
+    /// easier to diagnose than Shimeji's response to a bad config, where the
+    /// mascot silently rains from the top of the screen.
+    func loadDefaultBehaviorPack() -> CompanionBehaviorPack? {
+        guard let url = Bundle.main.url(forResource: "default", withExtension: "json",
+                                        subdirectory: "behavior") else {
+            recordCompanionStatus("no default behavior pack in the bundle")
+            return nil
+        }
+        do {
+            return try CompanionBehaviorPack.load(data: Data(contentsOf: url))
+        } catch {
+            recordCompanionStatus("default behavior pack rejected: \(error)")
+            return nil
+        }
     }
 
     /// Records which host owns the familiar, to a file rather than only the
@@ -1170,6 +1191,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             updateCompanionArt(stage: body["stage"] as? Int ?? 0,
                                expression: body["expression"] as? Int ?? 0,
                                hasExpressions: body["hasExpressions"] as? Bool ?? false)
+            // Behaviour packs gate on these, so the companion can go quiet
+            // during deep work without any of that logic living in Swift.
+            if let mood = body["mood"] as? String { companionRuntime.mood = mood }
+            if let focus = body["focusMinutes"] as? NSNumber {
+                companionRuntime.focusMinutes = focus.doubleValue
+            }
+            if let streak = body["streakMinutes"] as? NSNumber {
+                companionRuntime.streakMinutes = streak.doubleValue
+            }
+            if let level = body["level"] as? NSNumber {
+                companionRuntime.level = level.doubleValue
+            }
         case "ctxMenu":
             showCompanionMenu()
         case "log":

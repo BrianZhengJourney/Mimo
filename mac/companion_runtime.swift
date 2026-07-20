@@ -38,6 +38,13 @@ final class Companion {
     /// Seconds since landing, driving the squash-and-stretch recovery.
     var landingElapsed: CGFloat = .greatestFiniteMagnitude
 
+    /// Decides what to do when nobody is touching it. Nil until a pack loads,
+    /// in which case the companion simply stands where it is.
+    var director: CompanionDirector?
+    var groundedSeconds: CGFloat = 0
+    var airborneSeconds: CGFloat = 0
+    var heldSeconds: CGFloat = 0
+
     init(sprite: CompanionSprite, displayHeight: CGFloat, anchor: CGPoint) {
         self.sprite = sprite
         self.displayHeight = displayHeight
@@ -85,6 +92,15 @@ final class CompanionRuntime {
     private var lastTimestamp: CFTimeInterval = 0
     private var held: Companion?
     private var observingScreens = false
+    private var behaviorPack: CompanionBehaviorPack?
+
+    /// Mimo's semantic layer, pushed from the focus engine. Behaviour packs
+    /// gate on these, which is what lets the companion go quiet during deep
+    /// work without a global if — Shimeji has no equivalent input.
+    var mood: String = "idle"
+    var focusMinutes: Double = 0
+    var streakMinutes: Double = 0
+    var level: Double = 1
 
     /// Raised on a click that was a click, not a drag.
     var onClick: (() -> Void)?
@@ -193,6 +209,7 @@ final class CompanionRuntime {
         let companion = Companion(sprite: sprite,
                                   displayHeight: Self.defaultDisplayHeight,
                                   anchor: start)
+        companion.director = behaviorPack.map { CompanionDirector(pack: $0) }
         companions.append(companion)
         reattachLayers()
         commit(companion)
@@ -258,6 +275,7 @@ final class CompanionRuntime {
         // Phase 2 — advance logic.
         if let companion = held {
             if mouseDown {
+                companion.heldSeconds += dt
                 advanceHeld(companion, dt: dt)
             } else {
                 release(companion)
@@ -296,15 +314,18 @@ final class CompanionRuntime {
             // Ground can disappear — a display unplugged, a work area resized.
             // Losing it is an ordinary transition here, not the exception
             // Shimeji throws (LostGroundException).
-            if let surface = world.surface(with: id), surface.contains(companion.anchor) {
-                return
+            guard let surface = world.surface(with: id), surface.contains(companion.anchor) else {
+                companion.state = .airborne
+                companion.integrator.velocity = .zero
+                break
             }
-            companion.state = .airborne
-            companion.integrator.velocity = .zero
+            companion.groundedSeconds += dt
+            walk(companion, on: surface, dt: dt, world: world)
+            return
         case .held:
             return
         case .airborne:
-            break
+            companion.airborneSeconds += dt
         }
 
         switch companion.integrator.step(from: companion.anchor, dt: dt, in: world) {
@@ -315,11 +336,92 @@ final class CompanionRuntime {
             if world.surface(with: id)?.kind == .floor {
                 companion.state = .grounded(id)
                 companion.landingElapsed = 0
+                companion.groundedSeconds = 0
+                companion.airborneSeconds = 0
+                companion.director?.reset()
             } else {
                 // Walls and ceilings have no cling behaviour until the behavior
                 // system lands; slide rather than stick to them.
                 companion.state = .airborne
             }
+        }
+    }
+
+    /// Runs the behaviour pack for a grounded companion and walks it.
+    ///
+    /// Movement is applied along the surface: y stays pinned to the floor, so a
+    /// walk cannot drift off it, and reaching either end of the span ends the
+    /// action rather than stepping into space.
+    private func walk(_ companion: Companion, on surface: Surface,
+                      dt: CGFloat, world: SurfaceSet) {
+        guard let director = companion.director else { return }
+        let intent = director.update(dt: Double(dt), snapshot: snapshot(for: companion, world: world))
+        companion.frameIndex = min(max(intent.frame, 0), companion.sprite.frameCount - 1)
+        companion.facingRight = intent.facingRight
+
+        guard intent.embedded == nil, intent.velocity.dx != 0 else { return }
+
+        let next = companion.anchor.x + intent.velocity.dx * dt
+        let margin: CGFloat = 4
+        let lower = surface.span.lowerBound + margin
+        let upper = surface.span.upperBound - margin
+        guard lower <= upper else { return }
+
+        if next < lower || next > upper {
+            // Walked into the edge of the world. Stop here and let the pack
+            // choose again rather than sliding along the boundary.
+            companion.anchor.x = min(max(next, lower), upper)
+            director.reset()
+            return
+        }
+        companion.anchor.x = next
+        companion.anchor.y = surface.position
+    }
+
+    /// The world as a behaviour pack is allowed to see it.
+    private func snapshot(for companion: Companion, world: SurfaceSet) -> CompanionSnapshot {
+        var snapshot = CompanionSnapshot()
+        switch companion.state {
+        case .grounded: snapshot.state = "grounded"
+        case .airborne: snapshot.state = "airborne"
+        case .held: snapshot.state = "held"
+        }
+        snapshot.anchorX = Double(companion.anchor.x)
+        snapshot.anchorY = Double(companion.anchor.y)
+        snapshot.lookRight = companion.facingRight
+        snapshot.footX = Double(companion.spring.offset)
+        snapshot.heldSeconds = Double(companion.heldSeconds)
+        snapshot.groundedSeconds = Double(companion.groundedSeconds)
+        snapshot.airborneSeconds = Double(companion.airborneSeconds)
+        snapshot.cursorX = Double(cursor.position.x)
+        snapshot.cursorY = Double(cursor.position.y)
+        snapshot.cursorDX = Double(cursor.velocity.dx)
+        snapshot.cursorDY = Double(cursor.velocity.dy)
+
+        let screen = NSScreen.screens.first { $0.frame.contains(companion.anchor) } ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? .zero
+        snapshot.displayWidth = Double(visible.width)
+        snapshot.displayHeight = Double(visible.height)
+        snapshot.workAreaLeft = Double(visible.minX)
+        snapshot.workAreaRight = Double(visible.maxX)
+        snapshot.workAreaTop = Double(visible.maxY)
+        snapshot.workAreaBottom = Double(visible.minY)
+
+        snapshot.companionCount = Double(companions.count)
+        snapshot.mood = mood
+        snapshot.focusMinutes = focusMinutes
+        snapshot.streakMinutes = streakMinutes
+        snapshot.level = level
+        snapshot.isIdle = mood == "idle"
+        return snapshot
+    }
+
+    /// Installs the pack every companion runs. Existing companions adopt it
+    /// immediately so switching packs does not need a respawn.
+    func setBehaviorPack(_ pack: CompanionBehaviorPack?) {
+        behaviorPack = pack
+        for companion in companions {
+            companion.director = pack.map { CompanionDirector(pack: $0) }
         }
     }
 
@@ -352,6 +454,9 @@ final class CompanionRuntime {
         companion.grabOffset = CGVector(dx: companion.anchor.x - point.x,
                                         dy: companion.anchor.y - point.y)
         companion.spring.reset()
+        companion.heldSeconds = 0
+        // The pack does not get to argue with the cursor.
+        companion.director?.reset()
         held = companion
         pressAnchor = point
         pressWasDrag = false
@@ -411,6 +516,13 @@ final class CompanionRuntime {
     /// with only the three generated frames still reads as alive.
     private func presentationTransform(for companion: Companion) -> CATransform3D {
         var transform = CATransform3DIdentity
+
+        // Sprites are authored facing one way; the other is a mirror. This is
+        // also why the anchor is stored in cell space — reflecting it is
+        // `width - anchorX`, so an asymmetric figure still stands on its feet.
+        if companion.facingRight {
+            transform = CATransform3DConcat(CATransform3DMakeScale(-1, 1, 1), transform)
+        }
 
         if companion.state == .held {
             // The spring output is a horizontal lag in points; as a shear it
