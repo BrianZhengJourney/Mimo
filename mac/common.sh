@@ -26,6 +26,7 @@ APP_SOURCES=(
   reference_preprocessor.swift
   main.swift
   product.swift
+  consistency_metric.swift
   pet_provider.swift
   pet_generation.swift
 )
