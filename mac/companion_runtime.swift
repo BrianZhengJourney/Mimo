@@ -286,6 +286,8 @@ final class CompanionRuntime {
             recoverIfLost(companion)
         }
 
+        reportBehaviorIfChanged()
+
         // Phase 3 — commit presentation.
         for companion in companions { commit(companion) }
         updateClickThrough(mouseDown: mouseDown)
@@ -426,6 +428,24 @@ final class CompanionRuntime {
         }
     }
 
+    /// Reports what the companion is doing, when it changes.
+    private func reportBehaviorIfChanged() {
+        guard let companion = companions.first else { return }
+        let state: String
+        switch companion.state {
+        case .grounded: state = "grounded"
+        case .airborne: state = "airborne"
+        case .held: state = "held"
+        }
+        let behavior = companion.director == nil
+            ? "no behavior pack loaded"
+            : (companion.director?.currentBehaviorName ?? "nothing selectable")
+        let line = "\(behavior)  [state=\(state) mood=\(mood) focus=\(Int(focusMinutes))m]"
+        guard line != lastReportedBehavior else { return }
+        lastReportedBehavior = line
+        onBehaviorChanged?(line)
+    }
+
     /// Puts a companion back if it has left the world.
     ///
     /// Runs every frame rather than only on a display change, because the way
@@ -447,6 +467,16 @@ final class CompanionRuntime {
 
     /// Raised when a companion had to be rescued, so it is never silent.
     var onRecovered: ((String) -> Void)?
+
+    /// Raised when the running behaviour changes, so what the companion is
+    /// doing and why is answerable from outside.
+    ///
+    /// Without this, "it isn't moving" has several indistinguishable causes:
+    /// no pack loaded, a pack that loaded but gates everything off, or the
+    /// companion correctly staying quiet because the user is in deep work.
+    /// Guessing between them cost a debugging round.
+    var onBehaviorChanged: ((String) -> Void)?
+    private var lastReportedBehavior: String?
 
     private func release(_ companion: Companion) {
         companion.state = .airborne

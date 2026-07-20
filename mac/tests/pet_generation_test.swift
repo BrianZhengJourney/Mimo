@@ -180,8 +180,18 @@ struct PetGenerationTests {
 
         let prompt = PetGenerationCoordinator.characterSheetPrompt(
             personalityVisual: "a quiet observant silhouette", likeness: 0.7)
-        expect(prompt.contains("LEFT — SEED") && prompt.contains("CENTER — BLOOM") && prompt.contains("RIGHT — RADIANT"),
-               "prompt must lock the three evolution stages and order")
+        // Evolution stages are gone. They were a visual axis that fought the
+        // one that matters: the earliest stage is the most chibi and so the
+        // least like the person it came from, and it is the first one anyone
+        // sees. The three panels are now three takes of one mature form, which
+        // costs the same call and buys redundancy instead of two forms nobody
+        // will ever look at.
+        expect(prompt.contains("THREE TAKES OF ONE FORM"),
+               "the sheet must ask for one form, not a progression")
+        expect(prompt.contains("not three ages, not three sizes"),
+               "and say plainly that it is not a progression")
+        expect(!prompt.contains("SEED") && !prompt.contains("RADIANT"),
+               "stage vocabulary must not survive anywhere in the prompt")
         expect(prompt.contains("#F1ECE2"), "prompt must request the extraction matte")
         expect(prompt.contains("No gradient") && prompt.contains("cast shadow"),
                "prompt must exclude effects that Mimo adds locally")

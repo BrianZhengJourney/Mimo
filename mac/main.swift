@@ -830,6 +830,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         companionRuntime.onRecovered = { [weak self] reason in
             self?.recordCompanionStatus("recovered — \(reason)")
         }
+        companionRuntime.onBehaviorChanged = { [weak self] line in
+            self?.recordCompanionStatus(line)
+        }
         companionRuntime.setBehaviorPack(loadDefaultBehaviorPack())
         companionRuntime.start()
         companionRuntime.spawn(sprite: sprite)

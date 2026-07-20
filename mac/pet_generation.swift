@@ -887,13 +887,13 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         each equal third. Front-facing neutral standing pose, eyes open, feet fully visible, same horizontal center and same
         ground baseline in every panel. Keep generous clear margin. No dividers and no labels.
 
-        EVOLUTION
-        LEFT — SEED: youngest and smallest form; round, simple silhouette; fewest details.
-        CENTER — BLOOM: unmistakably the same individual; slightly taller and more confident; signature feature grows.
-        RIGHT — RADIANT: unmistakably the same individual; clearest evolved silhouette with a crest, ear, leaf, tail, wing,
-        or luminous body-marking flourish; powerful but still tiny and cute.
-        Lock the same face, species, hairstyle or markings, primary palette, outfit colors, and signature trait across all
-        three. Evolve silhouette and internal markings—never create three different people, species, poses, or outfits.
+        THREE TAKES OF ONE FORM
+        All three panels show the SAME single mature form of the familiar — not three ages, not three sizes.
+        Draw it three times independently at the same scale, the same camera distance, the same eye level, the same
+        light direction, and the same palette. Panels may differ only in the incidental way two drawings of one
+        character differ; a viewer must read them as three takes of one design, never as a progression.
+        Do not make any panel younger, smaller, rounder, simpler, or more evolved than the others.
+        Mimo keeps the take that best matches the identity reference and discards the rest.
 
         EXTRACTION MATTE
         Use one flat opaque warm matte background, exact color #F1ECE2, across the whole canvas. No gradient, texture,
@@ -1070,15 +1070,13 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         The approved subject is the familiar itself: no companion, pet, sidekick, mini mascot, secondary creature, toy,
         doll, duplicate, or separate character may appear beside any stage.
 
-        EVOLUTION
-        LEFT — SEED: youngest form; simplest silhouette and fewest details. Express youth through detail count and
-        silhouette simplicity ONLY. Do not express it by shrinking the body, enlarging the head, or rounding the
-        face — for a person subject the proportions above hold at every stage, and a seed that is merely a chibi
-        version of the same character is the least recognisable of the three while being the first one seen.
-        CENTER — BLOOM: unmistakably the approved individual; slightly taller and confident; signature feature grows.
-        RIGHT — RADIANT: unmistakably the approved individual; clearest evolved silhouette with one restrained crest,
-        ear, leaf, tail, wing, or luminous body-marking flourish; powerful but still tiny and cute.
-        Evolve silhouette and internal markings only. Never change identity, species, pose, outfit, or primary palette.
+        THREE TAKES OF ONE FORM
+        All three panels show the SAME single mature form of the familiar — not three ages, not three sizes.
+        Draw it three times independently at the same scale, the same camera distance, the same eye level, the same
+        light direction, and the same palette. Panels may differ only in the incidental way two drawings of one
+        character differ; a viewer must read them as three takes of one design, never as a progression.
+        Do not make any panel younger, smaller, rounder, simpler, or more evolved than the others.
+        Mimo keeps the take that best matches the identity reference and discards the rest.
 
         MIMO STYLE AND MATTE
         Premium handcrafted pixel-inspired sprite art readable at 140–220 px tall: crisp stepped edges, restrained

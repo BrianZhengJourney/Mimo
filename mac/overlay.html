@@ -1034,15 +1034,25 @@ const Mascot = (() => {
     });
     return { body, depth };
   };
+  /* Which stage's art to draw.
+     Always the most developed form. Evolution stages were a visual axis that
+     fought the thing that actually matters: for a familiar generated from a
+     person, the earliest stage is the most chibi and therefore the least like
+     them — and it is the first one anyone sees. XP and level survive as a
+     measure of focus; they just no longer change what the familiar looks like.
+     See docs/companion/08-likeness-and-demeanor.md §8.3. */
+  const MATURE_STAGE = 2;
+  const stageForLevel = () => MATURE_STAGE;
+
   const rowsForLevel = (pack, level) => {
     const forms = pack.EVOLUTION_BASES;
     if (!Array.isArray(forms) || !forms.length) return pack.BASE;
-    const index = level >= 4 ? 2 : level >= 2 ? 1 : 0;
+    const index = stageForLevel();
     return forms[Math.min(index, forms.length - 1)] || pack.BASE;
   };
   const artForLevel = (pack, level) => {
     if (pack.RASTER_SHEET) {
-      const stage=level>=4?2:level>=2?1:0;
+      const stage=stageForLevel();
       // A stage with an expression sheet uses ONLY that sheet: frame 0
       // (NEUTRAL) is its idle art, 1 = JOY, 2 = REST. All three frames share
       // one normalized scale + baseline, so swaps can't jitter.
@@ -1067,14 +1077,13 @@ const Mascot = (() => {
   }
 
   /* Tells the native companion layer which art to draw.
-     It cannot work this out alone: the base sheet's three cells are evolution
-     stages while an expression sheet's three cells are NEUTRAL/JOY/REST, and
-     the level that picks the stage lives here, not in Swift. Without this the
-     native layer would sit on the seed form forever. */
+     It cannot work this out alone: the base sheet's cells are stages while an
+     expression sheet's three cells are NEUTRAL/JOY/REST, so which sheet is in
+     play decides what the frame index means, and the expression is chosen
+     here. The stage is now always the mature one (see stageForLevel). */
   function reportCompanionArt(expressionFrame){
     if (!pack || !pack.RASTER_SHEET) return;
-    const level = +(document.body.dataset.famLevel || 1);
-    const stage = level >= 4 ? 2 : level >= 2 ? 1 : 0;
+    const stage = stageForLevel();
     const hasExpressions = !!(refs && refs._full && refs._full.hasExpressions);
     let expression = expressionFrame;
     if (typeof expression !== 'number') {
@@ -1187,6 +1196,8 @@ const Mascot = (() => {
     reportCompanionArt();
   }
 
+  /* Kept so the level badge and any celebration still fire, but the art it
+     rebuilds is now the same mature form at every level. */
   function setEvolution(level){
     if (!refs || !pack) return;
     const rows=pack.RASTER_SHEET?null:rowsForLevel(pack,level);
