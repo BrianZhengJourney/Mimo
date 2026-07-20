@@ -43,7 +43,74 @@ func requireRequest(_ request: URLRequest?, _ what: String) -> URLRequest {
 
 @main
 struct PetGenerationTests {
+    /// Collapses whitespace so an assertion survives someone rewrapping a
+    /// paragraph. Prompt line breaks are formatting, not meaning.
+    static func flattened(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    // MARK: - Action sheet (P3b)
+
+    /// Nine poses in one call, because neither backend exposes a seed and a
+    /// single forward pass — where the model sees every other cell while
+    /// drawing each one — is the only strong consistency mechanism available.
+    static func testActionSheetRequestIsOneCallForNinePoses() {
+        guard let request = PetGenerationCoordinator.actionSheetRequest(
+            stage: .bloom,
+            stageFrameData: Data("LOCKED_STAGE".utf8),
+            styleBoardData: Data("STYLE_BYTES".utf8),
+            personalityVisual: "Quiet and curious",
+            apiKey: "KEY",
+            boundary: "ACTIONBOUND") else {
+            preconditionFailure("action sheet request should build")
+        }
+        let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+        let flat = flattened(body)
+
+        expect(body.contains("name=\"size\"\r\n\r\n2048x2048\r\n"),
+               "action sheets go out at 2048x2048 for per-cell resolution")
+        expect(body.contains("LOCKED_STAGE"), "the locked stage design is attached")
+        expect(body.contains("locked-stage-design.png"), "and is the first reference")
+        expect(flat.contains("exactly NINE panels in a strict 3x3 grid"),
+               "the grid is stated explicitly")
+    }
+
+    /// Poses are described physically rather than labelled. A model follows
+    /// "weight over the front foot" far better than "walk frame 2".
+    static func testActionPosesAreDescribedPhysically() {
+        let prompt = flattened(PetGenerationCoordinator.actionSheetPrompt(
+            stage: .bloom, personalityVisual: "Quiet and curious", hasStyleBoard: true))
+        expect(prompt.contains("ROW 1, COLUMN 1"), "cells are addressed by position")
+        expect(prompt.contains("ROW 3, COLUMN 3"), "all nine cells are addressed")
+        expect(prompt.contains("weight over the front foot"),
+               "walk poses are described by weight, not numbered")
+        expect(!prompt.contains("walkA"), "internal case names must not leak into the prompt")
+        for pose in PetActionPose.allCases {
+            expect(prompt.contains(flattened(pose.direction)), "pose \(pose.rawValue) is described")
+        }
+    }
+
+    /// The failure this artifact exists to avoid. Nine panels that each look
+    /// fine but differ in scale or lighting produce a walk cycle that pops.
+    static func testActionSheetPromptDemandsCrossPanelConsistency() {
+        let prompt = flattened(PetGenerationCoordinator.actionSheetPrompt(
+            stage: .seed, personalityVisual: "Brave and loyal", hasStyleBoard: false))
+        expect(prompt.contains("CONSISTENCY IS THE PRIMARY REQUIREMENT"),
+               "consistency is stated as the primary requirement")
+        expect(prompt.contains("same SIZE in every"), "size is held constant across panels")
+        expect(prompt.contains("common invisible ground line"),
+               "a shared ground line keeps feet on one baseline")
+        expect(prompt.contains("never a redesign"),
+               "the model is told not to improve the design between panels")
+        expect(prompt.contains("#F1ECE2"), "the extraction matte is specified")
+        expect(prompt.contains("No dividers, labels, numbers, captions, arrows"),
+               "model-sheet annotations are refused; they survive matte removal as specks")
+    }
+
     static func main() {
+        testActionSheetRequestIsOneCallForNinePoses()
+        testActionPosesAreDescribedPhysically()
+        testActionSheetPromptDemandsCrossPanelConsistency()
         let first = "data:image/png;base64," + String(repeating: "A", count: 240)
         let second = String(repeating: "B", count: 240)
         let opaquePixelLabResponse: [String: Any] = [

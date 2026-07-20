@@ -271,16 +271,65 @@ enum PetImageOutputSize: String {
     }
 }
 
+/// The nine poses a T1 action sheet carries.
+///
+/// Chosen to be the smallest set that makes a companion read as alive under
+/// the behaviour engine: a walk cycle it can loop, the dangle that sells being
+/// held, and the fall-and-land that sells being thrown. Sitting and looking
+/// are T2 — pleasant, but a companion without them is not obviously broken.
+enum PetActionPose: Int, CaseIterable {
+    case standIdle = 0
+    case walkA = 1
+    case walkB = 2
+    case walkC = 3
+    case walkD = 4
+    case draggedHigh = 5
+    case draggedLow = 6
+    case falling = 7
+    case landed = 8
+
+    /// Written as physical description rather than as a label, because a model
+    /// follows "weight forward over the leading foot" far better than "walk 2".
+    var direction: String {
+        switch self {
+        case .standIdle:
+            return "standing at rest, weight settled, arms relaxed at the sides"
+        case .walkA:
+            return "mid-stride with the near leg forward and the far leg back, weight over the front foot"
+        case .walkB:
+            return "passing position, legs together beneath the body, body at its highest"
+        case .walkC:
+            return "mid-stride mirrored: far leg forward, near leg back, weight over the front foot"
+        case .walkD:
+            return "passing position again, legs together, a fraction lower than the other passing pose"
+        case .draggedHigh:
+            return "hanging from an unseen grip at the scruff, body swung to its own left, feet trailing"
+        case .draggedLow:
+            return "hanging from the same unseen grip, body swung to its own right, feet trailing the other way"
+        case .falling:
+            return "falling, limbs loose and trailing upward, body slightly tilted"
+        case .landed:
+            return "just landed, knees bent and body compressed, absorbing the impact"
+        }
+    }
+}
+
 enum PetGenerationArtifact: Equatable {
     case candidateBoard
     case evolutionSheet
     case replacement(PetEvolutionStage)
     case expressionSheet(PetEvolutionStage)
+    /// Nine poses of one locked stage, on a 3x3 grid.
+    case actionSheet(PetEvolutionStage)
 
     var outputSize: PetImageOutputSize {
         switch self {
         case .candidateBoard, .replacement: return .square
         case .evolutionSheet, .expressionSheet: return .landscape
+        // 2048² gives ~682px per cell against ~512 on a 1536px sheet.
+        // Per-cell resolution is the binding constraint on contact-sheet
+        // quality, and this size is legal on gpt-image-2 only.
+        case .actionSheet: return .actionSheet
         }
     }
 }
@@ -1153,6 +1202,88 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             timeout: quality == .high ? 420 : 300,
             boundary: boundary
         )
+    }
+
+    /// Action pass. Image 1 is the locked stage design; the model draws it nine
+    /// times changing ONLY the pose.
+    ///
+    /// All nine share one call on purpose. Neither backend exposes a seed, so a
+    /// single forward pass — where the model can see every other cell while
+    /// drawing each one — is the only strong consistency mechanism available.
+    /// Nine separate calls would drift far worse.
+    static func actionSheetRequest(stage: PetEvolutionStage,
+                                   stageFrameData: Data,
+                                   styleBoardData: Data? = nil,
+                                   personalityVisual: String,
+                                   quality: PetFinalGenerationQuality = .medium,
+                                   apiKey: String,
+                                   delivery: PetGenerationDelivery = .blocking,
+                                   boundary: String = "mimo-action-\(UUID().uuidString)") -> URLRequest? {
+        var references = [
+            PetMultipartImage(filename: "locked-stage-design.png", data: stageFrameData),
+        ]
+        if let styleBoardData {
+            references.append(PetMultipartImage(filename: "mimo-style-board.png", data: styleBoardData))
+        }
+        return imageEditRequest(
+            references: references,
+            prompt: actionSheetPrompt(stage: stage,
+                                      personalityVisual: personalityVisual,
+                                      hasStyleBoard: styleBoardData != nil),
+            size: PetGenerationArtifact.actionSheet(stage).outputSize,
+            quality: quality.providerQuality,
+            apiKey: apiKey,
+            delivery: delivery,
+            timeout: quality == .high ? 600 : 420,
+            boundary: boundary
+        )
+    }
+
+    static func actionSheetPrompt(stage: PetEvolutionStage,
+                                  personalityVisual: String,
+                                  hasStyleBoard: Bool) -> String {
+        let styleReference = hasStyleBoard
+            ? "Image 2 is Mimo's internal STYLE BOARD; use its rendering language only, never its identities or layout."
+            : "No style-board image is supplied; preserve the established rendering language from Image 1 exactly."
+        let cells = PetActionPose.allCases.map { pose in
+            let row = pose.rawValue / 3 + 1, column = pose.rawValue % 3 + 1
+            return "  ROW \(row), COLUMN \(column) — \(pose.direction)."
+        }.joined(separator: "\n")
+
+        return """
+        MIMO ASSET PASS 4 — ACTION SHEET FOR THE \(stage.rawValue.uppercased()) STAGE
+
+        REFERENCES
+        Image 1 is the LOCKED \(stage.rawValue.uppercased()) STAGE DESIGN and the absolute identity lock. Reproduce its
+        species, face structure, hairstyle or markings, palette, outfit, outline weight, shading, and proportions
+        EXACTLY in all nine panels. Only the POSE changes between panels.
+        \(styleReference)
+        Temperament: \(personalityVisual)
+
+        OUTPUT CONTRACT
+        Create one 2048x2048 square sheet holding exactly NINE panels in a strict 3x3 grid, each panel 682x682, read
+        left to right then top to bottom. Every panel contains one isolated full-body view of the SAME individual from
+        Image 1, facing the viewer within about 15 degrees, with feet fully visible and generous unbroken matte on
+        every side. No dividers, labels, numbers, captions, arrows, turnaround annotations, or extra figures.
+
+        CONSISTENCY IS THE PRIMARY REQUIREMENT
+        Treat all nine panels as frames of one animation of one character. Keep the character the same SIZE in every
+        panel — measure from the sole of the foot to the top of the head and hold it constant except where the pose
+        itself lowers the body. Keep the same camera distance, the same eye level, the same light direction, and the
+        same palette throughout. A viewer flipping between any two panels must see the same character moving, never a
+        redesign. Do not take the opportunity to improve, restyle, age, or refine the design between panels.
+
+        POSES
+        \(cells)
+
+        GROUNDING
+        In every panel the character's feet rest on one common invisible ground line at the same height within the
+        panel, except for the falling panel where the whole body is airborne. Do not draw the ground line.
+
+        EXTRACTION MATTE
+        Use one flat opaque background of exact color #F1ECE2 across the entire canvas. No gradient, texture, floor,
+        cast shadow, halo, glow, particles, props, scenery, frame, UI, text, logo, watermark, or cropped limbs.
+        """
     }
 
     static func expressionSheetPrompt(stage: PetEvolutionStage,
