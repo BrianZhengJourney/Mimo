@@ -31,6 +31,22 @@ struct CompanionFrame {
     let mask: [Bool]
 }
 
+/// What a frame index means in a given sheet.
+///
+/// Three sheets carry three unrelated meanings behind one integer, and letting
+/// them mix produced a real bug: a familiar appeared in its mature form and
+/// reverted to the seed form the moment it landed, because the behaviour pack's
+/// pose index 0 was written for an action sheet but was being applied to a
+/// stage sheet, where 0 is the youngest form.
+enum CompanionFrameSemantics {
+    /// Evolution stages. The art layer picks; behaviour must not.
+    case stages
+    /// NEUTRAL / JOY / REST for one stage. The art layer picks.
+    case expressions
+    /// Poses of one animation. Behaviour picks.
+    case actionPoses
+}
+
 struct CompanionSprite {
     static let maskResolution = 48
     /// Alpha at or below this counts as empty. Matte extraction leaves a faint
@@ -40,6 +56,12 @@ struct CompanionSprite {
     let frames: [CompanionFrame]
     /// Cell size in source pixels.
     let cellSize: CGSize
+    /// What `frameIndex` selects. Only `.actionPoses` may be driven by a
+    /// behaviour pack.
+    var semantics: CompanionFrameSemantics = .stages
+
+    /// Whether a behaviour pack's authored pose index applies to this sheet.
+    var framesAreBehaviourDriven: Bool { semantics == .actionPoses }
 
     var frameCount: Int { frames.count }
 
@@ -48,23 +70,26 @@ struct CompanionSprite {
     }
 
     /// Loads a horizontal strip of `frameCount` equal cells.
-    static func load(contentsOf url: URL, frameCount: Int) -> CompanionSprite? {
+    static func load(contentsOf url: URL, frameCount: Int,
+                     semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
         guard frameCount > 0,
               let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        return slice(sheet: sheet, frameCount: frameCount)
+        return slice(sheet: sheet, frameCount: frameCount, semantics: semantics)
     }
 
     /// Same, from bytes — the store hands out sheet data rather than paths, so
     /// the companion layer never needs to know where a familiar lives on disk.
-    static func load(data: Data, frameCount: Int) -> CompanionSprite? {
+    static func load(data: Data, frameCount: Int,
+                     semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
         guard frameCount > 0,
               let source = CGImageSourceCreateWithData(data as CFData, nil),
               let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        return slice(sheet: sheet, frameCount: frameCount)
+        return slice(sheet: sheet, frameCount: frameCount, semantics: semantics)
     }
 
-    static func slice(sheet: CGImage, frameCount: Int) -> CompanionSprite? {
+    static func slice(sheet: CGImage, frameCount: Int,
+                      semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
         let cellWidth = sheet.width / frameCount
         let cellHeight = sheet.height
         guard cellWidth > 0, cellHeight > 0 else { return nil }
@@ -87,7 +112,8 @@ struct CompanionSprite {
                 mask: coarseMask(alpha: alpha, width: cell.width, height: cell.height)))
         }
         return CompanionSprite(frames: frames,
-                               cellSize: CGSize(width: cellWidth, height: cellHeight))
+                               cellSize: CGSize(width: cellWidth, height: cellHeight),
+                               semantics: semantics)
     }
 
     // MARK: - Pixel inspection

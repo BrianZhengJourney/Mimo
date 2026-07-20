@@ -816,7 +816,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard let asset = spec["assetURL"] as? String, let assetURL = URL(string: asset) else {
             return decline("the active familiar has no usable assetURL")
         }
-        guard let sprite = loadCompanionSprite(assetURL: assetURL) else {
+        guard let sprite = loadCompanionSprite(assetURL: assetURL, semantics: .stages) else {
             return decline("could not slice the sheet at \(assetURL.lastPathComponent)")
         }
         activeCompanionSpec = spec
@@ -891,13 +891,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     /// Slices a sheet into frames, memoised — art changes on every expression
     /// swap and re-decoding a 1536x512 PNG per swap would be wasteful.
-    func loadCompanionSprite(assetURL: URL) -> CompanionSprite? {
-        if let cached = companionSpriteCache[assetURL.absoluteString] { return cached }
+    func loadCompanionSprite(assetURL: URL,
+                             semantics: CompanionFrameSemantics) -> CompanionSprite? {
+        let key = "\(assetURL.absoluteString)#\(semantics)"
+        if let cached = companionSpriteCache[key] { return cached }
         guard let data = try? customPetStore.assetData(for: assetURL),
               let sprite = CompanionSprite.load(data: data,
-                                                frameCount: CustomPetStore.expressionStageCount)
+                                                frameCount: CustomPetStore.expressionStageCount,
+                                                semantics: semantics)
         else { return nil }
-        companionSpriteCache[assetURL.absoluteString] = sprite
+        companionSpriteCache[key] = sprite
         return sprite
     }
 
@@ -913,12 +916,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let expressionURLs = spec["expressionURLs"] as? [String: String] ?? [:]
 
         if hasExpressions, let asset = expressionURLs[String(stage)],
-           let url = URL(string: asset), let sprite = loadCompanionSprite(assetURL: url) {
+           let url = URL(string: asset),
+           let sprite = loadCompanionSprite(assetURL: url, semantics: .expressions) {
             companionRuntime.setArt(sprite: sprite, frameIndex: expression)
             return
         }
         guard let asset = spec["assetURL"] as? String, let url = URL(string: asset),
-              let sprite = loadCompanionSprite(assetURL: url) else { return }
+              let sprite = loadCompanionSprite(assetURL: url, semantics: .stages) else { return }
         companionRuntime.setArt(sprite: sprite, frameIndex: stage)
     }
 

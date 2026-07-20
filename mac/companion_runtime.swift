@@ -42,6 +42,12 @@ final class Companion {
     /// in which case the companion simply stands where it is.
     var director: CompanionDirector?
     var groundedSeconds: CGFloat = 0
+    /// Distance walked, driving the gait bob. Tied to travel rather than to
+    /// elapsed time so the bounce cannot drift out of step with the movement —
+    /// a time-driven bob on a sliding sprite reads as moonwalking.
+    var travelled: CGFloat = 0
+    /// Horizontal speed this frame, px/s.
+    var walkSpeed: CGFloat = 0
     var airborneSeconds: CGFloat = 0
     var heldSeconds: CGFloat = 0
 
@@ -83,6 +89,12 @@ final class CompanionRuntime {
     /// Landing squash: peak compression and how long the recovery runs.
     static let squashDepth: CGFloat = 0.22
     static let squashDuration: CGFloat = 0.28
+    /// Pixels of travel per full stride, and how far the body rises within one.
+    /// A stride roughly the companion's own height reads naturally.
+    static let strideLength: CGFloat = 110
+    static let gaitBobHeight: CGFloat = 7
+    /// Shear into the direction of travel, at full walking speed.
+    static let gaitLean: CGFloat = 0.045
 
     private var windows: [CGDirectDisplayID: CompanionLayerWindow] = [:]
     private var companions: [Companion] = []
@@ -359,10 +371,19 @@ final class CompanionRuntime {
                       dt: CGFloat, world: SurfaceSet) {
         guard let director = companion.director else { return }
         let intent = director.update(dt: Double(dt), snapshot: snapshot(for: companion, world: world))
-        companion.frameIndex = min(max(intent.frame, 0), companion.sprite.frameCount - 1)
+        // Only an action sheet's frames mean poses. On a stage or expression
+        // sheet the same index means something else entirely, and applying a
+        // pack's pose index to a stage sheet is what made a familiar revert to
+        // its youngest form the moment it landed.
+        if companion.sprite.framesAreBehaviourDriven {
+            companion.frameIndex = min(max(intent.frame, 0), companion.sprite.frameCount - 1)
+        }
         companion.facingRight = intent.facingRight
 
-        guard intent.embedded == nil, intent.velocity.dx != 0 else { return }
+        guard intent.embedded == nil, intent.velocity.dx != 0 else {
+            companion.walkSpeed = 0
+            return
+        }
 
         let next = companion.anchor.x + intent.velocity.dx * dt
         let margin: CGFloat = 4
@@ -379,6 +400,8 @@ final class CompanionRuntime {
         }
         companion.anchor.x = next
         companion.anchor.y = surface.position
+        companion.travelled += abs(intent.velocity.dx) * dt
+        companion.walkSpeed = abs(intent.velocity.dx)
     }
 
     /// The world as a behaviour pack is allowed to see it.
@@ -585,6 +608,25 @@ final class CompanionRuntime {
                 CATransform3DMakeAffineTransform(
                     CGAffineTransform(a: 1, b: 0, c: -lean / 240, d: 1, tx: 0, ty: 0)),
                 transform)
+        }
+
+        // A walk with no authored frames is just a sprite sliding sideways.
+        // Until an action sheet exists, a gait bob and a slight forward lean
+        // carry it: the body rises and falls twice per stride and tips into the
+        // direction of travel, which is most of what reads as walking.
+        //
+        // Phase comes from distance travelled, not from the clock, so the
+        // bounce stays locked to the movement at any speed.
+        if companion.walkSpeed > 1 {
+            let phase = companion.travelled / Self.strideLength * 2 * .pi
+            let bob = -abs(sin(phase)) * Self.gaitBobHeight
+            let lean = Self.gaitLean * min(1, companion.walkSpeed / 120)
+            transform = CATransform3DConcat(
+                CATransform3DMakeAffineTransform(
+                    CGAffineTransform(a: 1, b: 0, c: companion.facingRight ? lean : -lean,
+                                      d: 1, tx: 0, ty: 0)),
+                transform)
+            transform = CATransform3DConcat(CATransform3DMakeTranslation(0, bob, 0), transform)
         }
 
         let elapsed = companion.landingElapsed
