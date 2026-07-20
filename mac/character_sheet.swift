@@ -708,7 +708,7 @@ enum CharacterSheetProcessor {
         return output
     }
 
-    private static func removeBorderConnectedMatte(from image: inout CharacterSheetRGBAImage) {
+    static func removeBorderConnectedMatte(from image: inout CharacterSheetRGBAImage) {
         let matte = estimatedMatte(image)
         let threshold = matteThreshold(image, matte: matte)
         let thresholdSquared = threshold * threshold
@@ -908,7 +908,7 @@ enum CharacterSheetProcessor {
         return components
     }
 
-    private static func removeSmallSpecks(from image: inout CharacterSheetRGBAImage) {
+    static func removeSmallSpecks(from image: inout CharacterSheetRGBAImage) {
         let components = alphaComponents(in: image)
         guard let largest = components.map({ $0.pixels.count }).max(), largest > 0 else { return }
         let minimumArea = max(16, min(256, largest / 500))
@@ -1070,7 +1070,7 @@ enum CharacterSheetProcessor {
         return output
     }
 
-    private static func alphaBounds(of image: CharacterSheetRGBAImage) -> CharacterSheetPixelBounds? {
+    static func alphaBounds(of image: CharacterSheetRGBAImage) -> CharacterSheetPixelBounds? {
         var minimumX = image.width
         var minimumY = image.height
         var maximumX = -1

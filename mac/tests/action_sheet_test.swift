@@ -1,0 +1,229 @@
+// sources: character_sheet.swift action_sheet.swift
+import Foundation
+
+@main
+struct ActionSheetTests {
+    static func expect(_ condition: Bool, _ label: String) {
+        precondition(condition, label)
+    }
+
+    /// Builds an R×C sheet where each cell holds one opaque rect, given in cell
+    /// coordinates with y measured down from the cell's top.
+    static func makeSheet(cell: Int, layout: ActionSheetLayout,
+                          blobs: [CharacterSheetPixelBounds],
+                          matte: (UInt8, UInt8, UInt8, UInt8) = (0, 0, 0, 0))
+        -> CharacterSheetRGBAImage {
+        var image = CharacterSheetRGBAImage(width: cell * layout.columns,
+                                            height: cell * layout.rows,
+                                            fill: matte)
+        for (index, blob) in blobs.enumerated() {
+            let column = index % layout.columns, row = index / layout.columns
+            for y in blob.y..<(blob.y + blob.height) {
+                for x in blob.x..<(blob.x + blob.width) {
+                    let px = column * cell + x, py = row * cell + y
+                    guard px < image.width, py < image.height else { continue }
+                    let offset = (py * image.width + px) * 4
+                    image.pixels[offset] = 220
+                    image.pixels[offset + 1] = 120
+                    image.pixels[offset + 2] = 90
+                    image.pixels[offset + 3] = 255
+                }
+            }
+        }
+        return image
+    }
+
+    static func png(_ image: CharacterSheetRGBAImage) -> Data {
+        try! CharacterSheetProcessor.encodePNG(image)
+    }
+
+    static func bounds(_ x: Int, _ y: Int, _ w: Int, _ h: Int) -> CharacterSheetPixelBounds {
+        CharacterSheetPixelBounds(x: x, y: y, width: w, height: h)
+    }
+
+    /// Nine cells, each with a subject of a different height and position —
+    /// which is exactly what different poses of one character look like.
+    static func ninePoses(cell: Int = 128) -> CharacterSheetRGBAImage {
+        let heights = [70, 68, 72, 66, 74, 69, 71, 67, 73]
+        let blobs = heights.enumerated().map { index, height in
+            bounds(40 + (index % 3) * 4, cell - 20 - height, 30, height)
+        }
+        return makeSheet(cell: cell, layout: .threeByThree, blobs: blobs)
+    }
+
+    // MARK: - Slicing
+
+    static func testSlicesEveryCell() throws {
+        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        expect(result.frames.count == 9, "3x3 yields nine frames, got \(result.frames.count)")
+        expect(result.sourceCells.count == 9, "and nine source cells for the gate to score")
+        expect(result.frames.map(\.index) == Array(0..<9), "frames keep grid order")
+    }
+
+    static func testStripGeometryMatchesTheRuntimeContract() throws {
+        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
+        expect(decoded.height == result.cellSize, "strip is one cell tall")
+        expect(decoded.width == result.cellSize * 9, "strip is nine cells wide")
+    }
+
+    /// The rule this file exists for. Every frame must share one scale and one
+    /// baseline; fitting each pose to its own cell makes the character change
+    /// size and hop vertically, and a walk cycle built from that jitters.
+    static func testAllFramesShareOneScaleAndBaseline() throws {
+        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
+
+        let baselines = Set(result.frames.map(\.anchorY))
+        expect(baselines.count == 1,
+               "every frame must land on one baseline, got \(baselines.sorted())")
+
+        // Subject heights differ in the source by design; after a shared scale
+        // their ratios must be preserved rather than flattened to one height.
+        var renderedHeights: [Int] = []
+        for index in 0..<9 {
+            let frame = ActionSheetProcessor.crop(decoded,
+                                                  x: index * result.cellSize, y: 0,
+                                                  width: result.cellSize, height: result.cellSize)
+            guard let bounds = CharacterSheetProcessor.alphaBounds(of: frame) else {
+                preconditionFailure("frame \(index) came out empty")
+            }
+            renderedHeights.append(bounds.height)
+            expect(bounds.maxY <= result.cellSize - 1, "frame \(index) stays inside its cell")
+        }
+        expect(Set(renderedHeights).count > 1,
+               "a shared scale must preserve pose height differences, not flatten them")
+
+        // Source heights ran 66…74, a 12% spread. It must survive scaling.
+        let tallest = renderedHeights.max()!, shortest = renderedHeights.min()!
+        let spread = Double(tallest - shortest) / Double(tallest)
+        expect(spread > 0.05 && spread < 0.2,
+               "relative pose heights should be preserved, got \(spread)")
+    }
+
+    static func testFeetLandOnTheBaseline() throws {
+        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
+        for frame in result.frames {
+            let cell = ActionSheetProcessor.crop(decoded,
+                                                 x: frame.index * result.cellSize, y: 0,
+                                                 width: result.cellSize, height: result.cellSize)
+            guard let bounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
+                preconditionFailure("frame \(frame.index) empty")
+            }
+            expect(abs(bounds.maxY - (frame.anchorY - 1)) <= 2,
+                   "frame \(frame.index) feet should sit on the reported baseline "
+                   + "(bounds \(bounds.maxY), anchor \(frame.anchorY))")
+        }
+    }
+
+    // MARK: - Rejections
+
+    static func testEmptyCellIsRejected() {
+        let heights = [70, 70, 70, 70, 0, 70, 70, 70, 70]
+        let blobs = heights.enumerated().map { index, height in
+            height == 0 ? bounds(0, 0, 0, 0) : bounds(40, 128 - 20 - height, 30, height)
+        }
+        let sheet = makeSheet(cell: 128, layout: .threeByThree, blobs: blobs)
+        do {
+            _ = try ActionSheetProcessor.process(pngData: png(sheet))
+            preconditionFailure("an empty cell must fail the whole sheet")
+        } catch let error as ActionSheetError {
+            guard case .emptyCell(let index) = error else {
+                preconditionFailure("expected emptyCell, got \(error)")
+            }
+            expect(index == 4, "the error names the offending cell, got \(index)")
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    /// A subject this short is a misfire, not a crouch.
+    static func testTinySubjectIsRejected() {
+        var blobs = (0..<9).map { _ in bounds(40, 40, 30, 70) }
+        blobs[2] = bounds(40, 100, 20, 8)
+        let sheet = makeSheet(cell: 128, layout: .threeByThree, blobs: blobs)
+        do {
+            _ = try ActionSheetProcessor.process(pngData: png(sheet))
+            preconditionFailure("a tiny subject must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .cellTooSmall(let index, _, _) = error else {
+                preconditionFailure("expected cellTooSmall, got \(error)")
+            }
+            expect(index == 2, "the error names the offending cell")
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    static func testIndivisibleDimensionsAreRejected() {
+        var image = CharacterSheetRGBAImage(width: 100, height: 99)
+        for index in stride(from: 0, to: image.pixels.count, by: 4) {
+            image.pixels[index + 3] = 255
+        }
+        do {
+            _ = try ActionSheetProcessor.process(pngData: png(image))
+            preconditionFailure("a sheet that does not divide into the grid must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .dimensionsNotDivisible = error else {
+                preconditionFailure("expected dimensionsNotDivisible, got \(error)")
+            }
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    static func testNonPNGIsRejected() {
+        do {
+            _ = try ActionSheetProcessor.process(pngData: Data("not a png".utf8))
+            preconditionFailure("non-PNG input must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .notPNG = error else { preconditionFailure("expected notPNG, got \(error)") }
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    // MARK: - Matte handling
+
+    /// The generator paints a flat matte rather than alpha, since neither
+    /// backend produces transparent output. It has to come off before slicing,
+    /// and cleaning the whole canvas first is why art touching a grid line is
+    /// not mistaken for art running off a crop edge.
+    static func testFlatMatteIsRemovedBeforeSlicing() throws {
+        let heights = [70, 68, 72, 66, 74, 69, 71, 67, 73]
+        let blobs = heights.enumerated().map { index, height in
+            bounds(40 + (index % 3) * 4, 128 - 20 - height, 30, height)
+        }
+        let sheet = makeSheet(cell: 128, layout: .threeByThree, blobs: blobs,
+                              matte: (241, 236, 226, 255))
+        let result = try ActionSheetProcessor.process(pngData: png(sheet))
+        let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
+
+        // Corners of the first output cell must be transparent, or the matte
+        // survived and every sprite ships with a beige box around it.
+        for (x, y) in [(2, 2), (result.cellSize - 3, 2)] {
+            let offset = (y * decoded.width + x) * 4
+            expect(decoded.pixels[offset + 3] == 0,
+                   "matte must be gone at (\(x),\(y)), alpha was \(decoded.pixels[offset + 3])")
+        }
+    }
+
+    // MARK: - Layout flexibility
+
+    static func testNonSquareLayoutsWork() throws {
+        let layout = ActionSheetLayout(rows: 2, columns: 4)
+        let blobs = (0..<8).map { _ in bounds(30, 40, 30, 70) }
+        let sheet = makeSheet(cell: 128, layout: layout, blobs: blobs)
+        let result = try ActionSheetProcessor.process(pngData: png(sheet), layout: layout)
+        expect(result.frames.count == 8, "2x4 yields eight frames")
+        let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
+        expect(decoded.width == result.cellSize * 8, "strip width follows the frame count")
+    }
+
+    static func main() throws {
+        try testSlicesEveryCell()
+        try testStripGeometryMatchesTheRuntimeContract()
+        try testAllFramesShareOneScaleAndBaseline()
+        try testFeetLandOnTheBaseline()
+        testEmptyCellIsRejected()
+        testTinySubjectIsRejected()
+        testIndivisibleDimensionsAreRejected()
+        testNonPNGIsRejected()
+        try testFlatMatteIsRemovedBeforeSlicing()
+        try testNonSquareLayoutsWork()
+        print("action sheet: all assertions passed")
+    }
+}

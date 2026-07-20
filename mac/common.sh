@@ -20,6 +20,7 @@ APP_SOURCES=(
   app_menu.swift
   custom_pet.swift
   character_sheet.swift
+  action_sheet.swift
   generation_draft.swift
   generation_ledger.swift
   style_reference.swift
