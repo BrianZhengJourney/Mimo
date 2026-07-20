@@ -137,6 +137,116 @@ struct CompanionDirectorTests {
         }
     }
 
+    // MARK: - Attached
+
+    static let clingPack: [String: Any] = [
+        "schemaVersion": 1,
+        "actions": [
+            ["name": "Stand", "type": "stay", "requires": "grounded", "duration": "2.0",
+             "animations": [["poses": [["frame": 0, "hold": 1.0]]]]],
+            ["name": "Cling", "type": "stay", "requires": "attached", "duration": "1.0",
+             "animations": [["poses": [["frame": 1, "hold": 1.0]]]]],
+        ],
+        "behaviors": [
+            ["name": "Stand", "frequency": 100, "when": "#{self.state == 'grounded'}"],
+            ["name": "Cling", "frequency": 100,
+             "when": "#{self.state == 'attached' && self.surface == 'wall'}",
+             "next": ["additive": false, "refs": []]],
+        ],
+    ]
+
+    static func attached(surface: String = "wall") -> CompanionSnapshot {
+        var snapshot = CompanionSnapshot()
+        snapshot.state = "attached"
+        snapshot.surface = surface
+        return snapshot
+    }
+
+    static func testAttachedSelectsOnlyAttachedBehaviors() {
+        let director = CompanionDirector(pack: makePack(clingPack), random: { 0.5 })
+        _ = director.update(dt: 0.016, snapshot: attached())
+        expect(director.currentBehaviorName == "Cling",
+               "on a wall, only the attached behavior is in the urn")
+    }
+
+    /// A behaviour gated to walls must not fire on a ceiling; with nothing
+    /// selectable the director reports nil, which the runtime reads as
+    /// "let go and fall".
+    static func testCeilingWithNoBehaviorSelectsNothing() {
+        let director = CompanionDirector(pack: makePack(clingPack), random: { 0.5 })
+        _ = director.update(dt: 0.016, snapshot: attached(surface: "ceiling"))
+        expect(director.currentBehaviorName == nil,
+               "a wall-only pack has nothing to do on a ceiling")
+    }
+
+    /// `additive:false` with no refs is the authored way to end an attached
+    /// episode: after the cling runs out, nothing is selected and the runtime
+    /// detaches. `additive:true` would re-draw the cling from the pool forever.
+    static func testEmptyNonAdditiveChainEndsTheEpisode() {
+        let director = CompanionDirector(pack: makePack(clingPack), random: { 0.5 })
+        _ = director.update(dt: 0.5, snapshot: attached())
+        expect(director.currentBehaviorName == "Cling", "clinging first")
+        _ = director.update(dt: 0.6, snapshot: attached())   // past the 1.0s duration
+        _ = director.update(dt: 0.016, snapshot: attached())
+        expect(director.currentBehaviorName == nil,
+               "after the cling, the empty commitment selects nothing")
+    }
+
+    // MARK: - Reactions
+
+    static let pokePack: [String: Any] = [
+        "schemaVersion": 1,
+        "actions": [
+            ["name": "Stand", "type": "stay", "requires": "grounded", "duration": "60",
+             "animations": [["poses": [["frame": 0, "hold": 1.0]]]]],
+            ["name": "Poked", "type": "stay", "requires": "grounded", "duration": "0.9",
+             "animations": [["poses": [["frame": 1, "hold": 1.0]]]]],
+        ],
+        "behaviors": [
+            ["name": "Stand", "frequency": 100, "when": "#{self.state == 'grounded'}"],
+            ["name": "Poked", "frequency": 0, "when": "#{self.state == 'grounded'}"],
+        ],
+        "reactions": ["click": "Poked"],
+    ]
+
+    static func testClickReactionInterruptsTheCurrentBehavior() {
+        let director = CompanionDirector(pack: makePack(pokePack), random: { 0.5 })
+        _ = director.update(dt: 0.016, snapshot: grounded())
+        expect(director.currentBehaviorName == "Stand", "standing first")
+
+        expect(director.trigger(reactionTo: "click", snapshot: grounded()),
+               "a declared, legal reaction must trigger")
+        expect(director.currentBehaviorName == "Poked", "the reaction takes over at once")
+        let intent = director.update(dt: 0.016, snapshot: grounded())
+        expect(intent.frame == 1, "and its pose is what gets drawn")
+    }
+
+    static func testReactionRunsItsCourseThenReturnsToThePool() {
+        let director = CompanionDirector(pack: makePack(pokePack), random: { 0.5 })
+        _ = director.trigger(reactionTo: "click", snapshot: grounded())
+        // 0.5s steps rather than 0.3: three 0.3 steps sum to 0.899…, which
+        // never reaches the 0.9s duration.
+        for _ in 0..<4 { _ = director.update(dt: 0.5, snapshot: grounded()) }
+        expect(director.currentBehaviorName == "Stand",
+               "after the reaction elapses, ordinary selection resumes")
+    }
+
+    static func testUndeclaredReactionReportsFalse() {
+        let director = CompanionDirector(pack: makePack(pokePack), random: { 0.5 })
+        expect(!director.trigger(reactionTo: "double-click", snapshot: grounded()),
+               "an event the pack does not declare must report false so the "
+               + "caller can fall back")
+    }
+
+    static func testReactionIllegalInThisStateReportsFalse() {
+        let director = CompanionDirector(pack: makePack(pokePack), random: { 0.5 })
+        var airborne = grounded()
+        airborne.state = "airborne"
+        expect(!director.trigger(reactionTo: "click", snapshot: airborne),
+               "a grounded reaction cannot fire mid-air")
+        expect(director.currentBehaviorName != "Poked", "and nothing was hijacked")
+    }
+
     // MARK: - Frozen values
 
     /// `${...}` resolves once when the action starts. Re-resolving per frame
@@ -238,6 +348,13 @@ struct CompanionDirectorTests {
         testGrabInterruptsImmediately()
         testLosingTheGroundSwitchesToFall()
         testGroundedActionsAreNotSelectedWhileAirborne()
+        testAttachedSelectsOnlyAttachedBehaviors()
+        testCeilingWithNoBehaviorSelectsNothing()
+        testEmptyNonAdditiveChainEndsTheEpisode()
+        testClickReactionInterruptsTheCurrentBehavior()
+        testReactionRunsItsCourseThenReturnsToThePool()
+        testUndeclaredReactionReportsFalse()
+        testReactionIllegalInThisStateReportsFalse()
         testRandomisedDurationIsFrozenAtStart()
         testDeepWorkGatesRoamingOut()
         testNoDrawableBehaviorLeavesItIdleNotFalling()

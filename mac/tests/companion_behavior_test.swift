@@ -150,6 +150,65 @@ struct CompanionBehaviorTests {
         } catch { preconditionFailure("unexpected \(error)") }
     }
 
+    /// Attachment is entered by physics on wall contact, never by chaining, so
+    /// a chain into it from the ground — or out of it to a state the companion
+    /// cannot be in when the chain is evaluated — is a load error, not a
+    /// behaviour that silently never fires.
+    static func testChainsInAndOutOfAttachedAreRejected() {
+        let attachedActions: [[String: Any]] = [
+            ["name": "Stand", "type": "stay", "requires": "grounded"],
+            ["name": "Cling", "type": "stay", "requires": "attached"],
+        ]
+        do {
+            _ = try pack(basicPack(behaviors: [
+                ["name": "Stand", "frequency": 100,
+                 "next": ["additive": false, "refs": [["name": "Cling", "frequency": 100]]]],
+                ["name": "Cling", "frequency": 0],
+            ], actions: attachedActions))
+            preconditionFailure("must reject grounded chaining to attached")
+        } catch let error as CompanionPackError {
+            guard case .unreachableChain = error else {
+                preconditionFailure("expected unreachableChain, got \(error)")
+            }
+        } catch { preconditionFailure("unexpected \(error)") }
+
+        do {
+            _ = try pack(basicPack(behaviors: [
+                ["name": "Cling", "frequency": 100,
+                 "next": ["additive": false, "refs": [["name": "Stand", "frequency": 100]]]],
+                ["name": "Stand", "frequency": 0],
+            ], actions: attachedActions))
+            preconditionFailure("must reject attached chaining to grounded")
+        } catch let error as CompanionPackError {
+            guard case .unreachableChain = error else {
+                preconditionFailure("expected unreachableChain, got \(error)")
+            }
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    // MARK: - Reactions
+
+    static func testReactionsParseAndResolve() throws {
+        var json = basicPack(behaviors: [["name": "Stand", "frequency": 100]])
+        json["reactions"] = ["click": "Stand"]
+        let loaded = try pack(json)
+        expect(loaded.reactions["click"] == "Stand", "reaction event maps to its behavior")
+    }
+
+    static func testReactionToUnknownBehaviorIsRejected() {
+        var json = basicPack(behaviors: [["name": "Stand", "frequency": 100]])
+        json["reactions"] = ["click": "Nowhere"]
+        do {
+            _ = try pack(json)
+            preconditionFailure("must reject a reaction pointing at a missing behavior")
+        } catch let error as CompanionPackError {
+            guard case .unknownReaction(let event, let behavior) = error else {
+                preconditionFailure("expected unknownReaction, got \(error)")
+            }
+            expect(event == "click" && behavior == "Nowhere", "the error names both ends")
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
     static func testBadExpressionNamesItsOwner() {
         do {
             _ = try pack(basicPack(behaviors: [
@@ -184,6 +243,16 @@ struct CompanionBehaviorTests {
                 preconditionFailure("expected unsupportedSchema, got \(error)")
             }
         } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    /// The pack we actually ship is data, not code — nothing validates it
+    /// until app launch unless this does. Path is relative to the repo root,
+    /// which is where test.sh runs every binary.
+    static func testShippedDefaultPackLoads() throws {
+        let data = try Data(contentsOf: URL(fileURLWithPath: "mac/assets/behavior/default.json"))
+        let loaded = try CompanionBehaviorPack.load(data: data)
+        expect(loaded.behavior(named: "ClingWall") != nil, "the wall cling is shipped")
+        expect(loaded.reactions["click"] == "Poked", "the click reaction is shipped")
     }
 
     // MARK: - Selection
@@ -322,9 +391,13 @@ struct CompanionBehaviorTests {
         testUnknownActionIsRejected()
         testUnknownChainTargetIsRejected()
         testImpossibleChainIsRejectedAtLoad()
+        testChainsInAndOutOfAttachedAreRejected()
+        try testReactionsParseAndResolve()
+        testReactionToUnknownBehaviorIsRejected()
         testBadExpressionNamesItsOwner()
         testPackWithNothingSelectableIsRejected()
         testUnsupportedSchemaIsRejected()
+        try testShippedDefaultPackLoads()
         try testWeightedSelectionFollowsTheRoll()
         try testConditionRemovesFromTheUrn()
         try testZeroFrequencyIsReachableOnlyByChain()

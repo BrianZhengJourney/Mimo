@@ -17,6 +17,11 @@ enum CompanionMotionState: Equatable {
     case grounded(SurfaceID)
     case airborne
     case held
+    /// Clinging to a wall or hanging from a ceiling: gravity off, anchor
+    /// pinned to the surface. Entered on contact while airborne; left the
+    /// moment the pack has nothing to do there, so a pack with no attached
+    /// behaviours slides off exactly as before the state existed.
+    case attached(SurfaceID)
 }
 
 /// One companion: where it is, what it is doing, and what it looks like.
@@ -50,6 +55,12 @@ final class Companion {
     var walkSpeed: CGFloat = 0
     var airborneSeconds: CGFloat = 0
     var heldSeconds: CGFloat = 0
+    var attachedSeconds: CGFloat = 0
+    /// State at grab time, so a click — a grab that never moved — can put the
+    /// companion back rather than dropping it. Without this a tap on a
+    /// grounded companion re-lands it, and landing resets the director, which
+    /// wipes the very reaction the tap was meant to trigger.
+    var stateBeforeGrab: CompanionMotionState = .airborne
 
     init(sprite: CompanionSprite, displayHeight: CGFloat, anchor: CGPoint) {
         self.sprite = sprite
@@ -290,7 +301,7 @@ final class CompanionRuntime {
                 companion.heldSeconds += dt
                 advanceHeld(companion, dt: dt)
             } else {
-                release(companion)
+                release(companion, world: world.set)
             }
         }
         for companion in companions where companion.state != .held {
@@ -337,6 +348,15 @@ final class CompanionRuntime {
             companion.groundedSeconds += dt
             walk(companion, on: surface, dt: dt, world: world)
             return
+        case .attached(let id):
+            guard let surface = world.surface(with: id), surface.contains(companion.anchor) else {
+                companion.state = .airborne
+                companion.integrator.velocity = .zero
+                break
+            }
+            companion.attachedSeconds += dt
+            cling(companion, to: surface, dt: dt, world: world)
+            return
         case .held:
             return
         case .airborne:
@@ -355,9 +375,14 @@ final class CompanionRuntime {
                 companion.airborneSeconds = 0
                 companion.director?.reset()
             } else {
-                // Walls and ceilings have no cling behaviour until the behavior
-                // system lands; slide rather than stick to them.
-                companion.state = .airborne
+                // Cling tentatively and let the urn decide: if the pack has an
+                // attached behaviour whose condition passes, it runs; if not,
+                // `cling` detaches on the next frame and the companion falls,
+                // which is the old slide with one extra frame of contact.
+                companion.state = .attached(id)
+                companion.attachedSeconds = 0
+                companion.airborneSeconds = 0
+                companion.director?.reset()
             }
         }
     }
@@ -404,13 +429,79 @@ final class CompanionRuntime {
         companion.walkSpeed = abs(intent.velocity.dx)
     }
 
+    /// Runs the behaviour pack for an attached companion.
+    ///
+    /// Same shape as `walk`, rotated: the anchor is pinned to the surface on
+    /// its constant axis and pose velocity moves it along the span — dy climbs
+    /// a wall, dx traverses a ceiling. If the pack selects nothing (no attached
+    /// behaviours, or all of them gated off), the companion lets go and falls;
+    /// hanging forever with nothing to do would turn a missing behaviour into
+    /// a companion glued to the wall.
+    private func cling(_ companion: Companion, to surface: Surface,
+                       dt: CGFloat, world: SurfaceSet) {
+        guard let director = companion.director else {
+            companion.state = .airborne
+            return
+        }
+        let intent = director.update(dt: Double(dt), snapshot: snapshot(for: companion, world: world))
+        if director.currentBehaviorName == nil {
+            companion.state = .airborne
+            companion.integrator.velocity = .zero
+            director.reset()
+            return
+        }
+        if companion.sprite.framesAreBehaviourDriven {
+            companion.frameIndex = min(max(intent.frame, 0), companion.sprite.frameCount - 1)
+        }
+        companion.walkSpeed = 0
+
+        let along = surface.isVertical ? intent.velocity.dy : intent.velocity.dx
+        if surface.isVertical {
+            companion.anchor.x = surface.position
+        } else {
+            companion.anchor.y = surface.position
+        }
+        guard intent.embedded == nil, along != 0 else { return }
+
+        let margin: CGFloat = 4
+        let lower = surface.span.lowerBound + margin
+        let upper = surface.span.upperBound - margin
+        guard lower <= upper else { return }
+
+        let current = surface.isVertical ? companion.anchor.y : companion.anchor.x
+        let next = current + along * dt
+        let clamped = min(max(next, lower), upper)
+        if surface.isVertical {
+            companion.anchor.y = clamped
+        } else {
+            companion.anchor.x = clamped
+        }
+        if next != clamped {
+            // Climbed to the end of the surface. Stop and let the pack choose
+            // again rather than crawling into space.
+            director.reset()
+        }
+    }
+
     /// The world as a behaviour pack is allowed to see it.
     private func snapshot(for companion: Companion, world: SurfaceSet) -> CompanionSnapshot {
         var snapshot = CompanionSnapshot()
         switch companion.state {
-        case .grounded: snapshot.state = "grounded"
-        case .airborne: snapshot.state = "airborne"
-        case .held: snapshot.state = "held"
+        case .grounded:
+            snapshot.state = "grounded"
+            snapshot.surface = "floor"
+        case .airborne:
+            snapshot.state = "airborne"
+        case .held:
+            snapshot.state = "held"
+        case .attached(let id):
+            snapshot.state = "attached"
+            switch world.surface(with: id)?.kind {
+            case .wall: snapshot.surface = "wall"
+            case .ceiling: snapshot.surface = "ceiling"
+            case .floor: snapshot.surface = "floor"
+            case nil: snapshot.surface = "none"
+            }
         }
         snapshot.anchorX = Double(companion.anchor.x)
         snapshot.anchorY = Double(companion.anchor.y)
@@ -419,6 +510,7 @@ final class CompanionRuntime {
         snapshot.heldSeconds = Double(companion.heldSeconds)
         snapshot.groundedSeconds = Double(companion.groundedSeconds)
         snapshot.airborneSeconds = Double(companion.airborneSeconds)
+        snapshot.attachedSeconds = Double(companion.attachedSeconds)
         snapshot.cursorX = Double(cursor.position.x)
         snapshot.cursorY = Double(cursor.position.y)
         snapshot.cursorDX = Double(cursor.velocity.dx)
@@ -459,6 +551,7 @@ final class CompanionRuntime {
         case .grounded: state = "grounded"
         case .airborne: state = "airborne"
         case .held: state = "held"
+        case .attached: state = "attached"
         }
         let behavior = companion.director == nil
             ? "no behavior pack loaded"
@@ -501,11 +594,59 @@ final class CompanionRuntime {
     var onBehaviorChanged: ((String) -> Void)?
     private var lastReportedBehavior: String?
 
-    private func release(_ companion: Companion) {
-        companion.state = .airborne
-        companion.integrator.velocity = cursor.releaseVelocity()
+    private func release(_ companion: Companion, world: SurfaceSet) {
         held = nil
-        if !pressWasDrag { onClick?() }
+        guard !pressWasDrag else {
+            companion.state = .airborne
+            companion.integrator.velocity = cursor.releaseVelocity()
+            return
+        }
+        // A grab that never moved is a click: put the companion back rather
+        // than dropping it — the drop would land, and landing resets the
+        // director, wiping the very reaction being triggered — then let the
+        // pack answer. Only when it has no answer (no reaction declared, or
+        // its behaviour is gated off right now) does the click fall through
+        // to the app's own handler.
+        if !restoreAfterClick(companion, world: world) {
+            companion.state = .airborne
+            companion.integrator.velocity = .zero
+        }
+        let triggered = companion.director?.trigger(
+            reactionTo: "click",
+            snapshot: snapshot(for: companion, world: world)) ?? false
+        if !triggered { onClick?() }
+    }
+
+    /// Puts a clicked companion back into its pre-grab state, if that state
+    /// still exists. The cursor may wander a couple of points during a click
+    /// without counting as a drag, so the anchor is snapped back onto the
+    /// surface rather than tested against the 1px resting tolerance.
+    private func restoreAfterClick(_ companion: Companion, world: SurfaceSet) -> Bool {
+        let slack: CGFloat = 8
+        switch companion.stateBeforeGrab {
+        case .grounded(let id):
+            guard let surface = world.surface(with: id), surface.kind == .floor,
+                  surface.span.contains(companion.anchor.x),
+                  abs(companion.anchor.y - surface.position) <= slack else { return false }
+            companion.anchor.y = surface.position
+            companion.state = .grounded(id)
+            return true
+        case .attached(let id):
+            guard let surface = world.surface(with: id) else { return false }
+            if surface.isVertical {
+                guard surface.span.contains(companion.anchor.y),
+                      abs(companion.anchor.x - surface.position) <= slack else { return false }
+                companion.anchor.x = surface.position
+            } else {
+                guard surface.span.contains(companion.anchor.x),
+                      abs(companion.anchor.y - surface.position) <= slack else { return false }
+                companion.anchor.y = surface.position
+            }
+            companion.state = .attached(id)
+            return true
+        case .airborne, .held:
+            return false
+        }
     }
 
     // MARK: - World
@@ -525,6 +666,7 @@ final class CompanionRuntime {
 
     private func handleMouseDown(at point: CGPoint) {
         guard let companion = companions.last(where: { $0.isOpaque(atScreenPoint: point) }) else { return }
+        companion.stateBeforeGrab = companion.state
         companion.state = .held
         companion.integrator.velocity = .zero
         companion.grabOffset = CGVector(dx: companion.anchor.x - point.x,

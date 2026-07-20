@@ -822,6 +822,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         activeCompanionSpec = spec
         recordCompanionStatus("native layer active, \(sprite.frameCount) frames")
 
+        // Fallback only: a click first goes to the behaviour pack's `reactions`
+        // (the familiar gets interrupted and reacts in-world). This fires when
+        // the pack declares no click reaction or it is gated off right now.
+        // The menu stays reachable via right-click either way.
         companionRuntime.onClick = { [weak self] in
             guard let self else { return }
             if self.hidden { self.unhide() } else { self.showContext() }

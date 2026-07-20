@@ -83,8 +83,9 @@ struct CompanionVariableSchema {
         "world.companionCount",
         // self
         "self.anchor.x", "self.anchor.y",
-        "self.lookRight", "self.state", "self.footX",
+        "self.lookRight", "self.state", "self.footX", "self.surface",
         "self.heldSeconds", "self.groundedSeconds", "self.airborneSeconds",
+        "self.attachedSeconds",
         // Mimo's semantic layer — the thing Shimeji has no equivalent of.
         // Behaviour can be gated on what the user is actually doing.
         "mimo.mood", "mimo.focusMinutes", "mimo.streakMinutes",

@@ -113,10 +113,37 @@
       ]
     },
 
+    {
+      "name": "Poked",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${0.8 + random() * 0.4}",
+      "animations": [
+        { "poses": [ { "frame": 1, "hold": 1.0, "velocity": [0, 0] } ] }
+      ]
+    },
+    {
+      "name": "ClingWall",
+      "type": "stay",
+      "requires": "attached",
+      "duration": "${0.8 + random() * 1.4}",
+      "animations": [
+        { "poses": [ { "frame": 1, "hold": 1.0, "velocity": [0, 0] } ] }
+      ]
+    },
+
     { "name": "Fall",    "type": "embedded", "requires": "airborne", "impl": "fall" },
     { "name": "Dragged", "type": "embedded", "requires": "held",     "impl": "dragged" },
     { "name": "Thrown",  "type": "embedded", "requires": "airborne", "impl": "thrown" }
   ],
+
+  "_reactions_comment": [
+    "Events the runtime raises, mapped to behaviors. 'click' fires on a press",
+    "that never became a drag: the companion is interrupted mid-behavior and",
+    "runs the reaction instead of opening app UI. Omit an event to get the",
+    "app's default handling back."
+  ],
+  "reactions": { "click": "Poked" },
 
   "behaviors": [
     {
@@ -202,6 +229,21 @@
       "next": { "additive": true, "refs": [
         { "name": "Slump", "frequency": 100 }
       ] }
+    },
+
+    {
+      "name": "Poked",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": true, "refs": [] }
+    },
+
+    {
+      "name": "ClingWall",
+      "frequency": 100,
+      "when": "#{self.state == 'attached' && self.surface == 'wall'}",
+      "_comment": "additive:false with no refs = after clinging, select nothing — which the runtime reads as letting go. additive:true would re-draw ClingWall from the pool forever.",
+      "next": { "additive": false, "refs": [] }
     }
   ]
 }

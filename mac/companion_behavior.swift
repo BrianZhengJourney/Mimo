@@ -96,12 +96,16 @@ enum CompanionStateRequirement: Equatable {
     case grounded
     case airborne
     case held
+    /// Clinging to a wall or hanging from a ceiling. Entered by physics on
+    /// contact, never by chaining — see the validation rules below.
+    case attached
 
     init(_ raw: String?) {
         switch raw {
         case "grounded": self = .grounded
         case "airborne": self = .airborne
         case "held": self = .held
+        case "attached": self = .attached
         default: self = .any
         }
     }
@@ -112,6 +116,7 @@ enum CompanionStateRequirement: Equatable {
         case .grounded: return state == "grounded"
         case .airborne: return state == "airborne"
         case .held: return state == "held"
+        case .attached: return state == "attached"
         }
     }
 }
@@ -154,6 +159,10 @@ struct CompanionBehaviorPack {
     let behaviors: [String: CompanionBehavior]
     /// Insertion order, so selection is deterministic given the same random draw.
     let behaviorOrder: [String]
+    /// Event name → behaviour to run when it happens (e.g. "click"). This is
+    /// how a tap interrupts what the companion is doing: the runtime asks the
+    /// pack, so each pack decides how — or whether — its companion reacts.
+    let reactions: [String: String]
 
     func action(named name: String) -> CompanionAction? { actions[name] }
     func behavior(named name: String) -> CompanionBehavior? { behaviors[name] }
@@ -168,6 +177,7 @@ enum CompanionPackError: Error, CustomStringConvertible {
     case unknownBehavior(String, referencedBy: String)
     case unreachableChain(String, from: String, reason: String)
     case noReachableBehavior
+    case unknownReaction(event: String, behavior: String)
 
     var description: String {
         switch self {
@@ -184,6 +194,8 @@ enum CompanionPackError: Error, CustomStringConvertible {
             return "'\(owner)' chains to '\(name)' which can never run: \(reason)"
         case .noReachableBehavior:
             return "no behavior can ever be selected"
+        case .unknownReaction(let event, let behavior):
+            return "reaction '\(event)' refers to unknown behavior '\(behavior)'"
         }
     }
 }
@@ -345,8 +357,17 @@ extension CompanionBehaviorPack {
             order.append(name)
         }
 
+        var reactions: [String: String] = [:]
+        for (event, target) in root["reactions"] as? [String: Any] ?? [:] {
+            guard let name = target as? String else {
+                throw CompanionPackError.missingField("behavior name", in: "reaction '\(event)'")
+            }
+            reactions[event] = name
+        }
+
         let pack = CompanionBehaviorPack(schemaVersion: version, actions: actions,
-                                         behaviors: behaviors, behaviorOrder: order)
+                                         behaviors: behaviors, behaviorOrder: order,
+                                         reactions: reactions)
         try pack.validate()
         return pack
     }
@@ -391,7 +412,30 @@ extension CompanionBehaviorPack {
                         reason: "a held action cannot chain to another held action; "
                               + "release is driven by the cursor, not the pack")
                 }
+                // Attachment is entered by physics on wall or ceiling contact,
+                // never by chaining, and an attached action is still attached
+                // when its chain is evaluated — so a chain into attached from
+                // the ground, or out of attached to anywhere the companion is
+                // not, can never fire.
+                if action.requires == .grounded && targetAction.requires == .attached {
+                    throw CompanionPackError.unreachableChain(
+                        reference.name, from: name,
+                        reason: "'\(action.name)' leaves the companion grounded; "
+                              + "attachment only happens on contact while airborne")
+                }
+                if action.requires == .attached
+                    && (targetAction.requires == .grounded || targetAction.requires == .airborne) {
+                    throw CompanionPackError.unreachableChain(
+                        reference.name, from: name,
+                        reason: "'\(action.name)' leaves the companion attached but "
+                              + "'\(targetAction.name)' requires \(targetAction.requires); "
+                              + "letting go is the runtime's move, not the pack's")
+                }
             }
+        }
+
+        for (event, target) in reactions where behaviors[target] == nil {
+            throw CompanionPackError.unknownReaction(event: event, behavior: target)
         }
 
         let selectable = behaviorOrder.compactMap { behaviors[$0] }.filter { $0.frequency > 0 }

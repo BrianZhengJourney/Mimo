@@ -29,6 +29,9 @@ struct CompanionIntent: Equatable {
 /// Everything the director is allowed to see about the world.
 struct CompanionSnapshot: CompanionVariableSource {
     var state: String = "grounded"
+    /// Kind of surface currently under (or behind) the companion:
+    /// "floor" | "wall" | "ceiling" | "none".
+    var surface: String = "none"
     var anchorX: Double = 0
     var anchorY: Double = 0
     var lookRight: Bool = false
@@ -36,6 +39,7 @@ struct CompanionSnapshot: CompanionVariableSource {
     var heldSeconds: Double = 0
     var groundedSeconds: Double = 0
     var airborneSeconds: Double = 0
+    var attachedSeconds: Double = 0
     var cursorX: Double = 0
     var cursorY: Double = 0
     var cursorDX: Double = 0
@@ -57,6 +61,7 @@ struct CompanionSnapshot: CompanionVariableSource {
     func value(for name: String) -> CompanionValue? {
         switch name {
         case "self.state": return .text(state)
+        case "self.surface": return .text(surface)
         case "self.anchor.x": return .number(anchorX)
         case "self.anchor.y": return .number(anchorY)
         case "self.lookRight": return .boolean(lookRight)
@@ -64,6 +69,7 @@ struct CompanionSnapshot: CompanionVariableSource {
         case "self.heldSeconds": return .number(heldSeconds)
         case "self.groundedSeconds": return .number(groundedSeconds)
         case "self.airborneSeconds": return .number(airborneSeconds)
+        case "self.attachedSeconds": return .number(attachedSeconds)
         case "world.cursor.x": return .number(cursorX)
         case "world.cursor.y": return .number(cursorY)
         case "world.cursor.dx": return .number(cursorDX)
@@ -161,6 +167,27 @@ final class CompanionDirector {
     func reset() {
         clear()
         currentBehavior = nil
+    }
+
+    /// Interrupts whatever is running with the pack's reaction to `event`
+    /// (e.g. a click), if the pack declares one that is legal right now.
+    /// Returns whether anything was triggered, so the caller can fall back.
+    ///
+    /// The reaction is an ordinary behaviour: its `next` chain decides what
+    /// happens after, which is where a personality shows — a playful pack
+    /// chains back to what it was doing, a placid one does not.
+    func trigger(reactionTo event: String, snapshot: CompanionSnapshot) -> Bool {
+        guard let name = pack.reactions[event],
+              let behavior = pack.behavior(named: name),
+              let action = pack.action(named: behavior.actionName),
+              action.requires.isSatisfied(by: snapshot.state),
+              behavior.isEffective(for: snapshot) else { return false }
+        clear()
+        currentBehavior = behavior
+        currentAction = action
+        frozenDuration = action.duration?.evaluateDouble(snapshot, random: random)
+        frozenTargetX = action.targetX?.evaluateDouble(snapshot, random: random)
+        return true
     }
 
     // MARK: - Internals
