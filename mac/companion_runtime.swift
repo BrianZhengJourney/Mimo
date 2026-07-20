@@ -283,6 +283,7 @@ final class CompanionRuntime {
         }
         for companion in companions where companion.state != .held {
             advanceFree(companion, dt: dt, world: world.set)
+            recoverIfLost(companion)
         }
 
         // Phase 3 — commit presentation.
@@ -424,6 +425,28 @@ final class CompanionRuntime {
             companion.director = pack.map { CompanionDirector(pack: $0) }
         }
     }
+
+    /// Puts a companion back if it has left the world.
+    ///
+    /// Runs every frame rather than only on a display change, because the way
+    /// a companion is actually lost is being thrown into the strip behind the
+    /// Dock — below the work-area floor, which from underneath can never be
+    /// reached again. Held companions are exempt: the cursor is allowed
+    /// anywhere, and recovery applies once it is let go.
+    private func recoverIfLost(_ companion: Companion) {
+        let workAreas = NSScreen.screens.map(\.visibleFrame)
+        guard let recovered = CompanionRecovery.recoveredAnchor(for: companion.anchor,
+                                                                workAreas: workAreas) else { return }
+        companion.anchor = recovered
+        companion.integrator.velocity = .zero
+        companion.state = .airborne
+        companion.landingElapsed = .greatestFiniteMagnitude
+        companion.director?.reset()
+        onRecovered?("companion left the screen; returned it to the nearest work area")
+    }
+
+    /// Raised when a companion had to be rescued, so it is never silent.
+    var onRecovered: ((String) -> Void)?
 
     private func release(_ companion: Companion) {
         companion.state = .airborne

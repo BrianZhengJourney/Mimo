@@ -153,6 +153,46 @@ struct SurfaceSet {
     }
 }
 
+/// Brings a companion back when it has left the world.
+///
+/// This is not hypothetical. The companion layer covers `screen.frame` while
+/// the floor sits at `visibleFrame.minY`, so the strip of screen behind the
+/// Dock is *below* the floor. Drop or throw a companion into it and the floor
+/// can never be reached again: a floor is only crossed while descending
+/// *through* its y, and from underneath there is nothing left to descend
+/// through. It falls forever, off-screen, unrecoverable.
+///
+/// Shimeji's answer to losing a mascot is to teleport it above the screen and
+/// drop it — self-healing but silent, so an authoring error reads as rain. The
+/// recovery here is the same idea with the diagnostic kept.
+enum CompanionRecovery {
+    /// Slack so a companion resting exactly on a boundary is not "lost".
+    static let tolerance: CGFloat = 8
+
+    /// Where to put an anchor that has left every work area, or nil if it is
+    /// somewhere legal.
+    static func recoveredAnchor(for anchor: CGPoint, workAreas: [CGRect]) -> CGPoint? {
+        guard !workAreas.isEmpty else { return nil }
+        let isInside = workAreas.contains { $0.insetBy(dx: -tolerance, dy: -tolerance).contains(anchor) }
+        if isInside { return nil }
+
+        // Land on the floor of whichever work area is nearest, so a companion
+        // thrown off the bottom of one display comes back on that display
+        // rather than jumping to the primary one.
+        let nearest = workAreas.min { lhs, rhs in
+            squaredDistance(from: anchor, to: lhs) < squaredDistance(from: anchor, to: rhs)
+        } ?? workAreas[0]
+        return CGPoint(x: min(max(anchor.x, nearest.minX + tolerance), nearest.maxX - tolerance),
+                       y: nearest.minY)
+    }
+
+    private static func squaredDistance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return dx * dx + dy * dy
+    }
+}
+
 /// Rounds a point to the display's physical pixel grid.
 ///
 /// Physics runs in continuous coordinates so slow drift stays smooth; the

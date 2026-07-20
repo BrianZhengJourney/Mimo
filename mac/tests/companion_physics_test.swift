@@ -298,7 +298,74 @@ struct CompanionPhysicsTests {
         expect(devicePixelSnapped(point, scale: 0) == point, "invalid scale is a no-op")
     }
 
+    // MARK: - Recovery
+
+    /// The bug this exists for: the companion layer covers screen.frame while
+    /// the floor sits at visibleFrame.minY, so the strip behind the Dock is
+    /// below the floor. A floor is only crossed while descending through its y,
+    /// and from underneath there is nothing left to descend through — so a
+    /// companion thrown down there falls forever and is gone.
+    static func testCompanionThrownBelowTheFloorIsRecovered() {
+        let workArea = CGRect(x: 0, y: 70, width: 1728, height: 1014)   // 70pt Dock strip
+        let inTheDockStrip = CGPoint(x: 800, y: 20)
+        guard let recovered = CompanionRecovery.recoveredAnchor(for: inTheDockStrip,
+                                                                workAreas: [workArea]) else {
+            preconditionFailure("a companion below the floor must be recovered")
+        }
+        expect(recovered.y == workArea.minY, "it comes back onto the floor")
+        expect(recovered.x == 800, "and keeps its horizontal position")
+    }
+
+    static func testCompanionThrownOffAnySideIsRecovered() {
+        let workArea = CGRect(x: 0, y: 70, width: 1728, height: 1014)
+        for lost in [CGPoint(x: -400, y: 500), CGPoint(x: 4000, y: 500),
+                     CGPoint(x: 800, y: -900), CGPoint(x: 800, y: 5000)] {
+            guard let recovered = CompanionRecovery.recoveredAnchor(for: lost,
+                                                                    workAreas: [workArea]) else {
+                preconditionFailure("\(lost) should be recovered")
+            }
+            expect(workArea.insetBy(dx: -1, dy: -1).contains(recovered),
+                   "recovery lands inside the work area, got \(recovered)")
+        }
+    }
+
+    /// Recovery must not fire on a companion that is simply standing there, or
+    /// it would teleport constantly.
+    static func testCompanionInsideTheWorkAreaIsLeftAlone() {
+        let workArea = CGRect(x: 0, y: 70, width: 1728, height: 1014)
+        for fine in [CGPoint(x: 800, y: 500),
+                     CGPoint(x: 800, y: workArea.minY),      // resting on the floor
+                     CGPoint(x: workArea.maxX - 4, y: 300),  // walked to the right edge
+                     CGPoint(x: 800, y: workArea.maxY)] {    // at the ceiling
+            expect(CompanionRecovery.recoveredAnchor(for: fine, workAreas: [workArea]) == nil,
+                   "\(fine) is legal and must not be moved")
+        }
+    }
+
+    /// Thrown off the bottom of a second display, it should come back there
+    /// rather than jumping to the primary one.
+    static func testRecoveryPrefersTheNearestDisplay() {
+        let primary = CGRect(x: 0, y: 70, width: 1728, height: 1014)
+        let secondary = CGRect(x: 1728, y: 0, width: 2560, height: 1440)
+        guard let recovered = CompanionRecovery.recoveredAnchor(
+            for: CGPoint(x: 3000, y: -200), workAreas: [primary, secondary]) else {
+            preconditionFailure("should be recovered")
+        }
+        expect(recovered.x > primary.maxX, "it returns to the display it fell from, got \(recovered)")
+        expect(recovered.y == secondary.minY, "onto that display's floor")
+    }
+
+    static func testRecoveryWithNoDisplaysIsANoOp() {
+        expect(CompanionRecovery.recoveredAnchor(for: .zero, workAreas: []) == nil,
+               "with no work areas there is nowhere to recover to")
+    }
+
     static func main() {
+        testCompanionThrownBelowTheFloorIsRecovered()
+        testCompanionThrownOffAnySideIsRecovered()
+        testCompanionInsideTheWorkAreaIsLeftAlone()
+        testRecoveryPrefersTheNearestDisplay()
+        testRecoveryWithNoDisplaysIsANoOp()
         testWorkAreaSurfaces()
         testCrossingIsDirectional()
         testFirstCrossingPicksNearest()

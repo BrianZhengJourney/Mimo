@@ -827,6 +827,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if self.hidden { self.unhide() } else { self.showContext() }
         }
         companionRuntime.onRightClick = { [weak self] in self?.showCompanionMenu() }
+        companionRuntime.onRecovered = { [weak self] reason in
+            self?.recordCompanionStatus("recovered — \(reason)")
+        }
         companionRuntime.setBehaviorPack(loadDefaultBehaviorPack())
         companionRuntime.start()
         companionRuntime.spawn(sprite: sprite)
