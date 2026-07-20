@@ -254,12 +254,20 @@ enum PetGenerationDelivery: Equatable {
 enum PetImageOutputSize: String {
     case square = "1024x1024"
     case landscape = "1536x1024"
+    /// Square action sheet. Only legal on gpt-image-2; gpt-image-1 and 1.5
+    /// reject it, which the provider's size rule enforces.
+    case actionSheet = "2048x2048"
 
     var pixels: (width: Int, height: Int) {
         switch self {
         case .square: return (1024, 1024)
         case .landscape: return (1536, 1024)
+        case .actionSheet: return (2048, 2048)
         }
+    }
+
+    var pixelSize: PetPixelSize {
+        PetPixelSize(width: pixels.width, height: pixels.height)
     }
 }
 
@@ -450,6 +458,18 @@ struct PetImageStreamDecoder {
 private struct PetMultipartImage {
     let filename: String
     let data: Data
+
+    /// Recovers a reference's role from the filename the coordinator assigns.
+    ///
+    /// OpenAI takes an undifferentiated list so this is discarded there, but
+    /// Gemini has a typed character-reference slot, and flattening every
+    /// reference to "an image" would throw away its one structural advantage.
+    static func role(forFilename filename: String) -> PetReferenceRole {
+        if filename.contains("master") { return .master }
+        if filename.contains("style") { return .style }
+        if filename.contains("expression") { return .expression }
+        return .identity
+    }
 }
 
 /// Unchecked because the compiler cannot see the lock: every mutable property
@@ -1295,61 +1315,56 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         return result
     }
 
+    /// The provider used unless a caller overrides it.
+    ///
+    /// Selection is a stored preference so the A/B in P3c can switch backends
+    /// without a rebuild. OpenAI stays the default: the claim that Gemini leads
+    /// on cross-frame character consistency could not be confirmed, and the one
+    /// public leaderboard that could be verified points the other way — but it
+    /// measures general image editing, not identity retention, so the question
+    /// is settled by measurement on our own characters rather than by either
+    /// reputation. See docs/companion/04-generation-and-consistency.md §4.9.
+    static func defaultProvider() -> PetImageProvider {
+        let requested = UserDefaults.standard.string(forKey: "petImageProvider") ?? "openai"
+        if requested == "gemini" {
+            return PetGeminiProvider(maximumBodyBytes: maximumRequestBodyBytes)
+        }
+        return PetOpenAIProvider(maximumBodyBytes: maximumRequestBodyBytes)
+    }
+
+    /// Builds the edit request through the active provider.
+    ///
+    /// Returns nil rather than trapping: a hard trap is the wrong failure mode
+    /// for a request builder in a shipping app, and the caller already surfaces
+    /// .invalidImage. The rejection reason is logged so a size or payload
+    /// mistake is diagnosable instead of appearing as a silent nil.
     private static func imageEditRequest(references: [PetMultipartImage], prompt: String,
                                          size: PetImageOutputSize,
                                          quality: PetGenerationQuality,
                                          apiKey: String,
                                          delivery: PetGenerationDelivery,
                                          timeout: TimeInterval,
-                                         boundary: String) -> URLRequest? {
-        // A hard trap is the wrong failure mode for a network-request builder
-        // in a shipping app: returning nil lets the caller surface
-        // .invalidImage instead of killing the process.
-        guard !references.isEmpty, references.count <= 10 else { return nil }
-        // Each reference is capped at 20MB individually, but a stage request
-        // attaches four. The multipart body accumulates them all and
-        // `httpBody = body` copies again, so an unchecked aggregate meant a
-        // ~160MB transient peak and a 413 from the provider.
-        let referenceBytes = references.reduce(0) { $0 + $1.data.count }
-        guard referenceBytes <= maximumRequestBodyBytes else { return nil }
-        let url = URL(string: "https://api.openai.com/v1/images/edits")!
-        var body = Data()
-        func field(_ name: String, _ value: String) {
-            body.appendUTF8("--\(boundary)\r\n")
-            body.appendUTF8("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
-            body.appendUTF8("\(value)\r\n")
+                                         boundary: String,
+                                         provider: PetImageProvider? = nil) -> URLRequest? {
+        let backend = provider ?? defaultProvider()
+        let spec = PetImageRequestSpec(
+            references: references.map {
+                PetProviderReference(filename: $0.filename, data: $0.data,
+                                     role: PetMultipartImage.role(forFilename: $0.filename))
+            },
+            prompt: prompt,
+            size: size.pixelSize,
+            quality: quality,
+            delivery: delivery,
+            apiKey: apiKey,
+            timeout: timeout,
+            boundary: boundary)
+        do {
+            return try backend.buildRequest(spec)
+        } catch {
+            NSLog("Mimo generation: %@ refused the request — %@", backend.id, "\(error)")
+            return nil
         }
-        field("model", "gpt-image-2")
-        field("size", size.rawValue)
-        field("quality", quality.rawValue)
-        field("output_format", "png")
-        field("background", "opaque")
-        field("n", "1")
-        field("prompt", prompt)
-        if case .streaming(let partialImages) = delivery {
-            field("stream", "true")
-            field("partial_images", String(partialImages.rawValue))
-        }
-        for reference in references {
-            body.appendUTF8("--\(boundary)\r\n")
-            body.appendUTF8("Content-Disposition: form-data; name=\"image[]\"; filename=\"\(reference.filename)\"\r\n")
-            body.appendUTF8("Content-Type: image/png\r\n\r\n")
-            body.append(reference.data)
-            body.appendUTF8("\r\n")
-        }
-        body.appendUTF8("--\(boundary)--\r\n")
-
-        var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        // Content-Length is reserved — URLSession computes it from httpBody.
-        // Setting it by hand is redundant at best and conflicting at worst.
-        if case .streaming = delivery {
-            request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        }
-        request.httpBody = body
-        return request
     }
 
     /// Parses one OpenAI image SSE `data:` payload. Keeping this pure makes
@@ -1822,5 +1837,4 @@ final class PetGenerationCoordinator: @unchecked Sendable {
 }
 
 private extension Data {
-    mutating func appendUTF8(_ string: String) { append(Data(string.utf8)) }
 }
