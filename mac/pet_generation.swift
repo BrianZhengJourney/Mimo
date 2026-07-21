@@ -1523,6 +1523,12 @@ final class PetGenerationCoordinator: @unchecked Sendable {
 
         \(plan.framing)
 
+        SAFE MARGIN — NOTHING TOUCHES A PANEL BORDER
+        Keep the ENTIRE character — hair, hands, feet, shoes, props, every stray pixel — at least 24 pixels inside
+        every border of its own panel. Nothing may touch or cross a panel boundary; a foot drawn on the boundary is
+        a defect that rejects the whole sheet. If a pose does not fit, draw the character smaller within the panel;
+        the shared size rule then applies to that smaller size in EVERY panel.
+
         CONSISTENCY IS THE PRIMARY REQUIREMENT
         Treat all sixteen panels as frames of one animation of one character. Keep the character the same SIZE in
         every panel — measure from the sole of the foot to the top of the head and hold it constant except where the

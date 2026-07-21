@@ -148,6 +148,29 @@ struct ActionSheetTests {
                + "\(result.frames[5].bounds.height) vs \(result.frames[4].bounds.height)")
     }
 
+    /// A subject drawn against the grid line was amputated by it — the toes
+    /// live in the next panel. Nothing downstream can restore them, so the
+    /// sheet must be rejected with the edge named. Unlike the identity gate,
+    /// a reroll on this signal is a real defect worth paying to fix.
+    static func testSubjectCutByThePanelEdgeIsRejected() {
+        let cell = 128
+        var blobs = (0..<16).map { index in
+            bounds(40 + (index % 4) * 4, cell - 20 - 70, 30, 70)
+        }
+        // Cell 9's subject runs all the way into the bottom edge.
+        blobs[9] = bounds(44, cell - 90, 30, 90)
+        let sheet = makeSheet(cell: cell, layout: .fourByFour, blobs: blobs)
+        do {
+            _ = try ActionSheetProcessor.process(pngData: png(sheet))
+            preconditionFailure("a subject cut by the panel edge must fail the sheet")
+        } catch let error as ActionSheetError {
+            guard case .subjectClipped(let index, let edge) = error else {
+                preconditionFailure("expected subjectClipped, got \(error)")
+            }
+            expect(index == 9 && edge == "bottom", "the error names the cell and edge, got \(index)/\(edge)")
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
     // MARK: - Rejections
 
     static func testEmptyCellIsRejected() {
@@ -250,6 +273,7 @@ struct ActionSheetTests {
         try testAllFramesShareOneScaleAndBaseline()
         try testFeetLandOnTheBaseline()
         try testNeighbourOverflowIsRemovedFromTheCell()
+        testSubjectCutByThePanelEdgeIsRejected()
         testEmptyCellIsRejected()
         testTinySubjectIsRejected()
         testIndivisibleDimensionsAreRejected()

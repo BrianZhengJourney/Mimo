@@ -43,6 +43,7 @@ enum ActionSheetError: Error, CustomStringConvertible {
     case dimensionsNotDivisible(width: Int, height: Int, layout: ActionSheetLayout)
     case emptyCell(index: Int)
     case cellTooSmall(index: Int, height: Int, minimum: Int)
+    case subjectClipped(index: Int, edge: String)
     case noUsableFrames
 
     var description: String {
@@ -54,6 +55,9 @@ enum ActionSheetError: Error, CustomStringConvertible {
         case .emptyCell(let index): return "cell \(index) has no artwork"
         case .cellTooSmall(let index, let height, let minimum):
             return "cell \(index) is only \(height)px tall, under the \(minimum)px minimum"
+        case .subjectClipped(let index, let edge):
+            return "cell \(index)'s subject is cut off at its \(edge) edge — the art "
+                 + "overflowed the panel and the missing part cannot be recovered"
         case .noUsableFrames: return "no usable frames in the action sheet"
         }
     }
@@ -126,6 +130,14 @@ enum ActionSheetProcessor {
                 // bounds — shrinking the subject and floating stray shoes
                 // above her head on screen.
                 CharacterSheetProcessor.removeEdgeIntruders(from: &cell)
+                // The mirror failure is the subject's own overflow: feet drawn
+                // on the grid line are feet amputated by it, and no amount of
+                // slicing can restore the missing toes. A real defect, so a
+                // real rejection — unlike the identity gate, a reroll on this
+                // signal is money well spent.
+                if let edge = clippedEdge(of: cell) {
+                    throw ActionSheetError.subjectClipped(index: index, edge: edge)
+                }
                 guard let cellBounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
                     throw ActionSheetError.emptyCell(index: index)
                 }
@@ -178,6 +190,36 @@ enum ActionSheetProcessor {
     }
 
     // MARK: - Pixel work
+
+    /// Alpha at or below the sprite loader's threshold counts as empty here
+    /// too, so a faint matte fringe cannot read as a clipped subject.
+    static let clipAlphaThreshold: UInt8 = 24
+    /// Contact this wide against a cell edge means the subject was cut by the
+    /// grid, not merely near it.
+    static let clipContactMinimum = 12
+
+    /// The edge the subject is cut off at, or nil if it sits clear of all four.
+    static func clippedEdge(of cell: CharacterSheetRGBAImage) -> String? {
+        let width = cell.width, height = cell.height
+        guard width > 0, height > 0 else { return nil }
+        func opaque(x: Int, y: Int) -> Bool {
+            cell.pixels[(y * width + x) * 4 + 3] > clipAlphaThreshold
+        }
+        var bottom = 0, top = 0, left = 0, right = 0
+        for x in 0..<width {
+            if opaque(x: x, y: height - 1) { bottom += 1 }
+            if opaque(x: x, y: 0) { top += 1 }
+        }
+        for y in 0..<height {
+            if opaque(x: 0, y: y) { left += 1 }
+            if opaque(x: width - 1, y: y) { right += 1 }
+        }
+        if bottom >= clipContactMinimum { return "bottom" }
+        if top >= clipContactMinimum { return "top" }
+        if left >= clipContactMinimum { return "left" }
+        if right >= clipContactMinimum { return "right" }
+        return nil
+    }
 
     static func crop(_ source: CharacterSheetRGBAImage,
                      x: Int, y: Int, width: Int, height: Int) -> CharacterSheetRGBAImage {
