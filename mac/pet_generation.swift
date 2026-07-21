@@ -299,9 +299,16 @@ struct PetActionSheetPlan {
     /// Sixteen per-panel descriptions, grid order.
     let panels: [String]
 
+    /// "At the same height within the panel" without saying WHERE let the
+    /// model put the ground line on the grid itself — every foot in a row was
+    /// amputated by the panel border ($0.40 of rejected sheets proved it).
+    /// The line gets a concrete height, and the border zone is described as
+    /// what it must be: empty background.
     static let standingGrounding = """
-    In every panel the character's feet rest on one common invisible ground line at the same height within the
-    panel. Do not draw the ground line.
+    In every panel the character's feet rest on one invisible ground line that runs exactly 48 pixels ABOVE the
+    panel's bottom border — never lower. The bottom 48 pixels of every panel are pure background with nothing in
+    them, and so are the outermost 24 pixels along the top, left, and right of every panel. Do not draw the ground
+    line.
     """
 
     static let walkCycle = PetActionSheetPlan(
@@ -375,8 +382,10 @@ struct PetActionSheetPlan {
         form a loop — panel 11 flows back into panel 6.
         """,
         grounding: """
-        One common invisible ground line runs at the same height in every panel. Standing panels put the feet on it;
-        lying panels rest the whole body along it, never below it. Do not draw the ground line.
+        One invisible ground line runs exactly 48 pixels ABOVE the bottom border of every panel. Standing panels put
+        the feet on it; lying panels rest the whole body along it, never below it. The bottom 48 pixels of every
+        panel are pure background with nothing in them, and so are the outermost 24 pixels along the top, left, and
+        right of every panel. Do not draw the ground line.
         """,
         panels: [
             "standing, shoulders relaxed, starting to look down at the ground",
@@ -416,10 +425,12 @@ struct PetActionSheetPlan {
         even.
         """,
         grounding: """
-        Panels 1 through 8: the feet rest on one common invisible ground line at the same height in every panel,
-        with the invisible wall rising from it at the LEFT edge. Panels 9 through 16: the character sits on an
-        invisible horizontal ledge at mid-panel height, hips at the same height in every panel, legs hanging below
-        the ledge with nothing under the feet. Do not draw the wall, the ledge, or the ground line.
+        Panels 1 through 8: the feet rest on one invisible ground line exactly 48 pixels ABOVE the panel's bottom
+        border, with the invisible wall rising from it 24 pixels inside the LEFT edge. Panels 9 through 16: the
+        character sits on an invisible ledge at mid-panel height, hips at the same height in every panel, legs
+        hanging with the shoes ending at least 48 pixels above the bottom border. In every panel the bottom 48
+        pixels and the outermost 24 pixels of the other three sides are pure background with nothing in them. Do
+        not draw the wall, the ledge, or the ground line.
         """,
         panels: [
             "leaning back against the left wall, arms folded, ankles crossed, gaze ahead",
@@ -1517,17 +1528,19 @@ final class PetGenerationCoordinator: @unchecked Sendable {
 
         OUTPUT CONTRACT
         Create one 2048x2048 square sheet holding exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512,
-        read left to right then top to bottom. Every panel contains one isolated full-body view of the SAME individual
-        from Image 1, \(plan.viewInstruction), with feet fully visible and generous unbroken matte on every
-        side. No dividers, labels, numbers, captions, arrows, turnaround annotations, or extra figures.
+        read left to right then top to bottom. Draw a clearly visible straight frame line, 6 pixels thick, exact
+        color #1A1A2E, around the inside of every panel's border, so the sheet reads as sixteen framed boxes.
+        Every panel contains one isolated full-body view of the SAME individual from Image 1,
+        \(plan.viewInstruction), ENTIRELY INSIDE its frame: nothing touches or crosses any frame line, and clear
+        background separates the character from the frame on all four sides — feet, hair, and props included.
+        No labels, numbers, captions, arrows, turnaround annotations, or extra figures.
 
         \(plan.framing)
 
-        SAFE MARGIN — NOTHING TOUCHES A PANEL BORDER
-        Keep the ENTIRE character — hair, hands, feet, shoes, props, every stray pixel — at least 24 pixels inside
-        every border of its own panel. Nothing may touch or cross a panel boundary; a foot drawn on the boundary is
-        a defect that rejects the whole sheet. If a pose does not fit, draw the character smaller within the panel;
-        the shared size rule then applies to that smaller size in EVERY panel.
+        SAFE MARGIN — NOTHING TOUCHES A FRAME LINE
+        A foot, a hair tip, or a prop drawn on a frame line is a defect that rejects the whole sheet. If a pose
+        does not fit inside its frame, draw the character smaller within the panel; the shared size rule then
+        applies to that smaller size in EVERY panel.
 
         CONSISTENCY IS THE PRIMARY REQUIREMENT
         Treat all sixteen panels as frames of one animation of one character. Keep the character the same SIZE in

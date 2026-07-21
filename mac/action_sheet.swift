@@ -92,6 +92,12 @@ enum ActionSheetProcessor {
     /// A frame whose subject is shorter than this is almost certainly a
     /// misfire rather than a crouch.
     static let minimumSubjectHeight = 48
+    /// Extra crop inside a detected frame band, clearing the line's
+    /// antialiased fringe.
+    static let frameFringeInset = 8
+    /// A row or column this dark-saturated is a frame line. The requested
+    /// frame color is near-black; the matte and the character are not.
+    static let frameBandCoverage = 0.6
 
     static func process(pngData: Data,
                         layout: ActionSheetLayout = .fourByFour,
@@ -107,24 +113,50 @@ enum ActionSheetProcessor {
                 width: source.width, height: source.height, layout: layout)
         }
 
-        // Clean the whole canvas before partitioning, for the same reason the
-        // evolution path does: cleaning each cell separately makes the
-        // artificial grid lines behave like physical crop edges and rejects
-        // art that merely touches one.
-        CharacterSheetProcessor.removeBorderConnectedMatte(from: &source)
-        CharacterSheetProcessor.removeSmallSpecks(from: &source)
+        // Grid detection must PRECEDE any cleaning: the canvas border ring is
+        // the frame itself, so the whole-canvas matte pass would sample the
+        // dark ring as "the matte" and flood the entire grid away before it
+        // could be read.
+        let drawnGrid = detectDrawnGrid(source, layout: layout)
+        if drawnGrid == nil {
+            // No frame: the pre-frame contract. Clean the whole canvas before
+            // partitioning so the artificial grid lines do not behave like
+            // physical crop edges. Framed sheets are cleaned per panel below,
+            // since their frame encloses each panel's matte.
+            CharacterSheetProcessor.removeBorderConnectedMatte(from: &source)
+            CharacterSheetProcessor.removeSmallSpecks(from: &source)
+        }
 
-        let cellWidth = source.width / layout.columns
-        let cellHeight = source.height / layout.rows
+        // The model draws its own grid: asked for frames on a 512 grid it
+        // delivers frames on ITS grid — rows 573, 523, 490, and 462 tall on
+        // the first real framed sheet. So the drawn lines are treated as
+        // registration, not decoration: panels are sliced along the detected
+        // bands, and each panel carries a height-normalising scale so the
+        // model's uneven rows cannot make the character change size between
+        // frames. Sheets with no detectable grid (older art, synthetic
+        // fixtures) fall back to the uniform grid.
+        let rowRanges = drawnGrid?.rows ?? uniformRanges(total: source.height, count: layout.rows)
+        let columnRanges = drawnGrid?.columns ?? uniformRanges(total: source.width, count: layout.columns)
+        let referencePanelHeight = Double(rowRanges.map(\.count).sorted()[rowRanges.count / 2])
 
         var cells: [CharacterSheetRGBAImage] = []
         var bounds: [CharacterSheetPixelBounds] = []
-        for row in 0..<layout.rows {
-            for column in 0..<layout.columns {
-                let index = row * layout.columns + column
+        var panelScales: [Double] = []
+        for rowRange in rowRanges {
+            for columnRange in columnRanges {
+                let index = cells.count
                 var cell = crop(source,
-                                x: column * cellWidth, y: row * cellHeight,
-                                width: cellWidth, height: cellHeight)
+                                x: columnRange.lowerBound, y: rowRange.lowerBound,
+                                width: columnRange.count, height: rowRange.count)
+                // A drawn frame encloses each panel's matte, so framed sheets
+                // are cleaned per panel: the sliced cell's background touches
+                // its own borders and floods away cleanly. Only on framed
+                // sheets — on a transparent fixture, a subject touching the
+                // border would itself be sampled as "the matte" and erased.
+                if drawnGrid != nil {
+                    CharacterSheetProcessor.removeBorderConnectedMatte(from: &cell)
+                    CharacterSheetProcessor.removeSmallSpecks(from: &cell)
+                }
                 // A neighbour's overflow (feet through the top grid line, a
                 // hand through the side) would otherwise inflate this cell's
                 // bounds — shrinking the subject and floating stray shoes
@@ -147,15 +179,19 @@ enum ActionSheetProcessor {
                 }
                 cells.append(cell)
                 bounds.append(cellBounds)
+                panelScales.append(referencePanelHeight / Double(rowRange.count))
             }
         }
         guard !cells.isEmpty else { throw ActionSheetError.noUsableFrames }
 
-        // One scale for every frame, taken from the tallest subject so nothing
-        // is clipped. Per-frame fitting is what makes a walk cycle bob.
+        // One scale for every frame, taken from the tallest height-normalised
+        // subject so nothing is clipped. Per-frame fitting is what makes a
+        // walk cycle bob; the per-panel factor only undoes panel-size
+        // variation, never pose variation.
         let usableHeight = outputCellSize - outputPadding * 2
-        let tallest = bounds.map(\.height).max() ?? usableHeight
-        let scale = min(1.0, Double(usableHeight) / Double(tallest))
+        let tallest = zip(bounds, panelScales)
+            .map { Double($0.height) * $1 }.max() ?? Double(usableHeight)
+        let scale = min(1.0, Double(usableHeight) / tallest)
 
         var strip = CharacterSheetRGBAImage(width: outputCellSize * cells.count,
                                             height: outputCellSize)
@@ -166,8 +202,9 @@ enum ActionSheetProcessor {
 
         for (index, cell) in cells.enumerated() {
             let cellBounds = bounds[index]
-            let scaledWidth = max(1, Int((Double(cellBounds.width) * scale).rounded()))
-            let scaledHeight = max(1, Int((Double(cellBounds.height) * scale).rounded()))
+            let drawScale = scale * panelScales[index]
+            let scaledWidth = max(1, Int((Double(cellBounds.width) * drawScale).rounded()))
+            let scaledHeight = max(1, Int((Double(cellBounds.height) * drawScale).rounded()))
             let destinationX = index * outputCellSize + (outputCellSize - scaledWidth) / 2
             let destinationY = baseline - scaledHeight
 
@@ -187,6 +224,87 @@ enum ActionSheetProcessor {
                                  cellSize: outputCellSize,
                                  frames: metrics,
                                  sourceCells: cells)
+    }
+
+    // MARK: - Drawn-grid registration
+
+    /// Panel pixel ranges under a uniform grid — the pre-frame contract, kept
+    /// for older sheets and synthetic fixtures.
+    static func uniformRanges(total: Int, count: Int) -> [Range<Int>] {
+        let size = total / count
+        return (0..<count).map { ($0 * size)..<(($0 + 1) * size) }
+    }
+
+    /// Finds the near-black frame lines the model was asked to draw and
+    /// returns the panel content ranges between them, or nil when the sheet
+    /// has no readable grid. A line is a run of rows (or columns) whose dark
+    /// coverage exceeds `frameBandCoverage`; the grid is accepted only when
+    /// exactly the expected number of interior lines exists on each axis —
+    /// anything else means the model ignored the frame instruction, and the
+    /// uniform fallback with its clipping checks takes over.
+    static func detectDrawnGrid(_ image: CharacterSheetRGBAImage,
+                                layout: ActionSheetLayout)
+        -> (rows: [Range<Int>], columns: [Range<Int>])? {
+        let width = image.width, height = image.height
+        guard width > 0, height > 0 else { return nil }
+
+        var darkPerRow = [Int](repeating: 0, count: height)
+        var darkPerColumn = [Int](repeating: 0, count: width)
+        for y in 0..<height {
+            for x in 0..<width {
+                let pixel = (y * width + x) * 4
+                let brightness = Int(image.pixels[pixel]) + Int(image.pixels[pixel + 1])
+                    + Int(image.pixels[pixel + 2])
+                if image.pixels[pixel + 3] > 0, brightness < 300 {
+                    darkPerRow[y] += 1
+                    darkPerColumn[x] += 1
+                }
+            }
+        }
+
+        func contentRanges(counts: [Int], threshold: Int, expectedPanels: Int) -> [Range<Int>]? {
+            var runs: [(start: Int, end: Int)] = []
+            var start: Int?
+            for (index, count) in counts.enumerated() {
+                if count >= threshold {
+                    if start == nil { start = index }
+                } else if let s = start {
+                    runs.append((s, index - 1)); start = nil
+                }
+            }
+            if let s = start { runs.append((s, counts.count - 1)) }
+
+            let interior = runs.filter { $0.start > 0 && $0.end < counts.count - 1 }
+            guard interior.count == expectedPanels - 1 else { return nil }
+            let leading = runs.first { $0.start == 0 }
+            let trailing = runs.first { $0.end == counts.count - 1 }
+
+            var edges: [Int] = [(leading.map { $0.end + 1 } ?? 0)]
+            for run in interior {
+                edges.append(run.start)
+                edges.append(run.end + 1)
+            }
+            edges.append(trailing.map(\.start) ?? counts.count)
+
+            var ranges: [Range<Int>] = []
+            for panel in 0..<expectedPanels {
+                let low = edges[panel * 2] + frameFringeInset
+                let high = edges[panel * 2 + 1] - frameFringeInset
+                // A panel narrower than the output cell's usable core is a
+                // misread, not a grid.
+                guard high - low >= minimumSubjectHeight * 2 else { return nil }
+                ranges.append(low..<high)
+            }
+            return ranges
+        }
+
+        guard let rows = contentRanges(counts: darkPerRow,
+                                       threshold: Int(Double(width) * frameBandCoverage),
+                                       expectedPanels: layout.rows),
+              let columns = contentRanges(counts: darkPerColumn,
+                                          threshold: Int(Double(height) * frameBandCoverage),
+                                          expectedPanels: layout.columns) else { return nil }
+        return (rows, columns)
     }
 
     // MARK: - Pixel work

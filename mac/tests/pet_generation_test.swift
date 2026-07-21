@@ -98,13 +98,17 @@ struct PetGenerationTests {
         expect(prompt.contains("CONSISTENCY IS THE PRIMARY REQUIREMENT"),
                "consistency is stated as the primary requirement")
         expect(prompt.contains("same SIZE in every"), "size is held constant across panels")
-        expect(prompt.contains("common invisible ground line"),
-               "a shared ground line keeps feet on one baseline")
+        expect(prompt.contains("48 pixels ABOVE"),
+               "the ground line has a concrete height — 'same height' alone let "
+               + "the model ground every row on the grid line itself")
         expect(prompt.contains("never a redesign"),
                "the model is told not to improve the design between panels")
         expect(prompt.contains("#F1ECE2"), "the extraction matte is specified")
-        expect(prompt.contains("No dividers, labels, numbers, captions, arrows"),
+        expect(prompt.contains("No labels, numbers, captions, arrows"),
                "model-sheet annotations are refused; they survive matte removal as specks")
+        expect(prompt.contains("ENTIRELY INSIDE its frame"),
+               "the drawn frame is the containment instruction the model actually obeys; "
+               + "the slicer crops it back off by a fixed inset")
     }
 
     static func main() {
