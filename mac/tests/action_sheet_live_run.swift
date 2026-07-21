@@ -65,14 +65,15 @@ private func write(_ data: Data, named name: String, to directory: URL) throws -
     return url
 }
 
-/// Blocks until the staged generation completes, mirroring the app's own
-/// completion path without a run loop.
+/// Waits for the staged generation by pumping the main run loop — the
+/// coordinator delivers progress and completion on the main queue, so a
+/// blocked main thread (a semaphore, say) waits forever on a result that is
+/// sitting in its own queue. Exactly the mistake this file made first.
 private func awaitSheet(coordinator: PetGenerationCoordinator,
                         requestID: String,
                         stageFrame: Data, styleBoard: Data?,
                         personalityVisual: String,
                         timeout: TimeInterval) throws -> PetGenerationOutput {
-    let semaphore = DispatchSemaphore(value: 0)
     var outcome: Result<PetGenerationOutput, Error>?
     let startedAt = Date()
     coordinator.generateActionSheet(
@@ -84,16 +85,20 @@ private func awaitSheet(coordinator: PetGenerationCoordinator,
         },
         completion: { result in
             outcome = result
-            semaphore.signal()
         })
-    guard semaphore.wait(timeout: .now() + timeout) == .success else {
-        coordinator.cancel(requestID)
-        throw LiveRunError.generationTimedOut
+    let deadline = Date(timeIntervalSinceNow: timeout)
+    while outcome == nil && Date() < deadline {
+        autoreleasepool {
+            _ = RunLoop.current.run(mode: .default,
+                                    before: min(deadline, Date(timeIntervalSinceNow: 0.1)))
+        }
     }
     switch outcome {
     case .success(let output): return output
     case .failure(let error): throw LiveRunError.generationFailed("\(error)")
-    case nil: throw LiveRunError.generationTimedOut
+    case nil:
+        coordinator.cancel(requestID)
+        throw LiveRunError.generationTimedOut
     }
 }
 
