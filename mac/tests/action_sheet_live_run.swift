@@ -30,7 +30,7 @@ private enum LiveRunError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .usage:
-            return "Usage: action_sheet_live_run --confirm-paid OUTPUT_DIR PET_SHEET_PNG [walk|gaze]"
+            return "Usage: action_sheet_live_run --confirm-paid OUTPUT_DIR PET_SHEET_PNG [walk|gaze|rest|wall] [maxAttempts]"
         case .missingAPIKey:
             return "OpenAI API key is not configured in the environment or Mimo keychain."
         case .missingInput(let path):
@@ -115,7 +115,7 @@ struct ActionSheetLiveRun {
 
     static func run() throws {
         let arguments = CommandLine.arguments
-        guard (4...5).contains(arguments.count), arguments[1] == "--confirm-paid" else {
+        guard (4...6).contains(arguments.count), arguments[1] == "--confirm-paid" else {
             throw LiveRunError.usage
         }
         let outputDirectory = URL(fileURLWithPath: arguments[2], isDirectory: true)
@@ -128,6 +128,11 @@ struct ActionSheetLiveRun {
         case "wall": plan = .wallLean
         default: throw LiveRunError.usage
         }
+        // The frontal-reference gate cannot judge side-view sheets (see the
+        // handoff's calibration data), so its rerolls there are wasted spend.
+        // A capped run still slices, scores, and retains everything; the
+        // human eye is the judge either way.
+        let maxAttempts = arguments.count > 5 ? max(1, min(3, Int(arguments[5]) ?? 3)) : 3
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: outputDirectory,
                                         withIntermediateDirectories: true,
@@ -153,7 +158,8 @@ struct ActionSheetLiveRun {
 
         let profile = CustomPetTemperaments.profile(for: "quiet-curious")
         let coordinator = PetGenerationCoordinator(openAIKeyReader: { key })
-        let policy = ActionSheetRunPolicy.standard
+        let policy = ActionSheetRunPolicy(maximumAttempts: maxAttempts,
+                                          hardAttemptCeiling: ActionSheetRunPolicy.standard.hardAttemptCeiling)
         var attempts: [ActionSheetAttempt] = []
         var strips: [Int: ActionSheetResult] = [:]
 

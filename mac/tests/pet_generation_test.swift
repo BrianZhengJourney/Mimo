@@ -84,7 +84,7 @@ struct PetGenerationTests {
         expect(prompt.contains("ROW 4, COLUMN 4"), "all sixteen cells are addressed")
         expect(prompt.contains("weight over the front foot"),
                "walk poses are described by weight, not numbered")
-        expect(!prompt.contains("contactNear"), "internal case names must not leak into the prompt")
+        expect(!prompt.contains("PetActionPose"), "internal type names must not leak into the prompt")
         for pose in PetActionPose.allCases {
             expect(prompt.contains(flattened(pose.direction)), "pose \(pose.rawValue) is described")
         }

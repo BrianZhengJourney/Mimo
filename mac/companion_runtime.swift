@@ -678,7 +678,10 @@ final class CompanionRuntime {
     /// reached again. Held companions are exempt: the cursor is allowed
     /// anywhere, and recovery applies once it is let go.
     private func recoverIfLost(_ companion: Companion) {
-        let workAreas = NSScreen.screens.map(\.visibleFrame)
+        // Full frames, not visibleFrames: the floor now sits at the true
+        // screen bottom, and judging "lost" against the work area would call
+        // a companion standing on her own floor lost, sixty times a second.
+        let workAreas = NSScreen.screens.map(\.frame)
         guard let recovered = CompanionRecovery.recoveredAnchor(for: companion.anchor,
                                                                 workAreas: workAreas) else { return }
         companion.anchor = recovered
@@ -764,8 +767,21 @@ final class CompanionRuntime {
         var bounds = CGRect.null
         for screen in NSScreen.screens {
             guard let id = screen.displayID else { continue }
-            all.append(contentsOf: SurfaceSet.workArea(screen.visibleFrame, displayID: id).surfaces)
-            bounds = bounds.union(screen.visibleFrame)
+            let full = screen.frame
+            let visible = screen.visibleFrame
+            // The floor is the true bottom edge of the screen, not the
+            // work-area edge above the Dock: feet on the very bottom is what
+            // reads as standing on the desktop. The ceiling stays at the
+            // work-area top so she does not vanish behind the menu bar.
+            all.append(Surface(id: .workAreaBottom(displayID: id), kind: .floor,
+                               position: full.minY, span: full.minX...full.maxX))
+            all.append(Surface(id: .workAreaTop(displayID: id), kind: .ceiling,
+                               position: visible.maxY, span: full.minX...full.maxX))
+            all.append(Surface(id: .workAreaLeft(displayID: id), kind: .wall,
+                               position: full.minX, span: full.minY...visible.maxY))
+            all.append(Surface(id: .workAreaRight(displayID: id), kind: .wall,
+                               position: full.maxX, span: full.minY...visible.maxY))
+            bounds = bounds.union(full)
         }
         return (SurfaceSet(all), bounds.isNull ? .zero : bounds)
     }

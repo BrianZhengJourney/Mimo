@@ -280,19 +280,6 @@ enum PetImageOutputSize: String {
     }
 }
 
-/// The sixteen frames of the first action sheet: one full walk cycle.
-///
-/// One sheet holds one action (docs/companion/09-action-inventory.md §9.5):
-/// a sheet is a single forward pass, which is the only strong consistency
-/// mechanism either backend offers, and a walk that pops between frames is
-/// unusable no matter how good each frame looks alone. Sixteen frames is two
-/// steps — eight phases each, legs exchanged — which fills a 4x4 grid exactly.
-///
-/// Frames are authored walking toward the character's own left, like every
-/// Shimeji pack; the runtime mirrors for the other direction. Three-quarter
-/// view rather than pure profile so the face stays visible — identity, both
-/// for the viewer and for the consistency gate's comparison against the
-/// front-facing stage art.
 /// One sheet's worth of panels: what the sheet is, how the panels relate, and
 /// what each panel shows. The walk cycle and the gaze sweep share every other
 /// part of the action-sheet contract (grid, matte, consistency), so those live
@@ -323,10 +310,12 @@ struct PetActionSheetPlan {
         viewInstruction: "in three-quarter view walking toward the LEFT of the panel — body and feet angled left, "
             + "the face turned enough that both eyes stay visible",
         framing: """
-        THE PANELS ARE ONE LOOPING WALK
-        The sixteen panels are consecutive frames of one seamless walk cycle: two full steps, eight phases each, the
-        second step repeating the first with the legs exchanged. Panel 16 flows directly back into panel 1. Movement
-        between neighbouring panels must be small and even — no phase skips, no direction changes.
+        THE PANELS ARE ONE SINGLE STEP, LOOPED
+        The sixteen panels are consecutive frames of ONE step — heel strike to the instant before the next heel
+        strike — subdivided finely and evenly. Panel 16 flows directly back into panel 1 as the NEXT step, so the
+        two legs must be drawn IDENTICALLY (same trousers, same shoes, no marking that tells them apart) for the
+        loop to be seamless. Movement between neighbouring panels is one small, even increment — a metronome, not a
+        drift: no repeated poses, no pauses, no phase skips, no direction changes.
         """,
         grounding: standingGrounding,
         panels: PetActionPose.allCases.map(\.direction))
@@ -452,62 +441,75 @@ struct PetActionSheetPlan {
         ])
 }
 
+/// The sixteen frames of the walk sheet: ONE step, subdivided finely.
+///
+/// The first real generation drew two steps in sixteen frames and it read as
+/// hesitant — near-duplicate frames, muddled phases, no rhythm. The user's
+/// direction: author one step in fine detail and repeat it forever. One step
+/// across sixteen frames doubles the temporal resolution, and because panel
+/// 16 flows into panel 1 as the NEXT step, both legs must read identically —
+/// stated outright in the prompt, and invisible at desktop size in loose
+/// trousers.
+///
+/// Frames are authored walking toward the character's own left, like every
+/// Shimeji pack; the runtime mirrors for the other direction, and its frame
+/// clock must treat one strip cycle as ONE stride of travel.
 enum PetActionPose: Int, CaseIterable {
-    case contactNear = 0
-    case settleNear = 1
-    case recoilNear = 2
-    case passNear = 3
-    case riseNear = 4
-    case reachFar = 5
-    case dropFar = 6
-    case brakeFar = 7
-    case contactFar = 8
-    case settleFar = 9
-    case recoilFar = 10
-    case passFar = 11
-    case riseFar = 12
-    case reachNear = 13
-    case dropNear = 14
-    case brakeNear = 15
+    case strike = 0
+    case roll = 1
+    case settle = 2
+    case gather = 3
+    case fold = 4
+    case pass = 5
+    case rise = 6
+    case push = 7
+    case swing = 8
+    case reach = 9
+    case extend = 10
+    case descend = 11
+    case open = 12
+    case stretch = 13
+    case brake = 14
+    case touch = 15
 
     /// Written as physical description rather than as a label, because a model
     /// follows "weight forward over the leading foot" far better than "walk 2".
-    /// The second eight repeat the first eight with near and far legs
-    /// exchanged, and say so explicitly — the symmetry is the instruction.
+    /// Neighbouring phases differ by one small, even amount — the evenness IS
+    /// the rhythm the user asked for.
     var direction: String {
         switch self {
-        case .contactNear:
-            return "near heel just touching down ahead, far leg trailing with toes still on the ground, arms at their widest counter-swing"
-        case .settleNear:
-            return "weight over the front foot, both knees softly bent, body at its lowest point of the stride"
-        case .recoilNear:
-            return "far leg folding and lifting behind, all weight on the planted near leg, body beginning to rise"
-        case .passNear:
-            return "far leg passing beside the planted near leg, body upright at middle height, arms passing the hips"
-        case .riseNear:
-            return "planted near leg pushing tall with the heel starting to lift, body at its highest, far knee swinging forward bent"
-        case .reachFar:
-            return "far leg reaching forward with the shin swinging out, near heel off the ground, arms mid counter-swing"
-        case .dropFar:
-            return "far leg nearly straight, body descending, near leg trailing onto its toes"
-        case .brakeFar:
-            return "far heel a moment from touching down, stride at full length, body low and moving forward"
-        case .contactFar:
-            return "far heel just touching down ahead, near leg trailing with toes still on the ground, arms at their widest opposite counter-swing"
-        case .settleFar:
-            return "weight settling over the far foot, both knees softly bent, body again at its lowest"
-        case .recoilFar:
-            return "near leg folding and lifting behind, all weight on the planted far leg, body beginning to rise"
-        case .passFar:
-            return "near leg passing beside the planted far leg, body upright at middle height, arms passing the hips"
-        case .riseFar:
-            return "planted far leg pushing tall with the heel starting to lift, body at its highest, near knee swinging forward bent"
-        case .reachNear:
-            return "near leg reaching forward with the shin swinging out, far heel off the ground, arms mid counter-swing"
-        case .dropNear:
-            return "near leg nearly straight, body descending, far leg trailing onto its toes"
-        case .brakeNear:
-            return "near heel a moment from touching down, stride at full length, closing the loop back to the first panel"
+        case .strike:
+            return "the front heel strikes the ground, stride at its widest, back toes still down, arms at full counter-swing"
+        case .roll:
+            return "weight rolling forward onto the front foot, back heel peeling off the ground"
+        case .settle:
+            return "weight over the front foot, front knee softly bent, body at its lowest point"
+        case .gather:
+            return "back toes leaving the ground, the back leg starting to fold, body still low"
+        case .fold:
+            return "back leg folded and swinging under the body, weight fully on the planted leg, body rising"
+        case .pass:
+            return "the swinging leg passing exactly beside the planted leg, body upright at middle height, arms passing the hips"
+        case .rise:
+            return "the planted leg straightening, its heel starting to lift, the swinging knee driving forward"
+        case .push:
+            return "up on the ball of the planted foot, body at its highest, the swinging thigh at its most lifted"
+        case .swing:
+            return "the swinging shin unfolding forward, body starting to come down from its peak"
+        case .reach:
+            return "the swinging leg reaching ahead, its knee easing straight, arms mid counter-swing"
+        case .extend:
+            return "the reaching leg nearly straight ahead, the planted heel high, body descending"
+        case .descend:
+            return "body sinking, the reaching foot lowering toward the ground, stride opening"
+        case .open:
+            return "stride three-quarters open, the reaching heel approaching the ground"
+        case .stretch:
+            return "stride almost at its widest, the back leg extending, the front heel a hand's width from the ground"
+        case .brake:
+            return "the front heel a moment from touching, stride fully open, body low and moving forward"
+        case .touch:
+            return "the front heel grazing the ground — the instant before the strike, flowing straight back into panel 1"
         }
     }
 }
