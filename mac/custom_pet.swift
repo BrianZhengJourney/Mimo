@@ -84,6 +84,10 @@ struct CustomPetManifest: Codable, Equatable, Sendable {
     /// Evolution-stage indices (0…2) that have an installed expression sheet
     /// (`expr-<index>.png`). Absent in legacy v2 manifests.
     let expressions: [Int]?
+    /// Action name ("walk") → strip filename (`action-walk.png`), a horizontal
+    /// run of square 512px cells whose frames a behaviour pack may drive.
+    /// Absent on familiars generated before action sheets existed.
+    let actions: [String: String]?
 }
 
 struct CustomPetRuntimeSpec: Equatable, Sendable {
@@ -98,6 +102,8 @@ struct CustomPetRuntimeSpec: Equatable, Sendable {
     let motionProfile: String
     /// Stage index ("0"…"2") → asset URL for that stage's expression sheet.
     let expressionURLs: [String: String]
+    /// Action name ("walk") → asset URL for that action's frame strip.
+    let actionURLs: [String: String]
 
     var dictionary: [String: Any] {
         [
@@ -111,6 +117,7 @@ struct CustomPetRuntimeSpec: Equatable, Sendable {
             "assetURL": assetURL,
             "motionProfile": motionProfile,
             "expressionURLs": expressionURLs,
+            "actionURLs": actionURLs,
         ]
     }
 }
@@ -129,6 +136,8 @@ enum CustomPetStoreError: LocalizedError {
     case corruptManifest
     case unsafeAssetPath
     case invalidExpressionStage
+    case invalidActionName
+    case invalidActionStrip
 
     var errorDescription: String? {
         switch self {
@@ -145,6 +154,8 @@ enum CustomPetStoreError: LocalizedError {
         case .corruptManifest: return "The custom familiar manifest is invalid."
         case .unsafeAssetPath: return "The custom familiar asset path is unsafe."
         case .invalidExpressionStage: return "The expression sheet stage index is invalid."
+        case .invalidActionName: return "The action name is invalid."
+        case .invalidActionStrip: return "The action strip must be square 512px cells in a horizontal row."
         }
     }
 }
@@ -165,6 +176,17 @@ final class CustomPetStore: @unchecked Sendable {
     static func expressionFilename(stageIndex: Int) -> String {
         "expr-\(stageIndex).png"
     }
+
+    static func actionFilename(_ name: String) -> String { "action-\(name).png" }
+    /// Lowercase ASCII words only — the name lands in filenames and URLs.
+    static func isActionName(_ name: String) -> Bool {
+        (1...24).contains(name.count)
+            && name.allSatisfy { ("a"..."z").contains($0) }
+    }
+    /// Cell edge of an action strip, and the frame counts worth storing —
+    /// one 4x4 sheet yields at most 16, and a 1-frame "animation" is a bug.
+    static let actionCellSize = 512
+    static let actionFrameRange = 2...16
     static let sheetWidth = 1536
     static let sheetHeight = 512
     static let frameWidth = 512
@@ -227,7 +249,8 @@ final class CustomPetStore: @unchecked Sendable {
                 temperamentID: temperamentID,
                 accent: accent.uppercased(),
                 asset: Self.sheetFilename,
-                expressions: []
+                expressions: [],
+                actions: nil
             )
             let manifestData = try Self.encodeManifest(manifest)
 
@@ -280,7 +303,62 @@ final class CustomPetStore: @unchecked Sendable {
                 temperamentID: manifest.temperamentID,
                 accent: manifest.accent,
                 asset: manifest.asset,
-                expressions: indices
+                expressions: indices,
+                actions: manifest.actions
+            )
+            let manifestURL = directory.appendingPathComponent(Self.manifestFilename,
+                                                               isDirectory: false)
+            try Self.encodeManifest(updated).write(to: manifestURL, options: [.atomic])
+            try? fileManager.setAttributes([.posixPermissions: 0o600],
+                                           ofItemAtPath: manifestURL.path)
+            return runtimeSpec(for: updated).dictionary
+        }
+    }
+
+    /// Installs (or replaces) one action's frame strip — a horizontal run of
+    /// square 512px cells produced by the action-sheet pipeline, whose frames
+    /// a behaviour pack may drive. Optional: a familiar without action strips
+    /// keeps the exact procedural-motion behavior.
+    @discardableResult
+    func installActionStrip(characterID: String, action: String,
+                            pngData: Data) throws -> [String: Any] {
+        try synchronized {
+            try ensureStorageReady()
+            guard Self.isActionName(action) else {
+                throw CustomPetStoreError.invalidActionName
+            }
+            guard pngData.count <= Self.maximumPNGBytes,
+                  let dimensions = CharacterSheetProcessor.pngPixelDimensions(pngData),
+                  dimensions.height == Self.actionCellSize,
+                  dimensions.width % Self.actionCellSize == 0,
+                  Self.actionFrameRange.contains(dimensions.width / Self.actionCellSize) else {
+                throw CustomPetStoreError.invalidActionStrip
+            }
+            let uuidString = try Self.uuidString(fromCharacterID: characterID)
+            let manifest = try loadManifest(uuidString: uuidString)
+
+            let directory = petDirectory(uuidString)
+            let filename = Self.actionFilename(action)
+            let stripURL = directory.appendingPathComponent(filename, isDirectory: false)
+            guard Self.isDescendant(stripURL, of: petsURL) else {
+                throw CustomPetStoreError.unsafeAssetPath
+            }
+            try pngData.write(to: stripURL, options: [.atomic])
+            try? fileManager.setAttributes([.posixPermissions: 0o600],
+                                           ofItemAtPath: stripURL.path)
+
+            var actions = manifest.actions ?? [:]
+            actions[action] = filename
+            let updated = CustomPetManifest(
+                schemaVersion: Self.schemaVersion,
+                kind: manifest.kind,
+                id: manifest.id,
+                name: manifest.name,
+                temperamentID: manifest.temperamentID,
+                accent: manifest.accent,
+                asset: manifest.asset,
+                expressions: manifest.expressions,
+                actions: actions
             )
             let manifestURL = directory.appendingPathComponent(Self.manifestFilename,
                                                                isDirectory: false)
@@ -370,6 +448,30 @@ final class CustomPetStore: @unchecked Sendable {
             try ensureStorageReady()
             let location = try Self.assetLocation(fromAssetURL: url)
             let manifest = try loadManifest(uuidString: location.uuidString)
+            let fileURL = petDirectory(location.uuidString)
+                .appendingPathComponent(location.filename, isDirectory: false)
+            guard Self.isDescendant(fileURL, of: petsURL) else {
+                throw CustomPetStoreError.unsafeAssetPath
+            }
+            if let action = location.actionName {
+                guard (manifest.actions ?? [:])[action] == location.filename else {
+                    throw CustomPetStoreError.unsafeAssetPath
+                }
+                // Strips are not stage sheets: different dimensions, and the
+                // three-stage sanitizer would reject them outright.
+                guard Self.isSafeRegularFile(fileURL, maximumBytes: Self.maximumPNGBytes,
+                                             fileManager: fileManager) else {
+                    throw CustomPetStoreError.unsafeAssetPath
+                }
+                let data = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
+                guard let dimensions = CharacterSheetProcessor.pngPixelDimensions(data),
+                      dimensions.height == Self.actionCellSize,
+                      dimensions.width % Self.actionCellSize == 0,
+                      Self.actionFrameRange.contains(dimensions.width / Self.actionCellSize) else {
+                    throw CustomPetStoreError.invalidActionStrip
+                }
+                return data
+            }
             if let stageIndex = location.expressionStageIndex {
                 guard (manifest.expressions ?? []).contains(stageIndex) else {
                     throw CustomPetStoreError.unsafeAssetPath
@@ -378,11 +480,6 @@ final class CustomPetStore: @unchecked Sendable {
                 guard manifest.asset == Self.sheetFilename else {
                     throw CustomPetStoreError.unsafeAssetPath
                 }
-            }
-            let fileURL = petDirectory(location.uuidString)
-                .appendingPathComponent(location.filename, isDirectory: false)
-            guard Self.isDescendant(fileURL, of: petsURL) else {
-                throw CustomPetStoreError.unsafeAssetPath
             }
             return try sanitizedSheetData(at: fileURL)
         }
@@ -504,6 +601,19 @@ final class CustomPetStore: @unchecked Sendable {
             expressionURLs[String(stageIndex)] =
                 "\(Self.scheme)://\(Self.schemeHost)/\(manifest.id)/\(filename)?v=\(Self.assetRevision)"
         }
+        // Same present-and-sane rule as expressions: only advertise strips
+        // whose file is actually there.
+        var actionURLs: [String: String] = [:]
+        for (action, filename) in manifest.actions ?? [:] {
+            guard Self.isActionName(action), Self.actionFilename(action) == filename else { continue }
+            let fileURL = petDirectory(manifest.id).appendingPathComponent(filename,
+                                                                           isDirectory: false)
+            guard Self.isSafeRegularFile(fileURL, maximumBytes: Self.maximumPNGBytes,
+                                         fileManager: fileManager),
+                  Self.isDescendant(fileURL, of: petsURL) else { continue }
+            actionURLs[action] =
+                "\(Self.scheme)://\(Self.schemeHost)/\(manifest.id)/\(filename)?v=\(Self.assetRevision)"
+        }
         return CustomPetRuntimeSpec(
             // The manifest's own version, not the current one. Hardcoding
             // Self.schemaVersion advertised a v2 pet as v3 with empty
@@ -518,7 +628,8 @@ final class CustomPetStore: @unchecked Sendable {
             accent: manifest.accent,
             assetURL: "\(Self.scheme)://\(Self.schemeHost)/\(manifest.id)/\(Self.sheetFilename)?v=\(Self.assetRevision)",
             motionProfile: profile.motionID,
-            expressionURLs: expressionURLs
+            expressionURLs: expressionURLs,
+            actionURLs: actionURLs
         )
     }
 
@@ -590,6 +701,8 @@ final class CustomPetStore: @unchecked Sendable {
         let filename: String
         /// Non-nil when the URL names an expression sheet instead of sheet.png.
         let expressionStageIndex: Int?
+        /// Non-nil when the URL names an action strip (`action-<name>.png`).
+        let actionName: String?
     }
 
     static func assetLocation(fromAssetURL url: URL) throws -> AssetLocation {
@@ -609,19 +722,25 @@ final class CustomPetStore: @unchecked Sendable {
         }
         let filename = String(path[1])
         var stageIndex: Int?
+        var actionName: String?
         if filename != sheetFilename {
-            guard let match = (0..<expressionStageCount).first(where: {
+            if let match = (0..<expressionStageCount).first(where: {
                 expressionFilename(stageIndex: $0) == filename
-            }) else {
+            }) {
+                stageIndex = match
+            } else if filename.hasPrefix("action-"), filename.hasSuffix(".png"),
+                      case let name = String(filename.dropFirst("action-".count).dropLast(".png".count)),
+                      isActionName(name), actionFilename(name) == filename {
+                actionName = name
+            } else {
                 throw CustomPetStoreError.unsafeAssetPath
             }
-            stageIndex = match
         }
         guard components.percentEncodedPath == "/\(canonical(uuid))/\(filename)" else {
             throw CustomPetStoreError.unsafeAssetPath
         }
         return AssetLocation(uuidString: canonical(uuid), filename: filename,
-                             expressionStageIndex: stageIndex)
+                             expressionStageIndex: stageIndex, actionName: actionName)
     }
 
     private static func isAccent(_ value: String) -> Bool {

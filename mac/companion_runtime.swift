@@ -73,7 +73,29 @@ final class Companion {
         layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
     }
 
-    var currentFrame: CompanionFrame { sprite.frame(frameIndex) }
+    /// Drawn walk cycle, when one exists. Frames are picked by distance
+    /// travelled rather than by the behaviour pack or the clock: distance is
+    /// what makes footfalls line up with the ground, the same reason the
+    /// procedural gait bob keys off `travelled`.
+    var walkSprite: CompanionSprite?
+
+    /// Whether the drawn walk frames are what should be on screen right now.
+    var walkFramesActive: Bool { walkSprite != nil && walkSpeed > 1 }
+
+    /// The sheet the current frame comes from — walk strip while walking with
+    /// real frames, the art sheet otherwise.
+    var activeSprite: CompanionSprite { walkFramesActive ? walkSprite! : sprite }
+
+    var currentFrame: CompanionFrame {
+        if walkFramesActive, let walkSprite {
+            // One drawn cycle covers two strides (left step + right step).
+            let cycle = CompanionRuntime.strideLength * 2
+            let phase = (travelled / cycle).truncatingRemainder(dividingBy: 1)
+            let index = Int(phase * CGFloat(walkSprite.frameCount)) % walkSprite.frameCount
+            return walkSprite.frame(index)
+        }
+        return sprite.frame(frameIndex)
+    }
 
     /// Keeps the anchor fixed across an art swap. Cells carry different
     /// padding, so re-deriving position from the layer rect would make the
@@ -85,7 +107,7 @@ final class Companion {
 
     /// On-screen rect in global (screen) coordinates.
     func screenRect() -> CGRect {
-        currentFrame.rect(anchoredAt: anchor, displayHeight: displayHeight, cellSize: sprite.cellSize)
+        currentFrame.rect(anchoredAt: anchor, displayHeight: displayHeight, cellSize: activeSprite.cellSize)
     }
 
     func isOpaque(atScreenPoint point: CGPoint) -> Bool {
@@ -233,6 +255,7 @@ final class CompanionRuntime {
                                   displayHeight: Self.defaultDisplayHeight,
                                   anchor: start)
         companion.director = behaviorPack.map { CompanionDirector(pack: $0) }
+        companion.walkSprite = walkSprite
         companions.append(companion)
         reattachLayers()
         commit(companion)
@@ -246,10 +269,20 @@ final class CompanionRuntime {
         }
     }
 
+    /// Installs (or clears) the drawn walk cycle on every companion, present
+    /// and future. Kept separate from `setArt`: expression swaps replace the
+    /// standing art many times a minute and must not disturb the walk strip.
+    func setWalkSprite(_ sprite: CompanionSprite?) {
+        walkSprite = sprite
+        for companion in companions { companion.walkSprite = sprite }
+    }
+    private var walkSprite: CompanionSprite?
+
     func removeAll() {
         companions.forEach { $0.layer.removeFromSuperlayer() }
         companions.removeAll()
         held = nil
+        walkSprite = nil
         releaseClickThrough()
     }
 
@@ -753,13 +786,16 @@ final class CompanionRuntime {
         }
 
         // A walk with no authored frames is just a sprite sliding sideways.
-        // Until an action sheet exists, a gait bob and a slight forward lean
-        // carry it: the body rises and falls twice per stride and tips into the
-        // direction of travel, which is most of what reads as walking.
+        // Until an action strip is installed, a gait bob and a slight forward
+        // lean carry it: the body rises and falls twice per stride and tips
+        // into the direction of travel, which is most of what reads as
+        // walking. With real frames on screen both come off — the drawn cycle
+        // already contains the body's rise, fall, and lean, and stacking the
+        // procedural versions on top reads as bouncing on a trampoline.
         //
         // Phase comes from distance travelled, not from the clock, so the
         // bounce stays locked to the movement at any speed.
-        if companion.walkSpeed > 1 {
+        if companion.walkSpeed > 1, !companion.walkFramesActive {
             let phase = companion.travelled / Self.strideLength * 2 * .pi
             let bob = -abs(sin(phase)) * Self.gaitBobHeight
             let lean = Self.gaitLean * min(1, companion.walkSpeed / 120)

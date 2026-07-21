@@ -84,8 +84,59 @@ struct CustomPetTests {
     static func main() throws {
         testTemperaments()
         try testStoreAndSchemeHandler()
+        try testActionStrips()
         try testStorageBoundaryRecovery()
         print("custom pet persistence tests passed")
+    }
+
+    private static func testActionStrips() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "mimo-action-strip-tests-\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: root) }
+        let store = CustomPetStore(root: root)
+        let runtime = try store.install(pngData: makeSheet(), name: "Walker",
+                                        temperamentID: "quiet-curious", accent: "#7DF0CF")
+        let characterID = runtime["characterID"] as! String
+
+        // An 8-frame strip of square 512px cells installs and is advertised.
+        let strip = makeSheet(width: 4096, height: 512)
+        let updated = try store.installActionStrip(characterID: characterID,
+                                                   action: "walk", pngData: strip)
+        let actionURLs = updated["actionURLs"] as? [String: String] ?? [:]
+        guard let walkURL = actionURLs["walk"].flatMap(URL.init(string:)) else {
+            preconditionFailure("an installed strip must be advertised in actionURLs")
+        }
+        let served = try store.assetData(for: walkURL)
+        expect(served == strip, "the scheme must serve the strip bytes unmodified")
+
+        // The strip survives an expression install (manifest round-trip).
+        _ = try store.installExpressionSheet(characterID: characterID, stageIndex: 2,
+                                             pngData: makeSheet())
+        let after = try store.runtimeSpec(characterID: characterID)
+        expect(((after["actionURLs"] as? [String: String]) ?? [:])["walk"] != nil,
+               "installing expressions must not drop the walk strip from the manifest")
+
+        // Rejections: bad names and non-strip dimensions never reach disk.
+        do {
+            _ = try store.installActionStrip(characterID: characterID,
+                                             action: "Walk!", pngData: strip)
+            preconditionFailure("an unsafe action name must be rejected")
+        } catch let error as CustomPetStoreError {
+            guard case .invalidActionName = error else {
+                preconditionFailure("expected invalidActionName, got \(error)")
+            }
+        }
+        do {
+            _ = try store.installActionStrip(characterID: characterID,
+                                             action: "hop",
+                                             pngData: makeSheet(width: 1000, height: 512))
+            preconditionFailure("a non-square-cell strip must be rejected")
+        } catch let error as CustomPetStoreError {
+            guard case .invalidActionStrip = error else {
+                preconditionFailure("expected invalidActionStrip, got \(error)")
+            }
+        }
     }
 
     private static func testTemperaments() {
@@ -133,6 +184,7 @@ struct CustomPetTests {
         let expectedKeys: Set<String> = [
             "schemaVersion", "kind", "id", "characterID", "name",
             "temperamentID", "accent", "assetURL", "motionProfile", "expressionURLs",
+            "actionURLs",
         ]
         expect(Set(runtime.keys) == expectedKeys, "runtime dictionary should expose only the agreed keys")
         expect(runtime["schemaVersion"] as? Int == 3, "runtime schema should be v3")

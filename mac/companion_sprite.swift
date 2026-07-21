@@ -88,6 +88,20 @@ struct CompanionSprite {
         return slice(sheet: sheet, frameCount: frameCount, semantics: semantics)
     }
 
+    /// Infers the frame count from the strip itself: every sheet this app
+    /// produces — stages, expressions, action strips — is a horizontal run of
+    /// square cells, so the count is simply width over height. This is what
+    /// lets an 8-frame walk strip and a 3-frame stage sheet share one loader
+    /// without anyone maintaining a count table.
+    static func load(data: Data,
+                     semantics: CompanionFrameSemantics) -> CompanionSprite? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              sheet.height > 0, sheet.width % sheet.height == 0 else { return nil }
+        return slice(sheet: sheet, frameCount: sheet.width / sheet.height,
+                     semantics: semantics)
+    }
+
     static func slice(sheet: CGImage, frameCount: Int,
                       semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
         let cellWidth = sheet.width / frameCount

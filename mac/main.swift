@@ -840,6 +840,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         companionRuntime.setBehaviorPack(loadDefaultBehaviorPack())
         companionRuntime.start()
         companionRuntime.spawn(sprite: sprite)
+        if let actions = spec["actionURLs"] as? [String: String],
+           let walk = actions["walk"], let walkURL = URL(string: walk),
+           let walkSprite = loadCompanionSprite(assetURL: walkURL, semantics: .actionPoses) {
+            companionRuntime.setWalkSprite(walkSprite)
+            recordCompanionStatus("walk strip loaded, \(walkSprite.frameCount) frames")
+        }
         // The webview is told to hide its own stage in webView(_:didFinish:),
         // not here — at launch the page has not loaded yet and the call would
         // be silently dropped, leaving the familiar drawn twice.
@@ -899,10 +905,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                              semantics: CompanionFrameSemantics) -> CompanionSprite? {
         let key = "\(assetURL.absoluteString)#\(semantics)"
         if let cached = companionSpriteCache[key] { return cached }
+        // Frame count is inferred from the strip itself (square cells), so
+        // 3-frame stage sheets and 8- or 16-frame action strips share this
+        // one loader and cache.
         guard let data = try? customPetStore.assetData(for: assetURL),
-              let sprite = CompanionSprite.load(data: data,
-                                                frameCount: CustomPetStore.expressionStageCount,
-                                                semantics: semantics)
+              let sprite = CompanionSprite.load(data: data, semantics: semantics)
         else { return nil }
         companionSpriteCache[key] = sprite
         return sprite
