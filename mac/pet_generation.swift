@@ -177,10 +177,19 @@ enum PetVisualTuningNote {
         return collapsed
     }
 
+    /// Applied automatically when the references contain a person and the user
+    /// left the note untouched. Tuned for the common case (a female character
+    /// from screenshots): stay close to the source, stretch the proportions a
+    /// touch, shrink the head a touch, mature and a little sassy. The note is
+    /// visible and editable in the studio before anything is generated.
     static func detectedPersonDefault(language: String) -> String {
+        // Both variants must clear sanitize's 160-scalar ceiling or the
+        // default silently disappears.
         let note = language == "en"
-            ? "Match source age, face, build, hair, and outfit; avoid childlike roundness."
-            : "贴近主参考的年龄感、脸型、身形、发型和穿搭；不要幼态大头、圆胖化或乱加配饰"
+            ? "Match source age, face, build, hair, outfit; longer proportions, smaller head; "
+              + "mature, confident, a little sassy; no childlike roundness."
+            : "贴近主参考的年龄感、脸型、身形、发型和穿搭；身体和四肢比例修长一点点；头部稍小一点点；"
+              + "成熟自信、有御姐气场；性格拽拽的；不要幼态大头、圆胖化或乱加配饰"
         return sanitize(note)
     }
 }

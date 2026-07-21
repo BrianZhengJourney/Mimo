@@ -1967,12 +1967,15 @@ extension AppDelegate {
                 pushSettingsState()
                 revealOverlay()
                 // Expression sheets ride along after adoption: blink/joy/rest
-                // frames per stage. Optional — failures leave a static stage.
+                // frames. Only the mature form gets them — the runtime always
+                // draws that form, so expressions for the other two slices
+                // would be paid for and never seen. Optional — a failure
+                // leaves a static familiar.
                 if body["skipExpressions"] as? Bool != true {
                     startExpressionRun(characterID: characterID,
                                        stagePNGs: expressionStagePNGs,
                                        temperamentID: profile.id,
-                                       stages: [0, 1, 2])
+                                       stages: [2])
                 }
             } catch {
                 settingsCall("petInstallError", [
@@ -1994,13 +1997,15 @@ extension AppDelegate {
                     try CharacterSheetProcessor.extractNormalizedStage(
                         fromNormalizedSheet: sheetData, stageIndex: $0)
                 }
-                // Default to filling the gaps; an explicit stageIndex redraws
-                // just that stage; “redraw” with none missing redoes all three.
+                // Only the mature form matters — the runtime never draws the
+                // other slices. Default fills its gap; an explicit stageIndex
+                // still allows a targeted redraw; "redraw" with nothing
+                // missing redoes the mature form.
                 let existing = Set((spec["expressionURLs"] as? [String: String])?.keys
                     .compactMap { Int($0) } ?? [])
-                var stages = (0..<3).filter { !existing.contains($0) }
+                var stages = existing.contains(2) ? [] : [2]
                 if let index = body["stageIndex"] as? Int { stages = [index] }
-                else if stages.isEmpty { stages = [0, 1, 2] }
+                else if stages.isEmpty { stages = [2] }
                 startExpressionRun(characterID: characterID, stagePNGs: stagePNGs,
                                    temperamentID: spec["temperamentID"] as? String ?? "",
                                    stages: stages)
