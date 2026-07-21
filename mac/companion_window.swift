@@ -29,7 +29,17 @@ final class CompanionLayerWindow: NSPanel {
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
                    defer: false)
-        level = .statusBar
+        // She lives on the desktop, not on top of your work: one notch above
+        // the desktop icons, below every normal window, so apps occlude her
+        // exactly like anything else lying on the desktop. The old float-over-
+        // everything behaviour remains behind a default for anyone who wants
+        // a companion that sits on their windows:
+        //   defaults write com.brianzheng.mimo companionAboveWindows -bool true
+        if UserDefaults.standard.bool(forKey: "companionAboveWindows") {
+            level = .statusBar
+        } else {
+            level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        }
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear

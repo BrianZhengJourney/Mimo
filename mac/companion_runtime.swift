@@ -101,8 +101,10 @@ final class Companion {
 
     var currentFrame: CompanionFrame {
         if walkFramesActive, let walkSprite {
-            // One drawn cycle covers two strides (left step + right step).
-            let cycle = CompanionRuntime.strideLength * 2
+            // The strip is authored as ONE finely-subdivided step that loops
+            // into itself (PetActionPose), so one strip cycle is one stride
+            // of travel.
+            let cycle = CompanionRuntime.strideLength
             let phase = (travelled / cycle).truncatingRemainder(dividingBy: 1)
             let index = Int(phase * CGFloat(walkSprite.frameCount)) % walkSprite.frameCount
             return walkSprite.frame(index)
