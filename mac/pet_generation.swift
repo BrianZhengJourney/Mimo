@@ -271,45 +271,75 @@ enum PetImageOutputSize: String {
     }
 }
 
-/// The nine poses a T1 action sheet carries.
+/// The sixteen frames of the first action sheet: one full walk cycle.
 ///
-/// Chosen to be the smallest set that makes a companion read as alive under
-/// the behaviour engine: a walk cycle it can loop, the dangle that sells being
-/// held, and the fall-and-land that sells being thrown. Sitting and looking
-/// are T2 — pleasant, but a companion without them is not obviously broken.
+/// One sheet holds one action (docs/companion/09-action-inventory.md §9.5):
+/// a sheet is a single forward pass, which is the only strong consistency
+/// mechanism either backend offers, and a walk that pops between frames is
+/// unusable no matter how good each frame looks alone. Sixteen frames is two
+/// steps — eight phases each, legs exchanged — which fills a 4x4 grid exactly.
+///
+/// Frames are authored walking toward the character's own left, like every
+/// Shimeji pack; the runtime mirrors for the other direction. Three-quarter
+/// view rather than pure profile so the face stays visible — identity, both
+/// for the viewer and for the consistency gate's comparison against the
+/// front-facing stage art.
 enum PetActionPose: Int, CaseIterable {
-    case standIdle = 0
-    case walkA = 1
-    case walkB = 2
-    case walkC = 3
-    case walkD = 4
-    case draggedHigh = 5
-    case draggedLow = 6
-    case falling = 7
-    case landed = 8
+    case contactNear = 0
+    case settleNear = 1
+    case recoilNear = 2
+    case passNear = 3
+    case riseNear = 4
+    case reachFar = 5
+    case dropFar = 6
+    case brakeFar = 7
+    case contactFar = 8
+    case settleFar = 9
+    case recoilFar = 10
+    case passFar = 11
+    case riseFar = 12
+    case reachNear = 13
+    case dropNear = 14
+    case brakeNear = 15
 
     /// Written as physical description rather than as a label, because a model
     /// follows "weight forward over the leading foot" far better than "walk 2".
+    /// The second eight repeat the first eight with near and far legs
+    /// exchanged, and say so explicitly — the symmetry is the instruction.
     var direction: String {
         switch self {
-        case .standIdle:
-            return "standing at rest, weight settled, arms relaxed at the sides"
-        case .walkA:
-            return "mid-stride with the near leg forward and the far leg back, weight over the front foot"
-        case .walkB:
-            return "passing position, legs together beneath the body, body at its highest"
-        case .walkC:
-            return "mid-stride mirrored: far leg forward, near leg back, weight over the front foot"
-        case .walkD:
-            return "passing position again, legs together, a fraction lower than the other passing pose"
-        case .draggedHigh:
-            return "hanging from an unseen grip at the scruff, body swung to its own left, feet trailing"
-        case .draggedLow:
-            return "hanging from the same unseen grip, body swung to its own right, feet trailing the other way"
-        case .falling:
-            return "falling, limbs loose and trailing upward, body slightly tilted"
-        case .landed:
-            return "just landed, knees bent and body compressed, absorbing the impact"
+        case .contactNear:
+            return "near heel just touching down ahead, far leg trailing with toes still on the ground, arms at their widest counter-swing"
+        case .settleNear:
+            return "weight over the front foot, both knees softly bent, body at its lowest point of the stride"
+        case .recoilNear:
+            return "far leg folding and lifting behind, all weight on the planted near leg, body beginning to rise"
+        case .passNear:
+            return "far leg passing beside the planted near leg, body upright at middle height, arms passing the hips"
+        case .riseNear:
+            return "planted near leg pushing tall with the heel starting to lift, body at its highest, far knee swinging forward bent"
+        case .reachFar:
+            return "far leg reaching forward with the shin swinging out, near heel off the ground, arms mid counter-swing"
+        case .dropFar:
+            return "far leg nearly straight, body descending, near leg trailing onto its toes"
+        case .brakeFar:
+            return "far heel a moment from touching down, stride at full length, body low and moving forward"
+        case .contactFar:
+            return "far heel just touching down ahead, near leg trailing with toes still on the ground, arms at their widest opposite counter-swing"
+        case .settleFar:
+            return "weight settling over the far foot, both knees softly bent, body again at its lowest"
+        case .recoilFar:
+            return "near leg folding and lifting behind, all weight on the planted far leg, body beginning to rise"
+        case .passFar:
+            return "near leg passing beside the planted far leg, body upright at middle height, arms passing the hips"
+        case .riseFar:
+            return "planted far leg pushing tall with the heel starting to lift, body at its highest, near knee swinging forward bent"
+        case .reachNear:
+            return "near leg reaching forward with the shin swinging out, far heel off the ground, arms mid counter-swing"
+        case .dropNear:
+            return "near leg nearly straight, body descending, far leg trailing onto its toes"
+        case .brakeNear:
+            return "near heel a moment from touching down, stride at full length, closing the loop back to the first panel"
         }
     }
 }
@@ -319,16 +349,18 @@ enum PetGenerationArtifact: Equatable {
     case evolutionSheet
     case replacement(PetEvolutionStage)
     case expressionSheet(PetEvolutionStage)
-    /// Nine poses of one locked stage, on a 3x3 grid.
+    /// Sixteen frames of one action of one locked stage, on a 4x4 grid.
     case actionSheet(PetEvolutionStage)
 
     var outputSize: PetImageOutputSize {
         switch self {
         case .candidateBoard, .replacement: return .square
         case .evolutionSheet, .expressionSheet: return .landscape
-        // 2048² gives ~682px per cell against ~512 on a 1536px sheet.
-        // Per-cell resolution is the binding constraint on contact-sheet
-        // quality, and this size is legal on gpt-image-2 only.
+        // 2048² over a 4x4 grid gives exactly 512px per cell — the output
+        // size, and a whole-number division, which the slicer requires. (The
+        // earlier 3x3 plan died on exactly that: 2048 % 3 != 0, so the first
+        // real sheet would have failed to slice.) 2048 is legal on
+        // gpt-image-2 only.
         case .actionSheet: return .actionSheet
         }
     }
@@ -1202,13 +1234,13 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         )
     }
 
-    /// Action pass. Image 1 is the locked stage design; the model draws it nine
-    /// times changing ONLY the pose.
+    /// Action pass. Image 1 is the locked stage design; the model draws it
+    /// sixteen times changing ONLY the pose.
     ///
-    /// All nine share one call on purpose. Neither backend exposes a seed, so a
-    /// single forward pass — where the model can see every other cell while
-    /// drawing each one — is the only strong consistency mechanism available.
-    /// Nine separate calls would drift far worse.
+    /// All sixteen share one call on purpose. Neither backend exposes a seed,
+    /// so a single forward pass — where the model can see every other cell
+    /// while drawing each one — is the only strong consistency mechanism
+    /// available. Sixteen separate calls would drift far worse.
     static func actionSheetRequest(stage: PetEvolutionStage,
                                    stageFrameData: Data,
                                    styleBoardData: Data? = nil,
@@ -1244,39 +1276,46 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             ? "Image 2 is Mimo's internal STYLE BOARD; use its rendering language only, never its identities or layout."
             : "No style-board image is supplied; preserve the established rendering language from Image 1 exactly."
         let cells = PetActionPose.allCases.map { pose in
-            let row = pose.rawValue / 3 + 1, column = pose.rawValue % 3 + 1
+            let row = pose.rawValue / 4 + 1, column = pose.rawValue % 4 + 1
             return "  ROW \(row), COLUMN \(column) — \(pose.direction)."
         }.joined(separator: "\n")
 
         return """
-        MIMO ASSET PASS 4 — ACTION SHEET FOR THE \(stage.rawValue.uppercased()) STAGE
+        MIMO ASSET PASS 4 — WALK-CYCLE ACTION SHEET FOR THE \(stage.rawValue.uppercased()) STAGE
 
         REFERENCES
         Image 1 is the LOCKED \(stage.rawValue.uppercased()) STAGE DESIGN and the absolute identity lock. Reproduce its
         species, face structure, hairstyle or markings, palette, outfit, outline weight, shading, and proportions
-        EXACTLY in all nine panels. Only the POSE changes between panels.
+        EXACTLY in all sixteen panels. Only the POSE changes between panels.
         \(styleReference)
         Temperament: \(personalityVisual)
 
         OUTPUT CONTRACT
-        Create one 2048x2048 square sheet holding exactly NINE panels in a strict 3x3 grid, each panel 682x682, read
-        left to right then top to bottom. Every panel contains one isolated full-body view of the SAME individual from
-        Image 1, facing the viewer within about 15 degrees, with feet fully visible and generous unbroken matte on
-        every side. No dividers, labels, numbers, captions, arrows, turnaround annotations, or extra figures.
+        Create one 2048x2048 square sheet holding exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512,
+        read left to right then top to bottom. Every panel contains one isolated full-body view of the SAME individual
+        from Image 1 in three-quarter view walking toward the LEFT of the panel — body and feet angled left, the face
+        turned enough that both eyes stay visible — with feet fully visible and generous unbroken matte on every
+        side. No dividers, labels, numbers, captions, arrows, turnaround annotations, or extra figures.
+
+        THE PANELS ARE ONE LOOPING WALK
+        The sixteen panels are consecutive frames of one seamless walk cycle: two full steps, eight phases each, the
+        second step repeating the first with the legs exchanged. Panel 16 flows directly back into panel 1. Movement
+        between neighbouring panels must be small and even — no phase skips, no direction changes.
 
         CONSISTENCY IS THE PRIMARY REQUIREMENT
-        Treat all nine panels as frames of one animation of one character. Keep the character the same SIZE in every
-        panel — measure from the sole of the foot to the top of the head and hold it constant except where the pose
-        itself lowers the body. Keep the same camera distance, the same eye level, the same light direction, and the
-        same palette throughout. A viewer flipping between any two panels must see the same character moving, never a
-        redesign. Do not take the opportunity to improve, restyle, age, or refine the design between panels.
+        Treat all sixteen panels as frames of one animation of one character. Keep the character the same SIZE in
+        every panel — measure from the sole of the foot to the top of the head and hold it constant except where the
+        stride itself raises or lowers the body. Keep the same camera distance, the same eye level, the same light
+        direction, and the same palette throughout. A viewer flipping between any two panels must see the same
+        character moving, never a redesign. Do not take the opportunity to improve, restyle, age, or refine the
+        design between panels.
 
         POSES
         \(cells)
 
         GROUNDING
         In every panel the character's feet rest on one common invisible ground line at the same height within the
-        panel, except for the falling panel where the whole body is airborne. Do not draw the ground line.
+        panel. Do not draw the ground line.
 
         EXTRACTION MATTE
         Use one flat opaque background of exact color #F1ECE2 across the entire canvas. No gradient, texture, floor,

@@ -51,10 +51,10 @@ struct PetGenerationTests {
 
     // MARK: - Action sheet (P3b)
 
-    /// Nine poses in one call, because neither backend exposes a seed and a
-    /// single forward pass — where the model sees every other cell while
+    /// Sixteen frames in one call, because neither backend exposes a seed and
+    /// a single forward pass — where the model sees every other cell while
     /// drawing each one — is the only strong consistency mechanism available.
-    static func testActionSheetRequestIsOneCallForNinePoses() {
+    static func testActionSheetRequestIsOneCallForSixteenFrames() {
         guard let request = PetGenerationCoordinator.actionSheetRequest(
             stage: .bloom,
             stageFrameData: Data("LOCKED_STAGE".utf8),
@@ -71,8 +71,8 @@ struct PetGenerationTests {
                "action sheets go out at 2048x2048 for per-cell resolution")
         expect(body.contains("LOCKED_STAGE"), "the locked stage design is attached")
         expect(body.contains("locked-stage-design.png"), "and is the first reference")
-        expect(flat.contains("exactly NINE panels in a strict 3x3 grid"),
-               "the grid is stated explicitly")
+        expect(flat.contains("exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512"),
+               "the grid is stated explicitly and divides 2048 evenly — 3x3 did not")
     }
 
     /// Poses are described physically rather than labelled. A model follows
@@ -81,10 +81,10 @@ struct PetGenerationTests {
         let prompt = flattened(PetGenerationCoordinator.actionSheetPrompt(
             stage: .bloom, personalityVisual: "Quiet and curious", hasStyleBoard: true))
         expect(prompt.contains("ROW 1, COLUMN 1"), "cells are addressed by position")
-        expect(prompt.contains("ROW 3, COLUMN 3"), "all nine cells are addressed")
+        expect(prompt.contains("ROW 4, COLUMN 4"), "all sixteen cells are addressed")
         expect(prompt.contains("weight over the front foot"),
                "walk poses are described by weight, not numbered")
-        expect(!prompt.contains("walkA"), "internal case names must not leak into the prompt")
+        expect(!prompt.contains("contactNear"), "internal case names must not leak into the prompt")
         for pose in PetActionPose.allCases {
             expect(prompt.contains(flattened(pose.direction)), "pose \(pose.rawValue) is described")
         }
@@ -108,7 +108,7 @@ struct PetGenerationTests {
     }
 
     static func main() {
-        testActionSheetRequestIsOneCallForNinePoses()
+        testActionSheetRequestIsOneCallForSixteenFrames()
         testActionPosesAreDescribedPhysically()
         testActionSheetPromptDemandsCrossPanelConsistency()
         let first = "data:image/png;base64," + String(repeating: "A", count: 240)

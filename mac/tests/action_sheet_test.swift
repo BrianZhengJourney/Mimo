@@ -41,37 +41,38 @@ struct ActionSheetTests {
         CharacterSheetPixelBounds(x: x, y: y, width: w, height: h)
     }
 
-    /// Nine cells, each with a subject of a different height and position —
-    /// which is exactly what different poses of one character look like.
-    static func ninePoses(cell: Int = 128) -> CharacterSheetRGBAImage {
-        let heights = [70, 68, 72, 66, 74, 69, 71, 67, 73]
+    /// Sixteen cells — the production 4x4 layout — each with a subject of a
+    /// different height and position, which is exactly what different frames
+    /// of one character look like.
+    static func sixteenFrames(cell: Int = 128) -> CharacterSheetRGBAImage {
+        let heights = [70, 68, 72, 66, 74, 69, 71, 67, 73, 70, 68, 72, 66, 74, 69, 71]
         let blobs = heights.enumerated().map { index, height in
-            bounds(40 + (index % 3) * 4, cell - 20 - height, 30, height)
+            bounds(40 + (index % 4) * 4, cell - 20 - height, 30, height)
         }
-        return makeSheet(cell: cell, layout: .threeByThree, blobs: blobs)
+        return makeSheet(cell: cell, layout: .fourByFour, blobs: blobs)
     }
 
     // MARK: - Slicing
 
     static func testSlicesEveryCell() throws {
-        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
-        expect(result.frames.count == 9, "3x3 yields nine frames, got \(result.frames.count)")
-        expect(result.sourceCells.count == 9, "and nine source cells for the gate to score")
-        expect(result.frames.map(\.index) == Array(0..<9), "frames keep grid order")
+        let result = try ActionSheetProcessor.process(pngData: png(sixteenFrames()))
+        expect(result.frames.count == 16, "4x4 yields sixteen frames, got \(result.frames.count)")
+        expect(result.sourceCells.count == 16, "and sixteen source cells for the gate to score")
+        expect(result.frames.map(\.index) == Array(0..<16), "frames keep grid order")
     }
 
     static func testStripGeometryMatchesTheRuntimeContract() throws {
-        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        let result = try ActionSheetProcessor.process(pngData: png(sixteenFrames()))
         let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
         expect(decoded.height == result.cellSize, "strip is one cell tall")
-        expect(decoded.width == result.cellSize * 9, "strip is nine cells wide")
+        expect(decoded.width == result.cellSize * 16, "strip is sixteen cells wide")
     }
 
     /// The rule this file exists for. Every frame must share one scale and one
     /// baseline; fitting each pose to its own cell makes the character change
     /// size and hop vertically, and a walk cycle built from that jitters.
     static func testAllFramesShareOneScaleAndBaseline() throws {
-        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        let result = try ActionSheetProcessor.process(pngData: png(sixteenFrames()))
         let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
 
         let baselines = Set(result.frames.map(\.anchorY))
@@ -81,7 +82,7 @@ struct ActionSheetTests {
         // Subject heights differ in the source by design; after a shared scale
         // their ratios must be preserved rather than flattened to one height.
         var renderedHeights: [Int] = []
-        for index in 0..<9 {
+        for index in 0..<16 {
             let frame = ActionSheetProcessor.crop(decoded,
                                                   x: index * result.cellSize, y: 0,
                                                   width: result.cellSize, height: result.cellSize)
@@ -102,7 +103,7 @@ struct ActionSheetTests {
     }
 
     static func testFeetLandOnTheBaseline() throws {
-        let result = try ActionSheetProcessor.process(pngData: png(ninePoses()))
+        let result = try ActionSheetProcessor.process(pngData: png(sixteenFrames()))
         let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
         for frame in result.frames {
             let cell = ActionSheetProcessor.crop(decoded,
@@ -126,7 +127,7 @@ struct ActionSheetTests {
         }
         let sheet = makeSheet(cell: 128, layout: .threeByThree, blobs: blobs)
         do {
-            _ = try ActionSheetProcessor.process(pngData: png(sheet))
+            _ = try ActionSheetProcessor.process(pngData: png(sheet), layout: .threeByThree)
             preconditionFailure("an empty cell must fail the whole sheet")
         } catch let error as ActionSheetError {
             guard case .emptyCell(let index) = error else {
@@ -142,7 +143,7 @@ struct ActionSheetTests {
         blobs[2] = bounds(40, 100, 20, 8)
         let sheet = makeSheet(cell: 128, layout: .threeByThree, blobs: blobs)
         do {
-            _ = try ActionSheetProcessor.process(pngData: png(sheet))
+            _ = try ActionSheetProcessor.process(pngData: png(sheet), layout: .threeByThree)
             preconditionFailure("a tiny subject must be rejected")
         } catch let error as ActionSheetError {
             guard case .cellTooSmall(let index, _, _) = error else {
@@ -189,7 +190,7 @@ struct ActionSheetTests {
         }
         let sheet = makeSheet(cell: 128, layout: .threeByThree, blobs: blobs,
                               matte: (241, 236, 226, 255))
-        let result = try ActionSheetProcessor.process(pngData: png(sheet))
+        let result = try ActionSheetProcessor.process(pngData: png(sheet), layout: .threeByThree)
         let decoded = try CharacterSheetProcessor.decodePNG(result.pngData)
 
         // Corners of the first output cell must be transparent, or the matte

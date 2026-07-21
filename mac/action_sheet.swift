@@ -27,9 +27,13 @@ struct ActionSheetLayout: Equatable {
 
     var frameCount: Int { rows * columns }
 
-    /// 3×3 in one 2048px square: nine poses at ~682px per cell, versus ~512 for
-    /// a 1536px sheet. Per-cell resolution is the binding constraint on
-    /// contact-sheet quality, and 2048² is legal on gpt-image-2.
+    /// The production layout: 4×4 in one 2048px square, sixteen frames at
+    /// exactly 512px per cell. The cell count must divide the canvas evenly —
+    /// the processor rejects anything else — which is what killed the earlier
+    /// 3×3-at-2048² plan (2048 % 3 != 0; its "682px cells" never existed).
+    static let fourByFour = ActionSheetLayout(rows: 4, columns: 4)
+
+    /// Kept for tests exercising non-square layouts; not generable at 2048².
     static let threeByThree = ActionSheetLayout(rows: 3, columns: 3)
 }
 
@@ -86,7 +90,7 @@ enum ActionSheetProcessor {
     static let minimumSubjectHeight = 48
 
     static func process(pngData: Data,
-                        layout: ActionSheetLayout = .threeByThree,
+                        layout: ActionSheetLayout = .fourByFour,
                         outputCellSize: Int = ActionSheetProcessor.outputCellSize) throws
         -> ActionSheetResult {
         guard pngData.starts(with: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) else {
