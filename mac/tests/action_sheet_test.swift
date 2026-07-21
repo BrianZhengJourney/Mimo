@@ -118,6 +118,36 @@ struct ActionSheetTests {
         }
     }
 
+    /// The bug the user reported as "someone's feet above her head": a
+    /// neighbouring panel's overflow crosses the grid line, the sliced cell
+    /// keeps it, its bounds inflate, and the frame renders a shrunken subject
+    /// with stray shoes floating on top. Edge-touching runts must be removed
+    /// before bounds are taken.
+    static func testNeighbourOverflowIsRemovedFromTheCell() throws {
+        let cell = 128
+        let heights = Array(repeating: 70, count: 16)
+        var sheet = makeSheet(cell: cell, layout: .fourByFour,
+                              blobs: heights.enumerated().map { index, height in
+                                  bounds(40 + (index % 4) * 4, cell - 20 - height, 30, height)
+                              })
+        // Paint "feet" hanging from the top edge of cell 5 (row 1, column 1):
+        // a small blob that touches y = 0 of that cell.
+        let cellX = 1 * cell, cellY = 1 * cell
+        for y in 0..<14 {
+            for x in 0..<22 {
+                let offset = ((cellY + y) * sheet.width + cellX + 50 + x) * 4
+                sheet.pixels[offset] = 120; sheet.pixels[offset + 1] = 90
+                sheet.pixels[offset + 2] = 60; sheet.pixels[offset + 3] = 255
+            }
+        }
+        let result = try ActionSheetProcessor.process(pngData: png(sheet))
+        // With the intruder removed, cell 5's subject bounds match everyone
+        // else's; if it survived, the bounds would start at the cell top.
+        expect(result.frames[5].bounds.height == result.frames[4].bounds.height,
+               "the intruder must not inflate the subject bounds, got "
+               + "\(result.frames[5].bounds.height) vs \(result.frames[4].bounds.height)")
+    }
+
     // MARK: - Rejections
 
     static func testEmptyCellIsRejected() {
@@ -219,6 +249,7 @@ struct ActionSheetTests {
         try testStripGeometryMatchesTheRuntimeContract()
         try testAllFramesShareOneScaleAndBaseline()
         try testFeetLandOnTheBaseline()
+        try testNeighbourOverflowIsRemovedFromTheCell()
         testEmptyCellIsRejected()
         testTinySubjectIsRejected()
         testIndivisibleDimensionsAreRejected()

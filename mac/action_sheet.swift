@@ -118,9 +118,14 @@ enum ActionSheetProcessor {
         for row in 0..<layout.rows {
             for column in 0..<layout.columns {
                 let index = row * layout.columns + column
-                let cell = crop(source,
+                var cell = crop(source,
                                 x: column * cellWidth, y: row * cellHeight,
                                 width: cellWidth, height: cellHeight)
+                // A neighbour's overflow (feet through the top grid line, a
+                // hand through the side) would otherwise inflate this cell's
+                // bounds — shrinking the subject and floating stray shoes
+                // above her head on screen.
+                CharacterSheetProcessor.removeEdgeIntruders(from: &cell)
                 guard let cellBounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
                     throw ActionSheetError.emptyCell(index: index)
                 }

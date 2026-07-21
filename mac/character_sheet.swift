@@ -908,6 +908,36 @@ enum CharacterSheetProcessor {
         return components
     }
 
+    /// A 4x4 action sheet packs panels tightly, and a subject that overflows
+    /// its panel leaks into the neighbour: a sliced cell then carries a pair
+    /// of feet hanging from its top edge, the bounding box inflates to
+    /// include them, and the on-screen frame shows someone else's shoes
+    /// floating above the head while the subject itself renders smaller.
+    ///
+    /// Removes every component that touches a cell edge and is small next to
+    /// the main subject. The subject may legitimately touch an edge — but
+    /// then it IS the largest component, which is never removed; detached
+    /// props that float free (a dream bubble) touch no edge and survive.
+    static func removeEdgeIntruders(from image: inout CharacterSheetRGBAImage) {
+        let components = alphaComponents(in: image)
+        guard let largest = components.max(by: { $0.pixels.count < $1.pixels.count }),
+              !largest.pixels.isEmpty else { return }
+        for component in components where component.pixels.count < largest.pixels.count / 4 {
+            let bounds = component.bounds
+            let touchesEdge = bounds.x == 0 || bounds.y == 0
+                || bounds.x + bounds.width >= image.width
+                || bounds.y + bounds.height >= image.height
+            guard touchesEdge else { continue }
+            for index in component.pixels {
+                let pixel = index * 4
+                image.pixels[pixel] = 0
+                image.pixels[pixel + 1] = 0
+                image.pixels[pixel + 2] = 0
+                image.pixels[pixel + 3] = 0
+            }
+        }
+    }
+
     static func removeSmallSpecks(from image: inout CharacterSheetRGBAImage) {
         let components = alphaComponents(in: image)
         guard let largest = components.map({ $0.pixels.count }).max(), largest > 0 else { return }
