@@ -124,6 +124,8 @@ struct ActionSheetLiveRun {
         switch arguments.count > 4 ? arguments[4] : "walk" {
         case "walk": plan = .walkCycle
         case "gaze": plan = .gaze
+        case "rest": plan = .rest
+        case "wall": plan = .wallLean
         default: throw LiveRunError.usage
         }
         let fileManager = FileManager.default

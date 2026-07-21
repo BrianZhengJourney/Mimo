@@ -306,8 +306,16 @@ struct PetActionSheetPlan {
     let viewInstruction: String
     /// The paragraph explaining how the sixteen panels relate to each other.
     let framing: String
+    /// The grounding rule — where the body sits relative to the shared
+    /// baseline. Walking stands on it; lying and ledge-sitting do not.
+    let grounding: String
     /// Sixteen per-panel descriptions, grid order.
     let panels: [String]
+
+    static let standingGrounding = """
+    In every panel the character's feet rest on one common invisible ground line at the same height within the
+    panel. Do not draw the ground line.
+    """
 
     static let walkCycle = PetActionSheetPlan(
         key: "walk",
@@ -320,6 +328,7 @@ struct PetActionSheetPlan {
         second step repeating the first with the legs exchanged. Panel 16 flows directly back into panel 1. Movement
         between neighbouring panels must be small and even — no phase skips, no direction changes.
         """,
+        grounding: standingGrounding,
         panels: PetActionPose.allCases.map(\.direction))
 
     /// The cursor-tracking sheet: one standing pose, sixteen gaze directions
@@ -340,6 +349,7 @@ struct PetActionSheetPlan {
         orientation and the eyes change, turning smoothly like the hand of a clock. Directions are given from the
         VIEWER'S point of view.
         """,
+        grounding: standingGrounding,
         panels: [
             "head tilted back, eyes looking straight up",
             "head tilted back and turned a little to the viewer's right, eyes up and slightly right",
@@ -357,6 +367,88 @@ struct PetActionSheetPlan {
             "head turned to the viewer's left and slightly raised, eyes mostly left, a little up",
             "head turned halfway to the viewer's left and raised, eyes up-left",
             "head tilted back and turned a little to the viewer's left, eyes up and slightly left",
+        ])
+
+    /// The rest sheet: lie down at the bottom of the screen and sleep. One
+    /// authored side (facing left), mirrored at runtime like the walk.
+    /// Panels: settling down (1–5), sleeping breath loop (6–11), dreaming
+    /// (12–13), a sleepy stir and head-lift (14–16).
+    static let rest = PetActionSheetPlan(
+        key: "rest",
+        heading: "REST-AND-SLEEP ACTION SHEET",
+        viewInstruction: "in three-quarter view facing the LEFT of the panel, low to the ground once lying — "
+            + "the face staying visible in every panel, even while asleep",
+        framing: """
+        THE PANELS ARE ONE REST SEQUENCE
+        The sixteen panels are consecutive frames of one continuous sequence: the character settles from standing
+        down onto the ground, curls up lying on their front, sleeps with a slow visible breath, dreams briefly, then
+        stirs without getting up. Movement between neighbouring panels must be small and even. Panels 6 through 11
+        form a loop — panel 11 flows back into panel 6.
+        """,
+        grounding: """
+        One common invisible ground line runs at the same height in every panel. Standing panels put the feet on it;
+        lying panels rest the whole body along it, never below it. Do not draw the ground line.
+        """,
+        panels: [
+            "standing, shoulders relaxed, starting to look down at the ground",
+            "knees bending, body starting to sink, one hand reaching toward the ground",
+            "crouched low, one hand on the ground, settling forward",
+            "lying down on the front, propped on both forearms, head still up",
+            "lying settled, head coming down onto the folded arms, eyes half closed",
+            "asleep on the front, head on the folded arms, eyes closed, body at rest",
+            "asleep, the back and shoulders gently risen with an inhale",
+            "asleep, the back and shoulders settled with an exhale",
+            "asleep, exactly as the inhale panel with the head sunk a fraction deeper",
+            "asleep, exhale again, utterly still and content",
+            "asleep, a slow inhale closing the breathing loop",
+            "asleep with a small round dream bubble beginning above the head",
+            "asleep with the dream bubble grown larger, a tiny star inside it",
+            "stirring: the dream bubble gone, one ear or the head twitching",
+            "head lifted sleepily off the arms, eyes half open, still lying",
+            "head up and turned a little toward the viewer, blinking awake, still lying",
+        ])
+
+    /// The wall sheet: everything the attached state can host, one authored
+    /// side. Panels 1–8 lean against a wall at the LEFT edge; panels 9–16 sit
+    /// on a ledge with legs dangling — the screen-edge idle the user asked
+    /// for by name.
+    static let wallLean = PetActionSheetPlan(
+        key: "wall",
+        heading: "WALL-LEAN AND LEDGE-SIT ACTION SHEET",
+        viewInstruction: "in three-quarter view; panels 1 through 8 lean the back against an invisible vertical "
+            + "wall at the LEFT edge of the panel, panels 9 through 16 sit on an invisible ledge",
+        framing: """
+        THE PANELS ARE TWO SHORT IDLES
+        Panels 1 through 8 are one loop: the character leans back against a wall on the LEFT — one shoulder and the
+        back touching it, ankles crossed — shifting weight, folding and unfolding arms, glancing around, relaxed and
+        a little cocky. Panel 8 flows back into panel 1. Panels 9 through 16 are a second loop: the character sits
+        on the edge of an invisible ledge, hands beside the hips, legs hanging and swinging gently — forward and
+        back, alternating — panel 16 flows back into panel 9. Movement between neighbouring panels is small and
+        even.
+        """,
+        grounding: """
+        Panels 1 through 8: the feet rest on one common invisible ground line at the same height in every panel,
+        with the invisible wall rising from it at the LEFT edge. Panels 9 through 16: the character sits on an
+        invisible horizontal ledge at mid-panel height, hips at the same height in every panel, legs hanging below
+        the ledge with nothing under the feet. Do not draw the wall, the ledge, or the ground line.
+        """,
+        panels: [
+            "leaning back against the left wall, arms folded, ankles crossed, gaze ahead",
+            "leaning, arms folded, head turned toward the viewer with a small knowing smile",
+            "leaning, one arm dropping to rest a thumb in a pocket",
+            "leaning, weight shifting to the other foot, ankles re-crossing",
+            "leaning, glancing up and away, relaxed",
+            "leaning, a slow blink, chin dipping slightly",
+            "leaning, arms folding again, settling back into the first pose",
+            "leaning, exactly the first pose with the head at a fractionally different angle",
+            "sitting on the ledge, hands beside the hips, both legs hanging straight down",
+            "sitting, the near leg swinging forward, the far leg back",
+            "sitting, legs passing each other mid-swing",
+            "sitting, the near leg swinging back, the far leg forward",
+            "sitting, legs passing again, body leaning back a touch on the hands",
+            "sitting, the swing settling, head turning toward the viewer",
+            "sitting, legs nearly still, a content smile",
+            "sitting, back to both legs hanging, closing the loop",
         ])
 }
 
@@ -1441,8 +1533,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         \(cells)
 
         GROUNDING
-        In every panel the character's feet rest on one common invisible ground line at the same height within the
-        panel. Do not draw the ground line.
+        \(plan.grounding)
 
         EXTRACTION MATTE
         Use one flat opaque background of exact color #F1ECE2 across the entire canvas. No gradient, texture, floor,

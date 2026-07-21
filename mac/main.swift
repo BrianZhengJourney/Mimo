@@ -840,11 +840,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         companionRuntime.setBehaviorPack(loadDefaultBehaviorPack())
         companionRuntime.start()
         companionRuntime.spawn(sprite: sprite)
-        if let actions = spec["actionURLs"] as? [String: String],
-           let walk = actions["walk"], let walkURL = URL(string: walk),
+        let actions = spec["actionURLs"] as? [String: String] ?? [:]
+        if let walk = actions["walk"], let walkURL = URL(string: walk),
            let walkSprite = loadCompanionSprite(assetURL: walkURL, semantics: .actionPoses) {
             companionRuntime.setWalkSprite(walkSprite)
             recordCompanionStatus("walk strip loaded, \(walkSprite.frameCount) frames")
+        }
+        if let gaze = actions["gaze"], let gazeURL = URL(string: gaze),
+           let gazeSprite = loadCompanionSprite(assetURL: gazeURL, semantics: .actionPoses) {
+            companionRuntime.setGazeSprite(gazeSprite)
+            recordCompanionStatus("gaze strip loaded, \(gazeSprite.frameCount) frames")
         }
         // The webview is told to hide its own stage in webView(_:didFinish:),
         // not here — at launch the page has not loaded yet and the call would

@@ -79,12 +79,25 @@ final class Companion {
     /// procedural gait bob keys off `travelled`.
     var walkSprite: CompanionSprite?
 
+    /// Drawn gaze sweep, when one exists: the "she watches your cursor"
+    /// frames. `gazeFrameIndex` is set by the runtime each tick — nil when
+    /// the cursor is too far away or the companion is busy moving.
+    var gazeSprite: CompanionSprite?
+    var gazeFrameIndex: Int?
+    /// Distance hysteresis so the boundary does not flicker.
+    var gazeEngaged = false
+
     /// Whether the drawn walk frames are what should be on screen right now.
     var walkFramesActive: Bool { walkSprite != nil && walkSpeed > 1 }
+    var gazeFramesActive: Bool { gazeSprite != nil && gazeFrameIndex != nil && !walkFramesActive }
 
-    /// The sheet the current frame comes from — walk strip while walking with
-    /// real frames, the art sheet otherwise.
-    var activeSprite: CompanionSprite { walkFramesActive ? walkSprite! : sprite }
+    /// The sheet the current frame comes from — walk strip while walking,
+    /// gaze strip while watching the cursor, the art sheet otherwise.
+    var activeSprite: CompanionSprite {
+        if walkFramesActive { return walkSprite! }
+        if gazeFramesActive { return gazeSprite! }
+        return sprite
+    }
 
     var currentFrame: CompanionFrame {
         if walkFramesActive, let walkSprite {
@@ -93,6 +106,9 @@ final class Companion {
             let phase = (travelled / cycle).truncatingRemainder(dividingBy: 1)
             let index = Int(phase * CGFloat(walkSprite.frameCount)) % walkSprite.frameCount
             return walkSprite.frame(index)
+        }
+        if gazeFramesActive, let gazeSprite, let index = gazeFrameIndex {
+            return gazeSprite.frame(index)
         }
         return sprite.frame(frameIndex)
     }
@@ -256,6 +272,7 @@ final class CompanionRuntime {
                                   anchor: start)
         companion.director = behaviorPack.map { CompanionDirector(pack: $0) }
         companion.walkSprite = walkSprite
+        companion.gazeSprite = gazeSprite
         companions.append(companion)
         reattachLayers()
         commit(companion)
@@ -278,11 +295,19 @@ final class CompanionRuntime {
     }
     private var walkSprite: CompanionSprite?
 
+    /// Same for the gaze sweep.
+    func setGazeSprite(_ sprite: CompanionSprite?) {
+        gazeSprite = sprite
+        for companion in companions { companion.gazeSprite = sprite }
+    }
+    private var gazeSprite: CompanionSprite?
+
     func removeAll() {
         companions.forEach { $0.layer.removeFromSuperlayer() }
         companions.removeAll()
         held = nil
         walkSprite = nil
+        gazeSprite = nil
         releaseClickThrough()
     }
 
@@ -340,6 +365,7 @@ final class CompanionRuntime {
         for companion in companions where companion.state != .held {
             advanceFree(companion, dt: dt, world: world.set)
             recoverIfLost(companion)
+            updateGaze(companion)
         }
 
         reportBehaviorIfChanged()
@@ -514,6 +540,55 @@ final class CompanionRuntime {
             // again rather than crawling into space.
             director.reset()
         }
+    }
+
+    /// How close the cursor must come for the companion to start watching it,
+    /// and how far it must leave before she stops — two numbers so the
+    /// boundary cannot flicker.
+    static let gazeEngageDistance: CGFloat = 380
+    static let gazeReleaseDistance: CGFloat = 460
+    /// The gaze strip is authored as a sweep down the LEFT side: frames 0…10
+    /// run from looking straight up to looking straight down. The right side
+    /// is the mirror, exactly like the walk. Calibrated by eye against the
+    /// first generated sheet; a future sheet with a different layout changes
+    /// this one constant.
+    static let gazeSweepFrames = 11
+
+    /// Picks the gaze frame from the cursor's direction, or clears it.
+    ///
+    /// Only a grounded, stationary companion watches the cursor: walking
+    /// swaps to the walk strip, and airborne or held states have their own
+    /// art. The frame is chosen by the angle from straight-up to the cursor,
+    /// measured at roughly eye height; left/right is a mirror flip with a
+    /// small deadband so the body does not flicker when the cursor crosses
+    /// the centreline.
+    private func updateGaze(_ companion: Companion) {
+        guard companion.gazeSprite != nil, !companion.walkFramesActive,
+              case .grounded = companion.state else {
+            companion.gazeFrameIndex = nil
+            companion.gazeEngaged = false
+            return
+        }
+        let eye = CGPoint(x: companion.anchor.x,
+                          y: companion.anchor.y + Self.defaultDisplayHeight * 0.8)
+        let dx = cursor.position.x - eye.x
+        let dy = cursor.position.y - eye.y
+        let distance = hypot(dx, dy)
+        if companion.gazeEngaged {
+            if distance > Self.gazeReleaseDistance { companion.gazeEngaged = false }
+        } else if distance < Self.gazeEngageDistance {
+            companion.gazeEngaged = true
+        }
+        guard companion.gazeEngaged, distance > 1 else {
+            companion.gazeFrameIndex = nil
+            return
+        }
+
+        // 0 = straight up, π = straight down, regardless of side.
+        let angleFromUp = acos(max(-1, min(1, dy / distance)))
+        let sweep = CGFloat(Self.gazeSweepFrames - 1)
+        companion.gazeFrameIndex = Int((angleFromUp / .pi * sweep).rounded())
+        if abs(dx) > 12 { companion.facingRight = dx > 0 }
     }
 
     /// The world as a behaviour pack is allowed to see it.
