@@ -293,6 +293,73 @@ enum PetImageOutputSize: String {
 /// view rather than pure profile so the face stays visible — identity, both
 /// for the viewer and for the consistency gate's comparison against the
 /// front-facing stage art.
+/// One sheet's worth of panels: what the sheet is, how the panels relate, and
+/// what each panel shows. The walk cycle and the gaze sweep share every other
+/// part of the action-sheet contract (grid, matte, consistency), so those live
+/// in the prompt and only these four things vary.
+struct PetActionSheetPlan {
+    /// Short name used for artifacts and manifests ("walk", "gaze").
+    let key: String
+    /// Prompt header fragment, uppercase.
+    let heading: String
+    /// The per-panel view instruction inside the output contract.
+    let viewInstruction: String
+    /// The paragraph explaining how the sixteen panels relate to each other.
+    let framing: String
+    /// Sixteen per-panel descriptions, grid order.
+    let panels: [String]
+
+    static let walkCycle = PetActionSheetPlan(
+        key: "walk",
+        heading: "WALK-CYCLE ACTION SHEET",
+        viewInstruction: "in three-quarter view walking toward the LEFT of the panel — body and feet angled left, "
+            + "the face turned enough that both eyes stay visible",
+        framing: """
+        THE PANELS ARE ONE LOOPING WALK
+        The sixteen panels are consecutive frames of one seamless walk cycle: two full steps, eight phases each, the
+        second step repeating the first with the legs exchanged. Panel 16 flows directly back into panel 1. Movement
+        between neighbouring panels must be small and even — no phase skips, no direction changes.
+        """,
+        panels: PetActionPose.allCases.map(\.direction))
+
+    /// The cursor-tracking sheet: one standing pose, sixteen gaze directions
+    /// at 22.5° steps, clockwise from straight up — the layout every desktop
+    /// pet uses for "she watches your mouse". Head and eyes move; the body is
+    /// a sixteen-times-repeated copy, which also makes this the easiest sheet
+    /// for the consistency gate: same view as the reference art.
+    static let gaze = PetActionSheetPlan(
+        key: "gaze",
+        heading: "GAZE ACTION SHEET",
+        viewInstruction: "standing upright facing the viewer, body square to the camera, arms relaxed, "
+            + "feet planted — the body IDENTICAL in every panel, with ONLY the head turn and eye "
+            + "direction changing",
+        framing: """
+        THE PANELS ARE ONE GAZE SWEEP
+        The sixteen panels show the same standing character looking in sixteen directions, 22.5 degrees apart,
+        rotating clockwise from straight up. Copy the body pose exactly from panel to panel; only the head
+        orientation and the eyes change, turning smoothly like the hand of a clock. Directions are given from the
+        VIEWER'S point of view.
+        """,
+        panels: [
+            "head tilted back, eyes looking straight up",
+            "head tilted back and turned a little to the viewer's right, eyes up and slightly right",
+            "head turned halfway to the viewer's right and raised, eyes up-right",
+            "head turned to the viewer's right and slightly raised, eyes mostly right, a little up",
+            "head turned fully to the viewer's right, eyes level, looking right",
+            "head turned to the viewer's right and slightly lowered, eyes mostly right, a little down",
+            "head turned halfway to the viewer's right and lowered, eyes down-right",
+            "head lowered and turned a little to the viewer's right, eyes down and slightly right",
+            "head lowered, eyes looking straight down",
+            "head lowered and turned a little to the viewer's left, eyes down and slightly left",
+            "head turned halfway to the viewer's left and lowered, eyes down-left",
+            "head turned to the viewer's left and slightly lowered, eyes mostly left, a little down",
+            "head turned fully to the viewer's left, eyes level, looking left",
+            "head turned to the viewer's left and slightly raised, eyes mostly left, a little up",
+            "head turned halfway to the viewer's left and raised, eyes up-left",
+            "head tilted back and turned a little to the viewer's left, eyes up and slightly left",
+        ])
+}
+
 enum PetActionPose: Int, CaseIterable {
     case contactNear = 0
     case settleNear = 1
@@ -829,6 +896,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
                              styleBoardData: Data?,
                              personalityVisual: String,
                              quality: PetFinalGenerationQuality,
+                             plan: PetActionSheetPlan = .walkCycle,
                              progress: @escaping StagedProgress,
                              completion: @escaping StagedCompletion) {
         begin(requestID)
@@ -857,7 +925,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
                 stage: stage, stageFrameData: stageFrameData,
                 styleBoardData: styleBoardData,
                 personalityVisual: personalityVisual,
-                quality: quality, apiKey: key,
+                quality: quality, plan: plan, apiKey: key,
                 delivery: .streaming(.one)
             )
             guard !self.isCancelled(requestID) else {
@@ -1307,6 +1375,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
                                    styleBoardData: Data? = nil,
                                    personalityVisual: String,
                                    quality: PetFinalGenerationQuality = .medium,
+                                   plan: PetActionSheetPlan = .walkCycle,
                                    apiKey: String,
                                    delivery: PetGenerationDelivery = .blocking,
                                    boundary: String = "mimo-action-\(UUID().uuidString)") -> URLRequest? {
@@ -1320,7 +1389,8 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             references: references,
             prompt: actionSheetPrompt(stage: stage,
                                       personalityVisual: personalityVisual,
-                                      hasStyleBoard: styleBoardData != nil),
+                                      hasStyleBoard: styleBoardData != nil,
+                                      plan: plan),
             size: PetGenerationArtifact.actionSheet(stage).outputSize,
             quality: quality.providerQuality,
             apiKey: apiKey,
@@ -1332,17 +1402,17 @@ final class PetGenerationCoordinator: @unchecked Sendable {
 
     static func actionSheetPrompt(stage: PetEvolutionStage,
                                   personalityVisual: String,
-                                  hasStyleBoard: Bool) -> String {
+                                  hasStyleBoard: Bool,
+                                  plan: PetActionSheetPlan = .walkCycle) -> String {
         let styleReference = hasStyleBoard
             ? "Image 2 is Mimo's internal STYLE BOARD; use its rendering language only, never its identities or layout."
             : "No style-board image is supplied; preserve the established rendering language from Image 1 exactly."
-        let cells = PetActionPose.allCases.map { pose in
-            let row = pose.rawValue / 4 + 1, column = pose.rawValue % 4 + 1
-            return "  ROW \(row), COLUMN \(column) — \(pose.direction)."
+        let cells = plan.panels.enumerated().map { index, description in
+            "  ROW \(index / 4 + 1), COLUMN \(index % 4 + 1) — \(description)."
         }.joined(separator: "\n")
 
         return """
-        MIMO ASSET PASS 4 — WALK-CYCLE ACTION SHEET FOR THE \(stage.rawValue.uppercased()) STAGE
+        MIMO ASSET PASS 4 — \(plan.heading) FOR THE \(stage.rawValue.uppercased()) STAGE
 
         REFERENCES
         Image 1 is the LOCKED \(stage.rawValue.uppercased()) STAGE DESIGN and the absolute identity lock. Reproduce its
@@ -1354,14 +1424,10 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         OUTPUT CONTRACT
         Create one 2048x2048 square sheet holding exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512,
         read left to right then top to bottom. Every panel contains one isolated full-body view of the SAME individual
-        from Image 1 in three-quarter view walking toward the LEFT of the panel — body and feet angled left, the face
-        turned enough that both eyes stay visible — with feet fully visible and generous unbroken matte on every
+        from Image 1, \(plan.viewInstruction), with feet fully visible and generous unbroken matte on every
         side. No dividers, labels, numbers, captions, arrows, turnaround annotations, or extra figures.
 
-        THE PANELS ARE ONE LOOPING WALK
-        The sixteen panels are consecutive frames of one seamless walk cycle: two full steps, eight phases each, the
-        second step repeating the first with the legs exchanged. Panel 16 flows directly back into panel 1. Movement
-        between neighbouring panels must be small and even — no phase skips, no direction changes.
+        \(plan.framing)
 
         CONSISTENCY IS THE PRIMARY REQUIREMENT
         Treat all sixteen panels as frames of one animation of one character. Keep the character the same SIZE in

@@ -30,7 +30,7 @@ private enum LiveRunError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .usage:
-            return "Usage: action_sheet_live_run --confirm-paid OUTPUT_DIR PET_SHEET_PNG"
+            return "Usage: action_sheet_live_run --confirm-paid OUTPUT_DIR PET_SHEET_PNG [walk|gaze]"
         case .missingAPIKey:
             return "OpenAI API key is not configured in the environment or Mimo keychain."
         case .missingInput(let path):
@@ -73,6 +73,7 @@ private func awaitSheet(coordinator: PetGenerationCoordinator,
                         requestID: String,
                         stageFrame: Data, styleBoard: Data?,
                         personalityVisual: String,
+                        plan: PetActionSheetPlan,
                         timeout: TimeInterval) throws -> PetGenerationOutput {
     var outcome: Result<PetGenerationOutput, Error>?
     let startedAt = Date()
@@ -80,6 +81,7 @@ private func awaitSheet(coordinator: PetGenerationCoordinator,
         requestID: requestID, stage: .radiant,
         stageFrameData: stageFrame, styleBoardData: styleBoard,
         personalityVisual: personalityVisual, quality: .medium,
+        plan: plan,
         progress: { phase, _, _ in
             log("phase     \(phase)  +\(Int(Date().timeIntervalSince(startedAt)))s")
         },
@@ -113,11 +115,17 @@ struct ActionSheetLiveRun {
 
     static func run() throws {
         let arguments = CommandLine.arguments
-        guard arguments.count == 4, arguments[1] == "--confirm-paid" else {
+        guard (4...5).contains(arguments.count), arguments[1] == "--confirm-paid" else {
             throw LiveRunError.usage
         }
         let outputDirectory = URL(fileURLWithPath: arguments[2], isDirectory: true)
         let sheetURL = URL(fileURLWithPath: arguments[3])
+        let plan: PetActionSheetPlan
+        switch arguments.count > 4 ? arguments[4] : "walk" {
+        case "walk": plan = .walkCycle
+        case "gaze": plan = .gaze
+        default: throw LiveRunError.usage
+        }
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: outputDirectory,
                                         withIntermediateDirectories: true,
@@ -149,11 +157,12 @@ struct ActionSheetLiveRun {
 
         while attempts.count < policy.effectiveAttemptLimit {
             let attemptIndex = attempts.count
-            let requestID = "walk-live-\(UUID().uuidString.lowercased())"
-            log("attempt   \(attemptIndex + 1) of \(policy.effectiveAttemptLimit) — generating (medium, 2048², 4x4)")
+            let requestID = "\(plan.key)-live-\(UUID().uuidString.lowercased())"
+            log("attempt   \(attemptIndex + 1) of \(policy.effectiveAttemptLimit) — generating \(plan.key) (medium, 2048², 4x4)")
             let output = try awaitSheet(coordinator: coordinator, requestID: requestID,
                                         stageFrame: matureFrame, styleBoard: styleBoard,
                                         personalityVisual: profile.promptFragment,
+                                        plan: plan,
                                         timeout: 480)
             try write(output.data, named: "attempt-\(attemptIndex + 1)-raw.png", to: outputDirectory)
             log("usage     \(output.usage.dictionary)")
@@ -181,7 +190,7 @@ struct ActionSheetLiveRun {
             attempts.append(attempt)
             log("gate      " + ActionSheetRetention.journalLine(
                 characterID: sheetURL.deletingLastPathComponent().lastPathComponent,
-                stage: "radiant", attempt: attempt))
+                stage: "radiant-\(plan.key)", attempt: attempt))
 
             let decision = ActionSheetRunDirector.decide(attempts: attempts, policy: policy)
             log("decision  \(decision)")
@@ -190,7 +199,7 @@ struct ActionSheetLiveRun {
             switch decision {
             case .accept(let index):
                 if let final = strips[index] {
-                    try write(final.pngData, named: "walk-strip-final.png", to: outputDirectory)
+                    try write(final.pngData, named: "\(plan.key)-strip-final.png", to: outputDirectory)
                     let anchors = final.frames.map { "\($0.index):(\($0.anchorX),\($0.anchorY))" }
                     log("anchors   \(anchors.joined(separator: " "))")
                 }
@@ -198,7 +207,7 @@ struct ActionSheetLiveRun {
                 return
             case .surrenderToUser(let index, let reason):
                 if let best = strips[index] {
-                    try write(best.pngData, named: "walk-strip-best-unaccepted.png",
+                    try write(best.pngData, named: "\(plan.key)-strip-best-unaccepted.png",
                               to: outputDirectory)
                 }
                 log("RESULT    surrendered — \(reason)")
