@@ -821,6 +821,58 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         }
     }
 
+    /// Action pass: one sheet, one action, sixteen frames. Same staged shape
+    /// as the expression pass; the caller owns slicing, the consistency gate,
+    /// and the reroll policy (ActionSheetRunDirector).
+    func generateActionSheet(requestID: String, stage: PetEvolutionStage,
+                             stageFrameData: Data,
+                             styleBoardData: Data?,
+                             personalityVisual: String,
+                             quality: PetFinalGenerationQuality,
+                             progress: @escaping StagedProgress,
+                             completion: @escaping StagedCompletion) {
+        begin(requestID)
+        credentialQueue.async { [weak self] in
+            guard let self else { return }
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let key = self.openAIKeyReader() else {
+                guard !self.isCancelled(requestID) else {
+                    self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+                }
+                self.finishStaged(completion, result: .failure(PetGenerationError.missingKey("OpenAI")))
+                return
+            }
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard Self.validReference(stageFrameData),
+                  Self.validReference(styleBoardData) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage))
+                return
+            }
+            self.emitStaged(progress, phase: "connecting", partialImage: nil, partialIndex: nil)
+            let request = Self.actionSheetRequest(
+                stage: stage, stageFrameData: stageFrameData,
+                styleBoardData: styleBoardData,
+                personalityVisual: personalityVisual,
+                quality: quality, apiKey: key,
+                delivery: .streaming(.one)
+            )
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let request else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage))
+                return
+            }
+            self.performImageStream(request, provider: "OpenAI", requestID: requestID,
+                                    artifact: .actionSheet(stage), progress: progress,
+                                    completion: completion)
+        }
+    }
+
     func generateCharacterSheet(requestID: String, sourceDataURI: String,
                                 personalityVisual: String, likeness: Double,
                                 quality: PetGenerationQuality = .medium,
