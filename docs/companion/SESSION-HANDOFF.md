@@ -1,8 +1,34 @@
 > 伴灵模式计划 · 会话交接 — [索引](README.md)
 
-# 会话交接(2026-07-20)
+# 会话交接(2026-07-22)
 
 给下一个会话看的。**先读这份,再读 [README](README.md)。**
+
+---
+
+## 0. 下一个 session 从这里开始 ← 最新
+
+**当前伴灵(custom:e3851869…)已装齐四套动作条带**:walk / gaze / rest / wall
+(`manifest.json` 的 `actions` 字段,`actionURLs` 对外公布)。全部出自
+"画框 → 网格配准 → 逐格清理 → 底边贴地"的已验证管线,脚完整、无邻格污染。
+
+**已接线、用户重启即可见:**
+- **walk**:走路时按移动距离播 16 帧单步循环(不滑步);
+- **gaze**:站立不动 + 光标进入 380px 内 → 眼睛跟着光标(离开 460px 恢复),
+  头部方向按"上→左→下"扫描帧 + 右侧镜像。触发条件在
+  `companion_runtime.swift` 的 `updateGaze`。
+
+**未接线(资产就位,运行时不会播)= 下一个 session 的主任务:**
+- **rest**(趴下入睡 4 帧过渡 + 睡息循环 + 梦泡 + 翻身):需要行为包能按名字
+  引用动作条带(如 `"strip": "rest", "frame": 5`)——现在 intent.frame 只驱动
+  单一 sprite,walk/gaze 是运行时特例。设计:CompanionIntent 加 strip 名,
+  Companion 持有 `[String: CompanionSprite]`,行为包 schema 升级。
+- **wall**(倚墙 1–8 帧循环 + 坐边缘晃腿 9–16 帧循环):同上机制 + attached
+  状态时用 wall 条带(倚墙帧),坐屏幕边缘是新行为(可先不做)。
+- 用户尚未确认 gaze/walk 实际观感,先等反馈再动。
+
+**用户验证方法**(告诉过用户):重启 app 后①走路看脚下,②光标凑近看眼神,
+③rest/wall 现在**不会**出现是正常的。
 
 ---
 
@@ -216,6 +242,17 @@ cat ~/Library/Application\ Support/Mimo/companion-status.txt
 **当前伴灵存在 UserDefaults 的 `character` 键**(值形如 `custom:UUID`),
 **不是** `customPetSpec`(那只用于 prototype)。踩过一整轮。
 
+**伴灵窗口默认在桌面层**(壁纸上、应用窗口下,2026-07-21 用户要求),
+`defaults write com.brianzheng.mimo companionAboveWindows -bool true` 可切回置顶。
+地板在屏幕真实底边(screen.frame.minY),不是工作区边。
+
+**装动作条带的一次性 CLI 在旧 session 的 scratchpad 里,新 session 没有。**
+重建:`swiftc mac/custom_pet.swift mac/character_sheet.swift <main.swift> -framework Cocoa -framework ImageIO`,
+main 里调 `CustomPetStore(root: AppSupport/Mimo).installActionStrip(characterID:action:pngData:)`。
+重切原始表用 `ActionSheetProcessor.process(pngData:)`(同样方式编译 harness)。
+生成新表用 `mac/tests/action_sheet_live_run.swift`(test.sh 编译产物在
+`$TMPDIR/mimo-tests/`,用法见文件头,加 `[plan] [maxAttempts]` 参数)。
+
 **逃生阀**:`defaults write com.brianzheng.mimo companionNativeRuntime -bool false`
 强制所有伴灵回到 WebView 路径。
 
@@ -231,6 +268,8 @@ D1 原生 CALayer · D2 N 帧行为包 · D3 窗口地形推后 P4 · D4 两家 
 D5 绿幕 matte(**未实施**)· D6 deepWork 安静 · D7 T1 领养后自动生成
 D8 代码绘制角色不资产化但接行为引擎(**未实施**)
 D9 签名动作按气质共享 6 套 · D10 Mimo 状态集要做 · D11 道具 v1 内嵌帧内(详见 §9)
+D12 伴灵住桌面层(应用窗口之下,companionAboveWindows 逃生阀)
+D13 动作表**必须带画出的格框**,切分沿检测到的网格配准(文字版空间约束无效,详见 §6)
 
 **新增(本会话)**:去掉视觉进化轴,永远画最成熟形态;XP/等级保留为专注计数,
 不再改变长相。生成 prompt 从"三个进化阶段"改为"同一形态的三次独立绘制"
