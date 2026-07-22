@@ -166,8 +166,12 @@ enum ActionSheetProcessor {
                 // on the grid line are feet amputated by it, and no amount of
                 // slicing can restore the missing toes. A real defect, so a
                 // real rejection — unlike the identity gate, a reroll on this
-                // signal is money well spent.
-                if let edge = clippedEdge(of: cell) {
+                // signal is money well spent. One exception: on a framed
+                // sheet, the model stands the character ON the bottom frame
+                // bar as its floor — soles flush with the content's bottom
+                // edge are complete, not cut.
+                if let edge = clippedEdge(of: cell),
+                   !(drawnGrid != nil && edge == "bottom") {
                     throw ActionSheetError.subjectClipped(index: index, edge: edge)
                 }
                 guard let cellBounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
@@ -262,7 +266,8 @@ enum ActionSheetProcessor {
             }
         }
 
-        func contentRanges(counts: [Int], threshold: Int, expectedPanels: Int) -> [Range<Int>]? {
+        func contentRanges(counts: [Int], threshold: Int, expectedPanels: Int,
+                           fringeLow: Int, fringeHigh: Int) -> [Range<Int>]? {
             var runs: [(start: Int, end: Int)] = []
             var start: Int?
             for (index, count) in counts.enumerated() {
@@ -288,8 +293,8 @@ enum ActionSheetProcessor {
 
             var ranges: [Range<Int>] = []
             for panel in 0..<expectedPanels {
-                let low = edges[panel * 2] + frameFringeInset
-                let high = edges[panel * 2 + 1] - frameFringeInset
+                let low = edges[panel * 2] + fringeLow
+                let high = edges[panel * 2 + 1] - fringeHigh
                 // A panel narrower than the output cell's usable core is a
                 // misread, not a grid.
                 guard high - low >= minimumSubjectHeight * 2 else { return nil }
@@ -298,12 +303,20 @@ enum ActionSheetProcessor {
             return ranges
         }
 
+        // The model treats each panel's bottom frame bar as the floor and
+        // stands the character ON it, so the sole ends exactly where the bar
+        // begins — a bottom fringe would shave the shoes. Rows keep the full
+        // fringe on top only, with two pixels at the bottom for the bar's
+        // antialiased edge.
         guard let rows = contentRanges(counts: darkPerRow,
                                        threshold: Int(Double(width) * frameBandCoverage),
-                                       expectedPanels: layout.rows),
+                                       expectedPanels: layout.rows,
+                                       fringeLow: frameFringeInset, fringeHigh: 2),
               let columns = contentRanges(counts: darkPerColumn,
                                           threshold: Int(Double(height) * frameBandCoverage),
-                                          expectedPanels: layout.columns) else { return nil }
+                                          expectedPanels: layout.columns,
+                                          fringeLow: frameFringeInset,
+                                          fringeHigh: frameFringeInset) else { return nil }
         return (rows, columns)
     }
 
