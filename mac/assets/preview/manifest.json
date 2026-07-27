@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "hatchpet-mimo-v2",
+      "label": "OpenAI HatchPet",
+      "method": "HatchPet v2 atlas: canonical base, state-specific row generation, deterministic 8x11 assembly, and look-direction QA",
+      "asset": "hatchpet/mimo-v2.webp",
+      "contactSheet": "hatchpet/mimo-v2-contact-sheet.png",
+      "sha256": "d8aa8ed36d3c44c8429be9a78f5b41b9e139d0a4904df585c7491b154e2d9a03"
+    },
+    {
+      "id": "independent-sleep-16",
+      "label": "Mimo experiment",
+      "method": "16 independent image calls: fixed identity image, one identity-free pose guide per call, and fixed style board",
+      "asset": "experiments/independent-sleep-16.png",
+      "sha256": "86eadc5ffba3919751011396fefeb1078b6a140de61e307fc86d19597c08fbf0"
+    },
+    {
+      "id": "independent-walk-16",
+      "label": "Mimo experiment",
+      "method": "16 independent image calls: fixed identity image, one identity-free pose guide per call, and fixed style board",
+      "asset": "experiments/independent-walk-16.png",
+      "sha256": "e1e9fc1512fed9e6ade973ef9e9caa590615210c1e1b432aced432a24482b275"
+    },
+    {
+      "id": "hybrid-sleep-v1",
+      "label": "Mimo hybrid experiment",
+      "method": "One coherent 6-frame family: canonical 512px identity lock, fixed side-lying pose contract, shared chroma cleanup, shared scale/baseline registration, and authored slow holds",
+      "asset": "hybrid/sleep-hybrid-v1.png",
+      "sha256": "f65adc5e7ab0d64746964e7e5671ccd4088b7c8039d330c49cb791e8ec1721e3"
+    },
+    {
+      "id": "hybrid-tennis-v1",
+      "label": "Mimo hybrid experiment",
+      "method": "Three chained 3-frame ImageGen batches with canonical-only fidelity lock, racket continuity, deterministic subject repacking, chroma cleanup, and one shared final scale/baseline registration; the ball is reserved for deterministic runtime motion",
+      "asset": "hybrid/tennis-hybrid-v1.png",
+      "sha256": "b566332098f7d77d7c013a0579e6055dfb9641c8e5bd7905cceb924a60f9bc7b"
+    },
+    {
+      "id": "hybrid-gaze-v1",
+      "label": "Mimo hybrid experiment",
+      "method": "One coherent 3-frame ImageGen family with the head, body, and hair hard-locked; only eye direction changes. Same-batch opaque hair pixels repair residual ear-side alpha holes before shared registration",
+      "asset": "hybrid/gaze-hybrid-v1.png",
+      "sha256": "67a964d6264862435f00d2de83a055f0e41bd413fc803d39f696ddba93dd0e1e"
+    },
+    {
+      "id": "hybrid-sleep-v2",
+      "label": "Mimo hybrid experiment",
+      "method": "Three chained 3-frame ImageGen batches for lie-down, slow breathing, and rise; enclosed hair-window repair on the transition frame, canonical-master closure, hair-safe chroma cleanup, and shared registration",
+      "asset": "hybrid/sleep-hybrid-v2.png",
+      "sha256": "5a4db17e65becdd95bddc4b18b560a0f5d56bbfbc37cf1db0d0afc76d785350a"
+    },
+    {
+      "id": "hybrid-wall-stand-v1",
+      "label": "Mimo hybrid experiment",
+      "method": "One coherent 3-frame ImageGen family with canonical-only fidelity lock, fixed invisible wall contact, enclosed hair-window repair, and a clean settled/inhale/settled loop after shared registration",
+      "asset": "hybrid/wall-stand-hybrid-v1.png",
+      "sha256": "6df3bcc89dea3939ce4c8968f5e2bdfba46ceb1856ad91deaa5b75102fd1fd8c"
+    },
+    {
+      "id": "hybrid-walk-v1",
+      "label": "Mimo hybrid experiment",
+      "method": "One coherent 8-keyframe family plus one identity-locked 8-midpoint family, uniform provider-sheet correction, shared scale/baseline registration, and deterministic K1/M1 interleave",
+      "asset": "hybrid/walk-hybrid-v1.png",
+      "sha256": "51385d95be968c8e4e352b7457b8869e853e63ba1b78cf79f76e24949495a6a8"
+    }
+  ]
+}
