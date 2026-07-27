@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mimo 动作打磨"
+  short_description: "六类 Mimo 动作的三帧链式生成、透明度与一致性 QA"
+  default_prompt: "Use $mimo-animate-pet to build one approved Mimo action with chained three-frame batches."
