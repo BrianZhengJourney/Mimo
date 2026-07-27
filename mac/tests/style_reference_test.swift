@@ -27,6 +27,17 @@ struct StyleReferenceTests {
         wrongDimensions.replaceSubrange(16..<20, with: [0, 0, 4, 0])
         expect(!MimoStyleReference.isValid(wrongDimensions), "unexpected dimensions must be rejected")
         expect(!MimoStyleReference.isValid(Data("not a png".utf8)), "non-PNG data must be rejected")
+
+        let motionAsset = URL(fileURLWithPath:
+            "mac/assets/motion-reference/biped-walk-cycle-16.png")
+        let motionData = try Data(contentsOf: motionAsset)
+        expect(MimoMotionReference.isValid(motionData),
+               "the deterministic 16-key-pose biped timing guide should validate")
+        let midpointAsset = URL(fileURLWithPath:
+            "mac/assets/motion-reference/biped-walk-inbetweens-16.png")
+        let midpointData = try Data(contentsOf: midpointAsset)
+        expect(MimoMotionReference.isValid(midpointData),
+               "the deterministic 16-midpoint biped timing guide should validate")
         print("style reference tests passed")
     }
 }

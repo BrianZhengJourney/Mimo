@@ -1,7 +1,7 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift pet_generation.swift action_sheet.swift consistency_metric.swift action_sheet_run.swift
+// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift consistency_metric.swift action_sheet_run.swift style_reference.swift pet_generation.swift
 // compile-only: paid end-to-end action sheet run; not safe to run unattended
 // Opt-in, paid end-to-end run of the action-sheet pipeline: generate one
-// sixteen-frame walk cycle for an installed familiar, slice it, score it
+// action cycle for an installed familiar, slice it, score it
 // against the mature stage frame, and let ActionSheetRunDirector decide.
 //
 // This is the first real execution of the whole loop — every stage before it
@@ -71,7 +71,7 @@ private func write(_ data: Data, named name: String, to directory: URL) throws -
 /// sitting in its own queue. Exactly the mistake this file made first.
 private func awaitSheet(coordinator: PetGenerationCoordinator,
                         requestID: String,
-                        stageFrame: Data, styleBoard: Data?,
+                        stageFrame: Data, motionGuide: Data?, styleBoard: Data?,
                         personalityVisual: String,
                         plan: PetActionSheetPlan,
                         timeout: TimeInterval) throws -> PetGenerationOutput {
@@ -79,7 +79,8 @@ private func awaitSheet(coordinator: PetGenerationCoordinator,
     let startedAt = Date()
     coordinator.generateActionSheet(
         requestID: requestID, stage: .radiant,
-        stageFrameData: stageFrame, styleBoardData: styleBoard,
+        stageFrameData: stageFrame, motionGuideData: motionGuide,
+        styleBoardData: styleBoard,
         personalityVisual: personalityVisual, quality: .medium,
         plan: plan,
         progress: { phase, _, _ in
@@ -155,6 +156,12 @@ struct ActionSheetLiveRun {
         let styleBoard = try? Data(contentsOf: URL(fileURLWithPath: styleBoardPath))
         log(styleBoard == nil ? "style board: not found, proceeding without"
                               : "style board: loaded")
+        let motionGuidePath = "mac/assets/motion-reference/biped-walk-cycle-16.png"
+        let motionGuide = plan.key == "walk"
+            ? try? Data(contentsOf: URL(fileURLWithPath: motionGuidePath))
+            : nil
+        log(motionGuide == nil ? "motion guide: not used"
+                               : "motion guide: loaded (joint timing only)")
 
         let profile = CustomPetTemperaments.profile(for: "quiet-curious")
         let coordinator = PetGenerationCoordinator(openAIKeyReader: { key })
@@ -166,9 +173,12 @@ struct ActionSheetLiveRun {
         while attempts.count < policy.effectiveAttemptLimit {
             let attemptIndex = attempts.count
             let requestID = "\(plan.key)-live-\(UUID().uuidString.lowercased())"
-            log("attempt   \(attemptIndex + 1) of \(policy.effectiveAttemptLimit) — generating \(plan.key) (medium, 2048², 4x4)")
+            let canvas = plan.outputSize.pixels
+            log("attempt   \(attemptIndex + 1) of \(policy.effectiveAttemptLimit) — generating \(plan.key) "
+                + "(medium, \(canvas.width)x\(canvas.height), \(plan.layout.columns)x\(plan.layout.rows))")
             let output = try awaitSheet(coordinator: coordinator, requestID: requestID,
-                                        stageFrame: matureFrame, styleBoard: styleBoard,
+                                        stageFrame: matureFrame, motionGuide: motionGuide,
+                                        styleBoard: styleBoard,
                                         personalityVisual: profile.promptFragment,
                                         plan: plan,
                                         timeout: 480)
@@ -177,7 +187,8 @@ struct ActionSheetLiveRun {
 
             let report: ConsistencyReport
             do {
-                let sliced = try ActionSheetProcessor.process(pngData: output.data)
+                let sliced = try ActionSheetProcessor.process(pngData: output.data,
+                                                              layout: plan.layout)
                 strips[attemptIndex] = sliced
                 try write(sliced.pngData, named: "attempt-\(attemptIndex + 1)-strip.png",
                           to: outputDirectory)
@@ -185,7 +196,8 @@ struct ActionSheetLiveRun {
                     try cgImage(fromPNG: CharacterSheetProcessor.encodePNG(cell),
                                 label: "cell \(index)")
                 }
-                report = try ConsistencyMetric.evaluate(cells: cells, reference: reference)
+                report = try ConsistencyMetric.evaluate(cells: cells, reference: reference,
+                                                         scaleGroups: plan.scaleGroups)
             } catch {
                 // A sheet the slicer rejects outright scores as a full reroll:
                 // record it so the money it cost is visible in the decision.

@@ -1,4 +1,4 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
+// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
 import Cocoa
 
 func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -51,13 +51,14 @@ struct PetGenerationTests {
 
     // MARK: - Action sheet (P3b)
 
-    /// Sixteen frames in one call, because neither backend exposes a seed and
+    /// Sixteen key poses in one call, because neither backend exposes a seed and
     /// a single forward pass — where the model sees every other cell while
     /// drawing each one — is the only strong consistency mechanism available.
-    static func testActionSheetRequestIsOneCallForSixteenFrames() {
+    static func testWalkSheetRequestIsOneCallForSixteenKeyPoses() {
         guard let request = PetGenerationCoordinator.actionSheetRequest(
             stage: .bloom,
             stageFrameData: Data("LOCKED_STAGE".utf8),
+            motionGuideData: Data("MOTION_GUIDE".utf8),
             styleBoardData: Data("STYLE_BYTES".utf8),
             personalityVisual: "Quiet and curious",
             apiKey: "KEY",
@@ -68,22 +69,34 @@ struct PetGenerationTests {
         let flat = flattened(body)
 
         expect(body.contains("name=\"size\"\r\n\r\n2048x2048\r\n"),
-               "action sheets go out at 2048x2048 for per-cell resolution")
+               "sixteen walk poses use the proven 4x4 high-resolution canvas")
         expect(body.contains("LOCKED_STAGE"), "the locked stage design is attached")
         expect(body.contains("locked-stage-design.png"), "and is the first reference")
+        expectOrdered(["locked-stage-design.png", "expression-motion-guide.png", "mimo-style-board.png"],
+                      in: body, "references stay identity → motion → style")
         expect(flat.contains("exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512"),
-               "the grid is stated explicitly and divides 2048 evenly — 3x3 did not")
+               "the 4x4 grid is stated explicitly and divides 2048 evenly")
     }
 
     /// Poses are described physically rather than labelled. A model follows
     /// "weight over the front foot" far better than "walk frame 2".
     static func testActionPosesAreDescribedPhysically() {
         let prompt = flattened(PetGenerationCoordinator.actionSheetPrompt(
-            stage: .bloom, personalityVisual: "Quiet and curious", hasStyleBoard: true))
+            stage: .bloom, personalityVisual: "Quiet and curious", hasStyleBoard: true,
+            hasMotionGuide: true))
         expect(prompt.contains("ROW 1, COLUMN 1"), "cells are addressed by position")
         expect(prompt.contains("ROW 4, COLUMN 4"), "all sixteen cells are addressed")
-        expect(prompt.contains("weight over the front foot"),
-               "walk poses are described by weight, not numbered")
+        expect(prompt.contains("LEFT foot becomes flat and accepts weight"),
+               "walk poses name physical weight and leg identity, not frame labels")
+        expect(prompt.contains("RIGHT heel contacts") && prompt.contains("LEFT heel contacts"),
+               "the sheet contains both steps of one complete gait period")
+        expect(occurrences(of: "MANDATORY FEET-TOGETHER PASS", in: prompt) == 2,
+               "both halves require a visible closed-stride passing pose")
+        expect(prompt.contains("joint timing") && prompt.contains("Do NOT copy its stick-figure identity"),
+               "the motion guide is constrained to pose timing only")
+        expect(prompt.contains("gait readability outranks showing both eyes")
+               && !prompt.contains("both eyes stay visible"),
+               "the side-view silhouette wins over the old face-forward conflict")
         expect(!prompt.contains("PetActionPose"), "internal type names must not leak into the prompt")
         for pose in PetActionPose.allCases {
             expect(prompt.contains(flattened(pose.direction)), "pose \(pose.rawValue) is described")
@@ -98,7 +111,7 @@ struct PetGenerationTests {
         expect(prompt.contains("CONSISTENCY IS THE PRIMARY REQUIREMENT"),
                "consistency is stated as the primary requirement")
         expect(prompt.contains("same SIZE in every"), "size is held constant across panels")
-        expect(prompt.contains("48 pixels ABOVE"),
+        expect(prompt.contains("96 pixels ABOVE") && prompt.contains("TWO THIRDS"),
                "the ground line has a concrete height — 'same height' alone let "
                + "the model ground every row on the grid line itself")
         expect(prompt.contains("never a redesign"),
@@ -111,10 +124,68 @@ struct PetGenerationTests {
                + "the slicer crops it back off by a fixed inset")
     }
 
+    static func testWalkInbetweenRequestLocksKeyframesAndMidpointMap() {
+        let request = requireRequest(PetGenerationCoordinator.walkInbetweenSheetRequest(
+            stage: .radiant,
+            stageFrameData: Data("LOCKED_STAGE".utf8),
+            keyframeSheetData: Data("APPROVED_KEYS".utf8),
+            motionGuideData: Data("MIDPOINT_GUIDE".utf8),
+            styleBoardData: Data("STYLE_BYTES".utf8),
+            personalityVisual: "Quiet and curious",
+            apiKey: "KEY",
+            boundary: "MIDBOUND"), "walk inbetween request")
+        let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+        let flat = flattened(body)
+        expect(body.contains("name=\"size\"\r\n\r\n2048x2048\r\n"),
+               "inbetweens use the same exact 4x4 canvas as keyframes")
+        expectOrdered(["locked-stage-design.png", "approved-walk-keyframes.png",
+                       "expression-motion-guide-midpoints.png", "mimo-style-board.png"],
+                      in: body, "references stay identity → accepted keys → midpoint timing → style")
+        expect(flat.contains("M01, exact temporal midpoint between K01 and K02"),
+               "the first adjacent pair is explicit")
+        expect(flat.contains("M16, exact temporal midpoint between K16 and K01"),
+               "the loop-closing pair is explicit")
+        expect(occurrences(of: "exact temporal midpoint between K", in: flat) == 16,
+               "all sixteen midpoint mappings are explicit")
+        expect(flat.contains("No double exposure, ghosting, cross-fade")
+               && flat.contains("duplicated limbs"),
+               "the prompt rejects blend artifacts and anatomical duplication")
+        expect(flat.contains("interleaved K01, M01, K02, M02 ... K16, M16"),
+               "the final playback order is explained to the model")
+    }
+
+    static func testWalkInbetweenRepairIsFourFullBodyPanels() {
+        let request = requireRequest(PetGenerationCoordinator.walkInbetweenRepairSheetRequest(
+            stage: .radiant,
+            stageFrameData: Data("LOCKED_STAGE".utf8),
+            keyframeSheetData: Data("APPROVED_KEYS".utf8),
+            motionGuideData: Data("REPAIR_GUIDE".utf8),
+            styleBoardData: Data("STYLE_BYTES".utf8),
+            personalityVisual: "Quiet and curious", apiKey: "KEY",
+            boundary: "REPAIRBOUND"), "walk inbetween repair request")
+        let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+        let flat = flattened(body)
+        expect(body.contains("name=\"size\"\r\n\r\n1024x1024\r\n"),
+               "four repairs use a 2x2 1024 square instead of paying for 2048")
+        expectOrdered(["locked-stage-design.png", "approved-walk-keyframes.png",
+                       "expression-motion-guide-m13-m16.png", "mimo-style-board.png"],
+                      in: body, "repair references stay identity → keys → timing → style")
+        expect(flat.contains("M13, exact temporal midpoint between K13 and K14")
+               && flat.contains("M16, exact temporal midpoint between K16 and K01"),
+               "repair maps all damaged loop-closing phases")
+        expect(flat.contains("FOUR COMPLETE FULL-BODY")
+               && flat.contains("waist-up or knee-up figure is a failed output"),
+               "the previous last-row cropping failure is refused explicitly")
+        expect(flat.contains("bottom 96 pixels COMPLETELY EMPTY"),
+               "the repair keeps a measurable bottom safety zone")
+    }
+
     static func main() {
-        testActionSheetRequestIsOneCallForSixteenFrames()
+        testWalkSheetRequestIsOneCallForSixteenKeyPoses()
         testActionPosesAreDescribedPhysically()
         testActionSheetPromptDemandsCrossPanelConsistency()
+        testWalkInbetweenRequestLocksKeyframesAndMidpointMap()
+        testWalkInbetweenRepairIsFourFullBodyPanels()
         let first = "data:image/png;base64," + String(repeating: "A", count: 240)
         let second = String(repeating: "B", count: 240)
         let opaquePixelLabResponse: [String: Any] = [

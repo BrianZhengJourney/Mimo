@@ -155,7 +155,8 @@ enum ConsistencyMetric {
     /// whole sheet drift together undetected.
     static func evaluate(cells: [CGImage],
                          reference: CGImage,
-                         thresholds: ConsistencyThresholds = .provisional) throws -> ConsistencyReport {
+                         thresholds: ConsistencyThresholds = .provisional,
+                         scaleGroups: [[Int]]? = nil) throws -> ConsistencyReport {
         guard !cells.isEmpty else {
             return ConsistencyReport(readings: [], verdict: .rerollSheet("the sheet had no cells"))
         }
@@ -176,13 +177,15 @@ enum ConsistencyMetric {
         }
 
         return ConsistencyReport(readings: readings,
-                                 verdict: verdict(for: readings, thresholds: thresholds))
+                                 verdict: verdict(for: readings, thresholds: thresholds,
+                                                  scaleGroups: scaleGroups))
     }
 
     /// Grades a set of readings without needing Vision, so the policy is
     /// testable on its own.
     static func verdict(for readings: [ConsistencyReading],
-                        thresholds: ConsistencyThresholds) -> ConsistencyVerdict {
+                        thresholds: ConsistencyThresholds,
+                        scaleGroups: [[Int]]? = nil) -> ConsistencyVerdict {
         guard !readings.isEmpty else { return .rerollSheet("no cells to judge") }
 
         if let empty = readings.first(where: { $0.coverage <= 0.001 }) {
@@ -205,13 +208,22 @@ enum ConsistencyMetric {
             }
         }
 
-        let heights = readings.map { Double($0.subjectHeight) }.filter { $0 > 0 }
-        if heights.count > 1 {
+        // A lying pose should be shorter than a standing pose; that is not
+        // character-scale drift. Action plans name groups of comparable poses
+        // so the scale gate measures like against like. Nil preserves the
+        // global policy used by callers that do not have action semantics.
+        let groups = scaleGroups ?? [readings.map(\.index)]
+        let byIndex = Dictionary(uniqueKeysWithValues: readings.map { ($0.index, $0) })
+        for group in groups {
+            let comparable = group.compactMap { byIndex[$0] }
+            let heights = comparable.map { Double($0.subjectHeight) }.filter { $0 > 0 }
+            guard heights.count > 1 else { continue }
             let mean = heights.reduce(0, +) / Double(heights.count)
             if mean > 0 {
                 let variance = heights.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(heights.count)
                 if variance.squareRoot() / mean > thresholds.scaleVariation {
-                    return .rerollSheet("the character changes size between cells")
+                    let names = comparable.map { String($0.index) }.joined(separator: ",")
+                    return .rerollSheet("the character changes size between comparable cells [\(names)]")
                 }
             }
         }

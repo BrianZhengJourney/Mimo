@@ -291,13 +291,20 @@ struct PetActionSheetPlan {
     let heading: String
     /// The per-panel view instruction inside the output contract.
     let viewInstruction: String
-    /// The paragraph explaining how the sixteen panels relate to each other.
+    /// The paragraph explaining how the panels relate to each other.
     let framing: String
     /// The grounding rule — where the body sits relative to the shared
     /// baseline. Walking stands on it; lying and ledge-sitting do not.
     let grounding: String
-    /// Sixteen per-panel descriptions, grid order.
+    /// Per-panel descriptions, in grid order.
     let panels: [String]
+    /// Layout and canvas belong to the action: gaze/rest/wall stay compact,
+    /// while walk spends more pixels on a 24-phase full gait cycle.
+    let layout: ActionSheetLayout
+    let outputSize: PetImageOutputSize
+    /// Groups whose body pose is similar enough for height variance to mean
+    /// scale drift rather than intentional motion.
+    let scaleGroups: [[Int]]
 
     /// "At the same height within the panel" without saying WHERE let the
     /// model put the ground line on the grid itself — every foot in a row was
@@ -305,27 +312,34 @@ struct PetActionSheetPlan {
     /// The line gets a concrete height, and the border zone is described as
     /// what it must be: empty background.
     static let standingGrounding = """
-    In every panel the character's feet rest on one invisible ground line that runs exactly 48 pixels ABOVE the
-    panel's bottom border — never lower. The bottom 48 pixels of every panel are pure background with nothing in
-    them, and so are the outermost 24 pixels along the top, left, and right of every panel. Do not draw the ground
-    line.
+    In every panel the character's feet rest on one invisible ground line exactly 96 pixels ABOVE the panel's
+    bottom border — never lower. The complete standing character occupies roughly TWO THIRDS of the panel height,
+    never more than 70 percent. The bottom 96 pixels are pure background with nothing in them, and so are the
+    outermost 48 pixels along the top, left, and right. Do not draw the ground line.
     """
 
     static let walkCycle = PetActionSheetPlan(
         key: "walk",
         heading: "WALK-CYCLE ACTION SHEET",
-        viewInstruction: "in three-quarter view walking toward the LEFT of the panel — body and feet angled left, "
-            + "the face turned enough that both eyes stay visible",
+        viewInstruction: "in a clean fixed-camera near-profile from the character's RIGHT side, walking toward "
+            + "the LEFT of the panel — torso, hips, knees, and feet all travel left; the far eye may be partly "
+            + "visible but gait readability outranks showing both eyes",
         framing: """
-        THE PANELS ARE ONE SINGLE STEP, LOOPED
-        The sixteen panels are consecutive frames of ONE step — heel strike to the instant before the next heel
-        strike — subdivided finely and evenly. Panel 16 flows directly back into panel 1 as the NEXT step, so the
-        two legs must be drawn IDENTICALLY (same trousers, same shoes, no marking that tells them apart) for the
-        loop to be seamless. Movement between neighbouring panels is one small, even increment — a metronome, not a
-        drift: no repeated poses, no pauses, no phase skips, no direction changes.
+        THE PANELS ARE ONE COMPLETE LEFT-AND-RIGHT WALK CYCLE
+        The sixteen panels are consecutive frames of one complete walking period. Panels 1–8 show the LEFT foot
+        ahead, the RIGHT foot swinging through a clearly visible feet-together passing pose, then the RIGHT foot
+        reaching ahead. Panels 9–16 are the opposite half: RIGHT foot ahead, LEFT foot passing beside it, then LEFT
+        foot reaching ahead. Panels 4–5 and 12–13 MUST visibly close the stride: both feet pass side by side beneath
+        the hips before the next leg opens forward. Panel 16 flows directly into panel 1. Preserve left/right limb
+        identity; never swap, merge, add, or lose a limb. Arms counter-swing naturally. Every panel must advance to
+        a visibly different gait phase: no repeated wide-stride poses, pauses, phase skips, sliding planted feet,
+        or direction changes.
         """,
         grounding: standingGrounding,
-        panels: PetActionPose.allCases.map(\.direction))
+        panels: PetActionPose.allCases.map(\.direction),
+        layout: .fourByFour,
+        outputSize: .actionSheet,
+        scaleGroups: [Array(0..<16)])
 
     /// The cursor-tracking sheet: one standing pose, sixteen gaze directions
     /// at 22.5° steps, clockwise from straight up — the layout every desktop
@@ -363,7 +377,10 @@ struct PetActionSheetPlan {
             "head turned to the viewer's left and slightly raised, eyes mostly left, a little up",
             "head turned halfway to the viewer's left and raised, eyes up-left",
             "head tilted back and turned a little to the viewer's left, eyes up and slightly left",
-        ])
+        ],
+        layout: .fourByFour,
+        outputSize: .actionSheet,
+        scaleGroups: [Array(0..<16)])
 
     /// The rest sheet: lie down at the bottom of the screen and sleep. One
     /// authored side (facing left), mirrored at runtime like the walk.
@@ -404,7 +421,10 @@ struct PetActionSheetPlan {
             "stirring: the dream bubble gone, one ear or the head twitching",
             "head lifted sleepily off the arms, eyes half open, still lying",
             "head up and turned a little toward the viewer, blinking awake, still lying",
-        ])
+        ],
+        layout: .fourByFour,
+        outputSize: .actionSheet,
+        scaleGroups: [Array(5...10), Array(13...15)])
 
     /// The wall sheet: everything the attached state can host, one authored
     /// side. Panels 1–8 lean against a wall at the LEFT edge; panels 9–16 sit
@@ -449,39 +469,39 @@ struct PetActionSheetPlan {
             "sitting, the swing settling, head turning toward the viewer",
             "sitting, legs nearly still, a content smile",
             "sitting, back to both legs hanging, closing the loop",
-        ])
+        ],
+        layout: .fourByFour,
+        outputSize: .actionSheet,
+        scaleGroups: [Array(0..<8), Array(8..<16)])
 }
 
-/// The sixteen frames of the walk sheet: ONE step, subdivided finely.
+/// Sixteen readable key poses for one complete left-plus-right walk period.
 ///
-/// The first real generation drew two steps in sixteen frames and it read as
-/// hesitant — near-duplicate frames, muddled phases, no rhythm. The user's
-/// direction: author one step in fine detail and repeat it forever. One step
-/// across sixteen frames doubles the temporal resolution, and because panel
-/// 16 flows into panel 1 as the NEXT step, both legs must read identically —
-/// stated outright in the prompt, and invisible at desktop size in loose
-/// trousers.
+/// A paid 24-frame attempt proved that asking for finer subdivision made GPT
+/// repeat the same wide-stride drawing. This sequence instead pins the two
+/// contact poses and, crucially, the two feet-together passing poses. Sixteen
+/// distinct key poses are a better generative target; runtime interpolation is
+/// not invented between them.
 ///
-/// Frames are authored walking toward the character's own left, like every
-/// Shimeji pack; the runtime mirrors for the other direction, and its frame
-/// clock must treat one strip cycle as ONE stride of travel.
+/// Frames travel toward the character's own left. The runtime mirrors the
+/// strip for rightward travel and treats one strip cycle as both steps.
 enum PetActionPose: Int, CaseIterable {
-    case strike = 0
-    case roll = 1
-    case settle = 2
-    case gather = 3
-    case fold = 4
-    case pass = 5
-    case rise = 6
-    case push = 7
-    case swing = 8
-    case reach = 9
-    case extend = 10
-    case descend = 11
-    case open = 12
-    case stretch = 13
-    case brake = 14
-    case touch = 15
+    case leftContact = 0
+    case leftLoad = 1
+    case rightToeOff = 2
+    case rightEarlySwing = 3
+    case rightPassTogether = 4
+    case rightKneeLead = 5
+    case rightReach = 6
+    case rightPreContact = 7
+    case rightContact = 8
+    case rightLoad = 9
+    case leftToeOff = 10
+    case leftEarlySwing = 11
+    case leftPassTogether = 12
+    case leftKneeLead = 13
+    case leftReach = 14
+    case leftPreContact = 15
 
     /// Written as physical description rather than as a label, because a model
     /// follows "weight forward over the leading foot" far better than "walk 2".
@@ -489,38 +509,38 @@ enum PetActionPose: Int, CaseIterable {
     /// the rhythm the user asked for.
     var direction: String {
         switch self {
-        case .strike:
-            return "the front heel strikes the ground, stride at its widest, back toes still down, arms at full counter-swing"
-        case .roll:
-            return "weight rolling forward onto the front foot, back heel peeling off the ground"
-        case .settle:
-            return "weight over the front foot, front knee softly bent, body at its lowest point"
-        case .gather:
-            return "back toes leaving the ground, the back leg starting to fold, body still low"
-        case .fold:
-            return "back leg folded and swinging under the body, weight fully on the planted leg, body rising"
-        case .pass:
-            return "the swinging leg passing exactly beside the planted leg, body upright at middle height, arms passing the hips"
-        case .rise:
-            return "the planted leg straightening, its heel starting to lift, the swinging knee driving forward"
-        case .push:
-            return "up on the ball of the planted foot, body at its highest, the swinging thigh at its most lifted"
-        case .swing:
-            return "the swinging shin unfolding forward, body starting to come down from its peak"
-        case .reach:
-            return "the swinging leg reaching ahead, its knee easing straight, arms mid counter-swing"
-        case .extend:
-            return "the reaching leg nearly straight ahead, the planted heel high, body descending"
-        case .descend:
-            return "body sinking, the reaching foot lowering toward the ground, stride opening"
-        case .open:
-            return "stride three-quarters open, the reaching heel approaching the ground"
-        case .stretch:
-            return "stride almost at its widest, the back leg extending, the front heel a hand's width from the ground"
-        case .brake:
-            return "the front heel a moment from touching, stride fully open, body low and moving forward"
-        case .touch:
-            return "the front heel grazing the ground — the instant before the strike, flowing straight back into panel 1"
+        case .leftContact:
+            return "LEFT heel contacts ahead while RIGHT toes remain behind; stride widest, right arm forward and left arm back"
+        case .leftLoad:
+            return "LEFT foot becomes flat and accepts weight; RIGHT heel lifts behind, stride already visibly narrower"
+        case .rightToeOff:
+            return "RIGHT toes push off behind and begin leaving the ground while LEFT foot stays planted without sliding"
+        case .rightEarlySwing:
+            return "RIGHT knee folds and swings forward toward the planted LEFT leg; the gap between the feet is almost closed"
+        case .rightPassTogether:
+            return "MANDATORY FEET-TOGETHER PASS: RIGHT foot passes directly beside planted LEFT foot under the hips; both feet overlap side by side, stride fully closed"
+        case .rightKneeLead:
+            return "RIGHT knee leads just ahead after the feet-together pass; LEFT leg remains the straight support"
+        case .rightReach:
+            return "RIGHT shin unfolds and reaches ahead; the stride reopens in the opposite direction, LEFT leg extending behind"
+        case .rightPreContact:
+            return "RIGHT heel is one small increment above contact; LEFT toes remain behind, flowing into RIGHT heel contact"
+        case .rightContact:
+            return "RIGHT heel contacts ahead while LEFT toes remain behind; stride widest, left arm forward and right arm back"
+        case .rightLoad:
+            return "RIGHT foot becomes flat and accepts weight; LEFT heel lifts behind, stride already visibly narrower"
+        case .leftToeOff:
+            return "LEFT toes push off behind and begin leaving the ground while RIGHT foot stays planted without sliding"
+        case .leftEarlySwing:
+            return "LEFT knee folds and swings forward toward the planted RIGHT leg; the gap between the feet is almost closed"
+        case .leftPassTogether:
+            return "MANDATORY FEET-TOGETHER PASS: LEFT foot passes directly beside planted RIGHT foot under the hips; both feet overlap side by side, stride fully closed"
+        case .leftKneeLead:
+            return "LEFT knee leads just ahead after the feet-together pass; RIGHT leg remains the straight support"
+        case .leftReach:
+            return "LEFT shin unfolds and reaches ahead; the stride reopens in the original direction, RIGHT leg extending behind"
+        case .leftPreContact:
+            return "LEFT heel is one small increment above contact; RIGHT toes remain behind, flowing directly into panel 1"
         }
     }
 }
@@ -530,7 +550,7 @@ enum PetGenerationArtifact: Equatable {
     case evolutionSheet
     case replacement(PetEvolutionStage)
     case expressionSheet(PetEvolutionStage)
-    /// Sixteen frames of one action of one locked stage, on a 4x4 grid.
+    /// Frames of one action of one locked stage; layout belongs to its plan.
     case actionSheet(PetEvolutionStage)
 
     var outputSize: PetImageOutputSize {
@@ -729,7 +749,7 @@ private struct PetMultipartImage {
     static func role(forFilename filename: String) -> PetReferenceRole {
         if filename.contains("master") { return .master }
         if filename.contains("style") { return .style }
-        if filename.contains("expression") { return .expression }
+        if filename.contains("expression") || filename.contains("keyframes") { return .expression }
         return .identity
     }
 }
@@ -993,11 +1013,12 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         }
     }
 
-    /// Action pass: one sheet, one action, sixteen frames. Same staged shape
+    /// Action pass: one sheet, one action. Same staged shape
     /// as the expression pass; the caller owns slicing, the consistency gate,
     /// and the reroll policy (ActionSheetRunDirector).
     func generateActionSheet(requestID: String, stage: PetEvolutionStage,
                              stageFrameData: Data,
+                             motionGuideData: Data? = nil,
                              styleBoardData: Data?,
                              personalityVisual: String,
                              quality: PetFinalGenerationQuality,
@@ -1020,7 +1041,10 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             guard !self.isCancelled(requestID) else {
                 self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
             }
+            let resolvedMotionGuide = motionGuideData
+                ?? MimoMotionReference.requestData(for: plan.key)
             guard Self.validReference(stageFrameData),
+                  Self.validReference(resolvedMotionGuide),
                   Self.validReference(styleBoardData) else {
                 self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage))
                 return
@@ -1028,6 +1052,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             self.emitStaged(progress, phase: "connecting", partialImage: nil, partialIndex: nil)
             let request = Self.actionSheetRequest(
                 stage: stage, stageFrameData: stageFrameData,
+                motionGuideData: resolvedMotionGuide,
                 styleBoardData: styleBoardData,
                 personalityVisual: personalityVisual,
                 quality: quality, plan: plan, apiKey: key,
@@ -1043,6 +1068,125 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             self.performImageStream(request, provider: "OpenAI", requestID: requestID,
                                     artifact: .actionSheet(stage), progress: progress,
                                     completion: completion)
+        }
+    }
+
+    /// Second walk pass: the accepted keyframe sheet is now an appearance and
+    /// pose reference. The model draws only the temporal midpoint after each
+    /// keyframe; the caller interleaves the two strips into a 32-frame cycle.
+    func generateWalkInbetweenSheet(requestID: String, stage: PetEvolutionStage,
+                                    stageFrameData: Data,
+                                    keyframeSheetData: Data,
+                                    motionGuideData: Data? = nil,
+                                    styleBoardData: Data?,
+                                    personalityVisual: String,
+                                    quality: PetFinalGenerationQuality,
+                                    progress: @escaping StagedProgress,
+                                    completion: @escaping StagedCompletion) {
+        begin(requestID)
+        credentialQueue.async { [weak self] in
+            guard let self else { return }
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let key = self.openAIKeyReader() else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.missingKey("OpenAI")))
+                return
+            }
+            guard let resolvedMotionGuide = motionGuideData
+                    ?? MimoMotionReference.walkInbetweenData() else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            guard Self.validReference(stageFrameData),
+                  Self.validReference(keyframeSheetData),
+                  Self.validReference(resolvedMotionGuide),
+                  Self.validReference(styleBoardData) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            self.emitStaged(progress, phase: "connecting", partialImage: nil, partialIndex: nil)
+            let request = Self.walkInbetweenSheetRequest(
+                stage: stage, stageFrameData: stageFrameData,
+                keyframeSheetData: keyframeSheetData,
+                motionGuideData: resolvedMotionGuide,
+                styleBoardData: styleBoardData,
+                personalityVisual: personalityVisual,
+                quality: quality, apiKey: key,
+                delivery: .streaming(.one))
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let request else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            self.performImageStream(request, provider: "OpenAI", requestID: requestID,
+                                    artifact: .actionSheet(stage), progress: progress,
+                                    completion: completion)
+        }
+    }
+
+    /// Surgical retry for M13...M16. A smaller 2x2 canvas avoids asking the
+    /// model to squeeze sixteen full bodies into one composition again, while
+    /// the accepted K-sheet remains the appearance and endpoint authority.
+    func generateWalkInbetweenRepairSheet(requestID: String, stage: PetEvolutionStage,
+                                          stageFrameData: Data,
+                                          keyframeSheetData: Data,
+                                          motionGuideData: Data,
+                                          styleBoardData: Data?,
+                                          personalityVisual: String,
+                                          quality: PetFinalGenerationQuality,
+                                          progress: @escaping StagedProgress,
+                                          completion: @escaping StagedCompletion) {
+        begin(requestID)
+        credentialQueue.async { [weak self] in
+            guard let self else { return }
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let key = self.openAIKeyReader() else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.missingKey("OpenAI"))); return
+            }
+            guard Self.validReference(stageFrameData),
+                  Self.validReference(keyframeSheetData),
+                  Self.validReference(motionGuideData),
+                  Self.validReference(styleBoardData) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            self.emitStaged(progress, phase: "connecting", partialImage: nil, partialIndex: nil)
+            let request = Self.walkInbetweenRepairSheetRequest(
+                stage: stage, stageFrameData: stageFrameData,
+                keyframeSheetData: keyframeSheetData,
+                motionGuideData: motionGuideData, styleBoardData: styleBoardData,
+                personalityVisual: personalityVisual, quality: quality,
+                apiKey: key, delivery: .blocking)
+            guard let request else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            // This retry exists because the first repair returned a valid
+            // partial image over SSE, then closed its HTTP-200 stream before
+            // the terminal image/usage event. A blocking JSON response keeps
+            // the final asset and usage in one atomic payload.
+            self.emitStaged(progress, phase: "generating", partialImage: nil, partialIndex: nil)
+            self.performJSON(request, provider: "OpenAI", requestID: requestID) { result in
+                guard !self.isCancelled(requestID) else {
+                    self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+                }
+                switch result {
+                case .failure(let error):
+                    self.finishStaged(completion, result: .failure(error))
+                case .success(let json):
+                    guard let image = Self.imageStrings(in: json)?.first,
+                          let data = Self.dataFromDataURI(image),
+                          Self.isSupportedImageData(data) else {
+                        self.finishStaged(
+                            completion,
+                            result: .failure(PetGenerationError.invalidResponse("OpenAI repair image")))
+                        return
+                    }
+                    let usage = PetGenerationUsage(json["usage"] as? [String: Any])
+                    self.finishStaged(completion,
+                                      result: .success(PetGenerationOutput(data: data, usage: usage)))
+                }
+            }
         }
     }
 
@@ -1469,14 +1613,15 @@ final class PetGenerationCoordinator: @unchecked Sendable {
     }
 
     /// Action pass. Image 1 is the locked stage design; the model draws it
-    /// sixteen times changing ONLY the pose.
+    /// once per panel, changing ONLY the pose.
     ///
-    /// All sixteen share one call on purpose. Neither backend exposes a seed,
+    /// All panels share one call on purpose. Neither backend exposes a seed,
     /// so a single forward pass — where the model can see every other cell
     /// while drawing each one — is the only strong consistency mechanism
     /// available. Sixteen separate calls would drift far worse.
     static func actionSheetRequest(stage: PetEvolutionStage,
                                    stageFrameData: Data,
+                                   motionGuideData: Data? = nil,
                                    styleBoardData: Data? = nil,
                                    personalityVisual: String,
                                    quality: PetFinalGenerationQuality = .medium,
@@ -1484,9 +1629,18 @@ final class PetGenerationCoordinator: @unchecked Sendable {
                                    apiKey: String,
                                    delivery: PetGenerationDelivery = .blocking,
                                    boundary: String = "mimo-action-\(UUID().uuidString)") -> URLRequest? {
+        guard plan.panels.count == plan.layout.frameCount else { return nil }
+        let canvas = plan.outputSize.pixels
+        guard canvas.width % plan.layout.columns == 0,
+              canvas.height % plan.layout.rows == 0,
+              canvas.width / plan.layout.columns == canvas.height / plan.layout.rows else { return nil }
         var references = [
             PetMultipartImage(filename: "locked-stage-design.png", data: stageFrameData),
         ]
+        if let motionGuideData {
+            references.append(PetMultipartImage(filename: "expression-motion-guide.png",
+                                                data: motionGuideData))
+        }
         if let styleBoardData {
             references.append(PetMultipartImage(filename: "mimo-style-board.png", data: styleBoardData))
         }
@@ -1495,8 +1649,9 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             prompt: actionSheetPrompt(stage: stage,
                                       personalityVisual: personalityVisual,
                                       hasStyleBoard: styleBoardData != nil,
+                                      hasMotionGuide: motionGuideData != nil,
                                       plan: plan),
-            size: PetGenerationArtifact.actionSheet(stage).outputSize,
+            size: plan.outputSize,
             quality: quality.providerQuality,
             apiKey: apiKey,
             delivery: delivery,
@@ -1508,12 +1663,30 @@ final class PetGenerationCoordinator: @unchecked Sendable {
     static func actionSheetPrompt(stage: PetEvolutionStage,
                                   personalityVisual: String,
                                   hasStyleBoard: Bool,
+                                  hasMotionGuide: Bool = false,
                                   plan: PetActionSheetPlan = .walkCycle) -> String {
+        let styleIndex = hasMotionGuide ? 3 : 2
         let styleReference = hasStyleBoard
-            ? "Image 2 is Mimo's internal STYLE BOARD; use its rendering language only, never its identities or layout."
+            ? "Image \(styleIndex) is Mimo's internal STYLE BOARD; use its rendering language only, never its identities or layout."
             : "No style-board image is supplied; preserve the established rendering language from Image 1 exactly."
+        let motionReference = hasMotionGuide
+            ? """
+            Image 2 is a simplified MOTION GUIDE. Follow only its panel-by-panel joint timing, planted-foot contacts,
+            and left/right limb sequence. Do NOT copy its stick-figure identity, anatomy, colors, labels, grid, or style.
+            """
+            : "No motion-guide image is supplied; follow the written physical phases exactly."
+        let canvas = plan.outputSize.pixels
+        let cellWidth = canvas.width / plan.layout.columns
+        let cellHeight = canvas.height / plan.layout.rows
+        let panelCount = plan.panels.count
+        let panelCountName: String
+        switch panelCount {
+        case 16: panelCountName = "SIXTEEN"
+        case 24: panelCountName = "TWENTY-FOUR"
+        default: panelCountName = "\(panelCount)"
+        }
         let cells = plan.panels.enumerated().map { index, description in
-            "  ROW \(index / 4 + 1), COLUMN \(index % 4 + 1) — \(description)."
+            "  ROW \(index / plan.layout.columns + 1), COLUMN \(index % plan.layout.columns + 1) — \(description)."
         }.joined(separator: "\n")
 
         return """
@@ -1522,14 +1695,16 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         REFERENCES
         Image 1 is the LOCKED \(stage.rawValue.uppercased()) STAGE DESIGN and the absolute identity lock. Reproduce its
         species, face structure, hairstyle or markings, palette, outfit, outline weight, shading, and proportions
-        EXACTLY in all sixteen panels. Only the POSE changes between panels.
+        EXACTLY in all \(panelCount) panels. Only the POSE changes between panels.
+        \(motionReference)
         \(styleReference)
         Temperament: \(personalityVisual)
 
         OUTPUT CONTRACT
-        Create one 2048x2048 square sheet holding exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512,
+        Create one \(canvas.width)x\(canvas.height) sheet holding exactly \(panelCountName) panels in a strict
+        \(plan.layout.columns)x\(plan.layout.rows) grid, each panel \(cellWidth)x\(cellHeight),
         read left to right then top to bottom. Draw a clearly visible straight frame line, 6 pixels thick, exact
-        color #1A1A2E, around the inside of every panel's border, so the sheet reads as sixteen framed boxes.
+        color #1A1A2E, around the inside of every panel's border, so the sheet reads as \(panelCount) framed boxes.
         Every panel contains one isolated full-body view of the SAME individual from Image 1,
         \(plan.viewInstruction), ENTIRELY INSIDE its frame: nothing touches or crosses any frame line, and clear
         background separates the character from the frame on all four sides — feet, hair, and props included.
@@ -1543,7 +1718,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         applies to that smaller size in EVERY panel.
 
         CONSISTENCY IS THE PRIMARY REQUIREMENT
-        Treat all sixteen panels as frames of one animation of one character. Keep the character the same SIZE in
+        Treat all \(panelCount) panels as frames of one animation of one character. Keep the character the same SIZE in
         every panel — measure from the sole of the foot to the top of the head and hold it constant except where the
         stride itself raises or lowers the body. Keep the same camera distance, the same eye level, the same light
         direction, and the same palette throughout. A viewer flipping between any two panels must see the same
@@ -1559,6 +1734,180 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         EXTRACTION MATTE
         Use one flat opaque background of exact color #F1ECE2 across the entire canvas. No gradient, texture, floor,
         cast shadow, halo, glow, particles, props, scenery, frame, UI, text, logo, watermark, or cropped limbs.
+        """
+    }
+
+    /// Walk pass 4B draws only the missing temporal midpoints. The accepted
+    /// keyframe sheet is attached whole so the model can preserve both the
+    /// adjacent pose endpoints and the cross-panel appearance established by
+    /// the first pass in a single forward pass.
+    static func walkInbetweenSheetRequest(stage: PetEvolutionStage,
+                                          stageFrameData: Data,
+                                          keyframeSheetData: Data,
+                                          motionGuideData: Data,
+                                          styleBoardData: Data? = nil,
+                                          personalityVisual: String,
+                                          quality: PetFinalGenerationQuality = .medium,
+                                          apiKey: String,
+                                          delivery: PetGenerationDelivery = .blocking,
+                                          boundary: String = "mimo-walk-inbetween-\(UUID().uuidString)")
+        -> URLRequest? {
+        var references = [
+            PetMultipartImage(filename: "locked-stage-design.png", data: stageFrameData),
+            PetMultipartImage(filename: "approved-walk-keyframes.png", data: keyframeSheetData),
+            PetMultipartImage(filename: "expression-motion-guide-midpoints.png",
+                              data: motionGuideData),
+        ]
+        if let styleBoardData {
+            references.append(PetMultipartImage(filename: "mimo-style-board.png", data: styleBoardData))
+        }
+        return imageEditRequest(
+            references: references,
+            prompt: walkInbetweenSheetPrompt(
+                stage: stage, personalityVisual: personalityVisual,
+                hasStyleBoard: styleBoardData != nil),
+            size: .actionSheet,
+            quality: quality.providerQuality,
+            apiKey: apiKey,
+            delivery: delivery,
+            timeout: quality == .high ? 600 : 420,
+            boundary: boundary
+        )
+    }
+
+    static func walkInbetweenSheetPrompt(stage: PetEvolutionStage,
+                                         personalityVisual: String,
+                                         hasStyleBoard: Bool) -> String {
+        let styleReference = hasStyleBoard
+            ? "Image 4 is Mimo's internal STYLE BOARD; use rendering language only, never its identities or layout."
+            : "No style-board image is supplied; preserve the rendering language from Images 1 and 2 exactly."
+        let cells = (0..<16).map { index in
+            let midpoint = String(format: "%02d", index + 1)
+            let first = String(format: "%02d", index + 1)
+            let second = String(format: "%02d", (index + 1) % 16 + 1)
+            return "  ROW \(index / 4 + 1), COLUMN \(index % 4 + 1) — M\(midpoint), exact temporal midpoint between K\(first) and K\(second)."
+        }.joined(separator: "\n")
+
+        return """
+        MIMO ASSET PASS 4B — WALK INBETWEEN SHEET FOR THE \(stage.rawValue.uppercased()) STAGE
+
+        REFERENCES
+        Image 1 is the LOCKED \(stage.rawValue.uppercased()) STAGE DESIGN and the absolute identity lock.
+        Image 2 is the APPROVED 4x4 WALK KEYFRAME SHEET, read row-major as K01 through K16. It is the source of
+        truth for the fixed side camera, character size, ground baseline, identity, palette, outfit or markings,
+        outline, light direction, shading, and the two endpoint poses surrounding every requested midpoint.
+        Image 3 is a simplified MIDPOINT MOTION GUIDE, read row-major as M01 through M16. Follow only its limb
+        timing, planted-foot contacts, weight transfer, and left/right sequence. Do not copy its stick-figure
+        identity, anatomy, colors, labels, grid, or style.
+        \(styleReference)
+        Temperament: \(personalityVisual)
+
+        OUTPUT CONTRACT
+        Create one 2048x2048 sheet holding exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512,
+        read left to right then top to bottom. Draw a clearly visible straight frame line, 6 pixels thick, exact
+        color #1A1A2E, around the inside of every panel border. Each panel contains one isolated full-body side-view
+        of the SAME character, facing and traveling right, entirely inside its frame. No labels, numbers, captions,
+        arrows, annotations, or extra figures.
+
+        INBETWEEN RULE — ONE NEW POSE, NOT TWO OVERLAID POSES
+        Every Mi must be one genuinely new physical pose exactly halfway in time between its adjacent Ki endpoints.
+        Infer the continuous motion of head, torso, hips, arms, legs, feet, clothing, hair, ears, and tail; place each
+        part once at its halfway position. Do not copy either endpoint. No double exposure, ghosting, cross-fade,
+        motion blur, transparency trail, superimposed poses, duplicated limbs, extra feet, or extra hands.
+
+        POSES
+        \(cells)
+
+        CONSISTENCY AND GROUNDING
+        This output will be interleaved K01, M01, K02, M02 ... K16, M16 and played as one seamless 32-frame loop.
+        Match Image 2's same camera distance, side angle, eye level, silhouette scale, line weight, palette, lighting,
+        and rendering in all panels. Keep the standing character about two thirds of panel height and never above
+        70%. Put the ground-contact sole exactly 96 pixels above the bottom panel edge, matching Image 2. Keep at
+        least 48 pixels of clear background from every other frame line. Nothing may touch or cross a frame line.
+        M16 must flow smoothly back into K01 without a pause, snap, or repeated endpoint.
+
+        EXTRACTION MATTE
+        Use one flat opaque #F1ECE2 background throughout. No gradient, texture, floor, cast shadow, halo, glow,
+        particles, props, scenery, UI, logo, watermark, or cropped limbs.
+        """
+    }
+
+    static func walkInbetweenRepairSheetRequest(stage: PetEvolutionStage,
+                                                stageFrameData: Data,
+                                                keyframeSheetData: Data,
+                                                motionGuideData: Data,
+                                                styleBoardData: Data? = nil,
+                                                personalityVisual: String,
+                                                quality: PetFinalGenerationQuality = .medium,
+                                                apiKey: String,
+                                                delivery: PetGenerationDelivery = .blocking,
+                                                boundary: String = "mimo-walk-repair-\(UUID().uuidString)")
+        -> URLRequest? {
+        var references = [
+            PetMultipartImage(filename: "locked-stage-design.png", data: stageFrameData),
+            PetMultipartImage(filename: "approved-walk-keyframes.png", data: keyframeSheetData),
+            PetMultipartImage(filename: "expression-motion-guide-m13-m16.png",
+                              data: motionGuideData),
+        ]
+        if let styleBoardData {
+            references.append(PetMultipartImage(filename: "mimo-style-board.png", data: styleBoardData))
+        }
+        return imageEditRequest(
+            references: references,
+            prompt: walkInbetweenRepairSheetPrompt(
+                stage: stage, personalityVisual: personalityVisual,
+                hasStyleBoard: styleBoardData != nil),
+            size: .square,
+            quality: quality.providerQuality,
+            apiKey: apiKey,
+            delivery: delivery,
+            timeout: quality == .high ? 420 : 300,
+            boundary: boundary)
+    }
+
+    static func walkInbetweenRepairSheetPrompt(stage: PetEvolutionStage,
+                                               personalityVisual: String,
+                                               hasStyleBoard: Bool) -> String {
+        let styleReference = hasStyleBoard
+            ? "Image 4 is Mimo's STYLE BOARD; use rendering language only, never its identities or layout."
+            : "No style board is supplied; preserve Images 1 and 2's rendering exactly."
+        return """
+        MIMO ASSET PASS 4C — REPAIR WALK MIDPOINTS M13 THROUGH M16 ONLY
+
+        REFERENCES
+        Image 1 is the LOCKED \(stage.rawValue.uppercased()) STAGE DESIGN and absolute identity lock.
+        Image 2 is the APPROVED 4x4 WALK KEYFRAME SHEET, row-major K01 through K16. It is the source of truth for
+        identity, fixed side camera, character size, palette, outfit or markings, line weight, lighting, shading,
+        ground baseline, and each requested midpoint's two endpoint poses.
+        Image 3 is the 2x2 SKELETON TIMING GUIDE for M13, M14, M15, and M16. Follow only joint timing, planted-foot
+        contacts, weight transfer, and left/right limb sequence; never copy its identity, colors, labels, or style.
+        \(styleReference)
+        Temperament: \(personalityVisual)
+
+        OUTPUT — EXACTLY FOUR COMPLETE FULL-BODY FIGURES
+        Create one 1024x1024 image containing exactly FOUR panels in a strict 2x2 grid, each panel 512x512:
+          ROW 1, COLUMN 1 — M13, exact temporal midpoint between K13 and K14.
+          ROW 1, COLUMN 2 — M14, exact temporal midpoint between K14 and K15.
+          ROW 2, COLUMN 1 — M15, exact temporal midpoint between K15 and K16.
+          ROW 2, COLUMN 2 — M16, exact temporal midpoint between K16 and K01, closing the loop.
+        Draw a straight 6-pixel #1A1A2E frame around the inside of every panel border.
+
+        Every panel must show ONE complete full-body side-view character facing and traveling LEFT, from the topmost
+        hair pixel through BOTH entire shoe soles. The complete head, torso, hips, legs, and feet must all be visible.
+        Do not zoom, crop, make a portrait, or let any body part continue outside a panel. A waist-up or knee-up figure
+        is a failed output. Keep the entire figure in the central two thirds of panel height, never above 70 percent.
+        The ground-contact sole sits exactly 96 pixels above the panel's bottom frame, leaving the bottom 96 pixels
+        COMPLETELY EMPTY #F1ECE2 matte. Leave at least 48 empty pixels at top, left, and right too.
+
+        INBETWEEN AND CONSISTENCY
+        Each Mi is one new physical pose halfway between its two Ki endpoints, never either endpoint and never two
+        overlaid poses. Place every head, torso, limb, hand, foot, hair section, and accessory exactly once. No double
+        exposure, ghost, cross-fade, motion blur, transparency trail, duplicated limbs, extra hands, or extra feet.
+        Match Image 2's character scale, camera distance, side angle, eye level, identity, palette, light, and shading
+        in all four panels. M16 must flow smoothly into K01.
+
+        Use a flat opaque #F1ECE2 background. No floor, cast shadow, gradient, props, scenery, text, logo, watermark,
+        cropped limbs, or anything touching or crossing a frame line.
         """
     }
 

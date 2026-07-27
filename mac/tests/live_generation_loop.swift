@@ -1,4 +1,4 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift reference_preprocessor.swift pet_generation.swift
+// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
 // compile-only: paid end-to-end smoke test; not safe to run unattended
 // Opt-in, paid end-to-end smoke test for Mimo's production familiar pipeline.
 //

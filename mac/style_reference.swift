@@ -73,3 +73,43 @@ enum MimoStyleReference {
         return integer(at: 16) == expectedWidth && integer(at: 20) == expectedHeight
     }
 }
+
+/// A pose-only timing reference. It is deliberately a plain skeleton rather
+/// than generated character art: the model should borrow joint order without
+/// finding a second identity to blend into the locked Mimo character.
+enum MimoMotionReference {
+    static let resourceSubdirectory = "motion-reference"
+    static let walkFilename = "biped-walk-cycle-16"
+    static let walkInbetweenFilename = "biped-walk-inbetweens-16"
+    static let expectedWidth = 960
+    static let expectedHeight = 960
+    static let maximumBytes = 2 * 1024 * 1024
+
+    static func requestData(for action: String, bundle: Bundle = .main) -> Data? {
+        guard action == "walk",
+              let url = bundle.url(forResource: walkFilename, withExtension: "png",
+                                   subdirectory: resourceSubdirectory),
+              let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
+              isValid(data) else { return nil }
+        return data
+    }
+
+    static func walkInbetweenData(bundle: Bundle = .main) -> Data? {
+        guard let url = bundle.url(forResource: walkInbetweenFilename, withExtension: "png",
+                                   subdirectory: resourceSubdirectory),
+              let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
+              isValid(data) else { return nil }
+        return data
+    }
+
+    static func isValid(_ data: Data) -> Bool {
+        let signature: [UInt8] = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+        guard data.count >= 24, data.count <= maximumBytes,
+              data.starts(with: signature),
+              String(bytes: data[12..<16], encoding: .ascii) == "IHDR" else { return false }
+        func integer(at offset: Int) -> Int {
+            data[offset..<(offset + 4)].reduce(0) { ($0 << 8) | Int($1) }
+        }
+        return integer(at: 16) == expectedWidth && integer(at: 20) == expectedHeight
+    }
+}
