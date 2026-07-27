@@ -171,6 +171,53 @@ struct ActionSheetTests {
         } catch { preconditionFailure("unexpected \(error)") }
     }
 
+    /// The second-pass walk result drew the last row through the canvas's
+    /// bottom frame, leaving four waist-up sprites. Framed sheets used to
+    /// exempt bottom contact because older prompts treated the bar as a floor;
+    /// the current 96px safety-margin contract makes every such contact a crop.
+    static func testFramedBottomContactIsRejected() {
+        let cell = 128
+        let layout = ActionSheetLayout(rows: 2, columns: 2)
+        var sheet = CharacterSheetRGBAImage(
+            width: cell * 2, height: cell * 2, fill: (241, 236, 226, 255))
+        // Six-pixel outer and internal #1A1A2E frame bands.
+        for y in 0..<sheet.height {
+            for x in 0..<sheet.width {
+                if x < 6 || x >= sheet.width - 6 || abs(x - cell) < 3
+                    || y < 6 || y >= sheet.height - 6 || abs(y - cell) < 3 {
+                    let offset = (y * sheet.width + x) * 4
+                    sheet.pixels[offset] = 26; sheet.pixels[offset + 1] = 26
+                    sheet.pixels[offset + 2] = 46; sheet.pixels[offset + 3] = 255
+                }
+            }
+        }
+        // Three safe figures and one last-row figure disappearing into the
+        // bottom band, as in the real rejected M13–M16 output.
+        let figures = [
+            bounds(38, 30, 42, 70), bounds(cell + 38, 30, 42, 70),
+            bounds(38, cell + 20, 42, 80), bounds(cell + 38, cell + 20, 42, 124),
+        ]
+        for figure in figures {
+            for y in figure.y..<min(sheet.height, figure.y + figure.height) {
+                for x in figure.x..<min(sheet.width, figure.x + figure.width) {
+                    let offset = (y * sheet.width + x) * 4
+                    sheet.pixels[offset] = 220; sheet.pixels[offset + 1] = 120
+                    sheet.pixels[offset + 2] = 90; sheet.pixels[offset + 3] = 255
+                }
+            }
+        }
+        do {
+            _ = try ActionSheetProcessor.process(pngData: png(sheet), layout: layout)
+            preconditionFailure("a figure cut by a framed canvas bottom must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .subjectClipped(let index, let edge) = error else {
+                preconditionFailure("expected subjectClipped, got \(error)")
+            }
+            expect(index == 3 && edge == "bottom",
+                   "the last framed cell is rejected at bottom, got \(index)/\(edge)")
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
     // MARK: - Rejections
 
     static func testEmptyCellIsRejected() {
@@ -267,6 +314,132 @@ struct ActionSheetTests {
         expect(decoded.width == result.cellSize * 8, "strip width follows the frame count")
     }
 
+    // MARK: - Two-pass walk interleaving
+
+    static func makeStrip(cell: Int, colors: [(UInt8, UInt8, UInt8)], height: Int = 40,
+                          horizontalMargin: Int = 12)
+        -> CharacterSheetRGBAImage {
+        var strip = CharacterSheetRGBAImage(width: cell * colors.count, height: cell)
+        for (frame, color) in colors.enumerated() {
+            for y in (cell - 8 - height)..<(cell - 8) {
+                for x in (frame * cell + horizontalMargin)..<(frame * cell + cell - horizontalMargin) {
+                    let offset = (y * strip.width + x) * 4
+                    strip.pixels[offset] = color.0
+                    strip.pixels[offset + 1] = color.1
+                    strip.pixels[offset + 2] = color.2
+                    strip.pixels[offset + 3] = 255
+                }
+            }
+        }
+        return strip
+    }
+
+    static func testInterleavePreservesExactFrameOrder() throws {
+        let cell = 64
+        let keyframes = makeStrip(cell: cell, colors: [(255, 0, 0), (0, 255, 0)])
+        let midpoints = makeStrip(cell: cell, colors: [(0, 0, 255), (255, 255, 0)])
+        let data = try ActionSheetProcessor.interleaveStrips(
+            keyframesPNG: png(keyframes), inbetweensPNG: png(midpoints))
+        let result = try CharacterSheetProcessor.decodePNG(data)
+        expect(result.width == cell * 4 && result.height == cell,
+               "two 2-frame strips become one 4-frame strip")
+        let expected: [(UInt8, UInt8, UInt8)] = [
+            (255, 0, 0), (0, 0, 255), (0, 255, 0), (255, 255, 0),
+        ]
+        for (frame, color) in expected.enumerated() {
+            let offset = ((cell - 10) * result.width + frame * cell + cell / 2) * 4
+            expect(result.pixels[offset] == color.0
+                   && result.pixels[offset + 1] == color.1
+                   && result.pixels[offset + 2] == color.2,
+                   "frame \(frame) keeps K1,M1,K2,M2 order")
+        }
+    }
+
+    static func testInterleaveRejectsDifferentFrameCounts() {
+        let keyframes = makeStrip(cell: 64, colors: [(255, 0, 0), (0, 255, 0)])
+        let midpoint = makeStrip(cell: 64, colors: [(0, 0, 255)])
+        do {
+            _ = try ActionSheetProcessor.interleaveStrips(
+                keyframesPNG: png(keyframes), inbetweensPNG: png(midpoint))
+            preconditionFailure("different frame counts must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .incompatibleStrips = error else {
+                preconditionFailure("expected incompatibleStrips, got \(error)")
+            }
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    static func testInterleaveRejectsScaleDrift() {
+        let keyframes = makeStrip(cell: 64, colors: [(255, 0, 0), (0, 255, 0)], height: 40)
+        let midpoints = makeStrip(cell: 64, colors: [(0, 0, 255), (255, 255, 0)], height: 25)
+        do {
+            _ = try ActionSheetProcessor.interleaveStrips(
+                keyframesPNG: png(keyframes), inbetweensPNG: png(midpoints))
+            preconditionFailure("large generated-character scale drift must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .stripScaleMismatch(let keyHeight, let midpointHeight) = error else {
+                preconditionFailure("expected stripScaleMismatch, got \(error)")
+            }
+            expect(keyHeight == 40 && midpointHeight == 25,
+                   "scale error reports both medians")
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    static func testSparseRepairChangesOnlyRequestedFrames() throws {
+        let cell = 64
+        let base = makeStrip(cell: cell, colors: [
+            (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+        ])
+        let repair = makeStrip(cell: cell, colors: [(255, 0, 255), (0, 255, 255)])
+        let data = try ActionSheetProcessor.replacingFrames(
+            in: png(base), with: png(repair), at: [2, 3])
+        let result = try CharacterSheetProcessor.decodePNG(data)
+        let expected: [(UInt8, UInt8, UInt8)] = [
+            (255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255),
+        ]
+        for (frame, color) in expected.enumerated() {
+            let offset = ((cell - 10) * result.width + frame * cell + cell / 2) * 4
+            expect(result.pixels[offset] == color.0
+                   && result.pixels[offset + 1] == color.1
+                   && result.pixels[offset + 2] == color.2,
+                   "sparse repair keeps accepted frames and replaces only targets")
+        }
+    }
+
+    static func testSparseRepairRejectsDifferentScale() {
+        let base = makeStrip(cell: 64, colors: [
+            (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+        ], height: 40)
+        let repair = makeStrip(cell: 64, colors: [(255, 0, 255), (0, 255, 255)], height: 25)
+        do {
+            _ = try ActionSheetProcessor.replacingFrames(
+                in: png(base), with: png(repair), at: [2, 3])
+            preconditionFailure("a visibly smaller local repair must be rejected")
+        } catch let error as ActionSheetError {
+            guard case .stripScaleMismatch = error else {
+                preconditionFailure("expected stripScaleMismatch, got \(error)")
+            }
+        } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    static func testSparseRepairCanSafelyNormalizeUniformlySmallFrames() throws {
+        let base = makeStrip(cell: 64, colors: [
+            (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+        ], height: 40)
+        let repair = makeStrip(cell: 64, colors: [(255, 0, 255), (0, 255, 255)],
+                               height: 32, horizontalMargin: 20)
+        let data = try ActionSheetProcessor.replacingFrames(
+            in: png(base), with: png(repair), at: [2, 3],
+            normalizeSmallerRepairs: true)
+        let result = try CharacterSheetProcessor.decodePNG(data)
+        for index in 0..<4 {
+            let frame = ActionSheetProcessor.crop(
+                result, x: index * 64, y: 0, width: 64, height: 64)
+            expect(CharacterSheetProcessor.alphaBounds(of: frame)?.height == 40,
+                   "uniform local normalization matches the retained median")
+        }
+    }
+
     static func main() throws {
         try testSlicesEveryCell()
         try testStripGeometryMatchesTheRuntimeContract()
@@ -274,12 +447,19 @@ struct ActionSheetTests {
         try testFeetLandOnTheBaseline()
         try testNeighbourOverflowIsRemovedFromTheCell()
         testSubjectCutByThePanelEdgeIsRejected()
+        testFramedBottomContactIsRejected()
         testEmptyCellIsRejected()
         testTinySubjectIsRejected()
         testIndivisibleDimensionsAreRejected()
         testNonPNGIsRejected()
         try testFlatMatteIsRemovedBeforeSlicing()
         try testNonSquareLayoutsWork()
+        try testInterleavePreservesExactFrameOrder()
+        testInterleaveRejectsDifferentFrameCounts()
+        testInterleaveRejectsScaleDrift()
+        try testSparseRepairChangesOnlyRequestedFrames()
+        testSparseRepairRejectsDifferentScale()
+        try testSparseRepairCanSafelyNormalizeUniformlySmallFrames()
         print("action sheet: all assertions passed")
     }
 }

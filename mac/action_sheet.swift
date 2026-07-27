@@ -45,6 +45,8 @@ enum ActionSheetError: Error, CustomStringConvertible {
     case cellTooSmall(index: Int, height: Int, minimum: Int)
     case subjectClipped(index: Int, edge: String)
     case noUsableFrames
+    case incompatibleStrips(reason: String)
+    case stripScaleMismatch(keyframeMedian: Int, inbetweenMedian: Int)
 
     var description: String {
         switch self {
@@ -59,6 +61,10 @@ enum ActionSheetError: Error, CustomStringConvertible {
             return "cell \(index)'s subject is cut off at its \(edge) edge — the art "
                  + "overflowed the panel and the missing part cannot be recovered"
         case .noUsableFrames: return "no usable frames in the action sheet"
+        case .incompatibleStrips(let reason): return "action strips are incompatible: \(reason)"
+        case .stripScaleMismatch(let keyframeMedian, let inbetweenMedian):
+            return "inbetween character scale differs from keyframes "
+                 + "(median heights \(inbetweenMedian)px vs \(keyframeMedian)px)"
         }
     }
 }
@@ -98,6 +104,184 @@ enum ActionSheetProcessor {
     /// A row or column this dark-saturated is a frame line. The requested
     /// frame color is near-black; the matte and the character are not.
     static let frameBandCoverage = 0.6
+
+    /// Interleaves accepted keyframes and generated temporal midpoints without
+    /// resampling either strip: K1,M1,K2,M2… This keeps the first-pass art
+    /// pixel-for-pixel and avoids the ghosting introduced by local blending.
+    static func interleaveStrips(keyframesPNG: Data, inbetweensPNG: Data,
+                                 maximumMedianScaleDrift: Double = 0.08) throws -> Data {
+        let keyframes = try CharacterSheetProcessor.decodePNG(keyframesPNG)
+        let inbetweens = try CharacterSheetProcessor.decodePNG(inbetweensPNG)
+        guard keyframes.height > 0, inbetweens.height > 0,
+              keyframes.height == inbetweens.height else {
+            throw ActionSheetError.incompatibleStrips(reason: "cell heights differ")
+        }
+        guard keyframes.width % keyframes.height == 0,
+              inbetweens.width % inbetweens.height == 0 else {
+            throw ActionSheetError.incompatibleStrips(reason: "each input must be a one-cell-tall strip")
+        }
+        let keyframeCount = keyframes.width / keyframes.height
+        let inbetweenCount = inbetweens.width / inbetweens.height
+        guard keyframeCount > 0, keyframeCount == inbetweenCount else {
+            throw ActionSheetError.incompatibleStrips(
+                reason: "frame counts differ (\(keyframeCount) vs \(inbetweenCount))")
+        }
+
+        func subjectHeights(_ strip: CharacterSheetRGBAImage, count: Int) throws -> [Int] {
+            try (0..<count).map { index in
+                let cell = crop(strip, x: index * strip.height, y: 0,
+                                width: strip.height, height: strip.height)
+                guard let bounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
+                    throw ActionSheetError.emptyCell(index: index)
+                }
+                return bounds.height
+            }
+        }
+        let keyHeights = try subjectHeights(keyframes, count: keyframeCount).sorted()
+        let midpointHeights = try subjectHeights(inbetweens, count: inbetweenCount).sorted()
+        let keyMedian = keyHeights[keyHeights.count / 2]
+        let midpointMedian = midpointHeights[midpointHeights.count / 2]
+        let scaleDrift = abs(Double(midpointMedian - keyMedian)) / Double(max(1, keyMedian))
+        guard scaleDrift <= maximumMedianScaleDrift else {
+            throw ActionSheetError.stripScaleMismatch(
+                keyframeMedian: keyMedian, inbetweenMedian: midpointMedian)
+        }
+
+        let cell = keyframes.height
+        var output = CharacterSheetRGBAImage(width: cell * keyframeCount * 2, height: cell)
+        func copy(_ source: CharacterSheetRGBAImage, sourceFrame: Int, destinationFrame: Int) {
+            let sourceX = sourceFrame * cell
+            let destinationX = destinationFrame * cell
+            for y in 0..<cell {
+                let sourceStart = (y * source.width + sourceX) * 4
+                let destinationStart = (y * output.width + destinationX) * 4
+                output.pixels.replaceSubrange(
+                    destinationStart..<(destinationStart + cell * 4),
+                    with: source.pixels[sourceStart..<(sourceStart + cell * 4)])
+            }
+        }
+        for index in 0..<keyframeCount {
+            copy(keyframes, sourceFrame: index, destinationFrame: index * 2)
+            copy(inbetweens, sourceFrame: index, destinationFrame: index * 2 + 1)
+        }
+        return try CharacterSheetProcessor.encodePNG(output)
+    }
+
+    /// Replaces a sparse set of frames in an existing one-cell-tall strip.
+    /// Used by paid surgical repairs: accepted frames remain pixel-identical,
+    /// and only the rejected indices are copied from the small retry sheet.
+    static func replacingFrames(in stripPNG: Data, with replacementsPNG: Data,
+                                at indices: [Int],
+                                maximumMedianScaleDrift: Double = 0.08,
+                                normalizeSmallerRepairs: Bool = false) throws -> Data {
+        var strip = try CharacterSheetProcessor.decodePNG(stripPNG)
+        var replacements = try CharacterSheetProcessor.decodePNG(replacementsPNG)
+        guard strip.height > 0, replacements.height == strip.height,
+              strip.width % strip.height == 0,
+              replacements.width % replacements.height == 0 else {
+            throw ActionSheetError.incompatibleStrips(
+                reason: "repair inputs must use the same square cell size")
+        }
+        let frameCount = strip.width / strip.height
+        let replacementCount = replacements.width / replacements.height
+        guard indices.count == replacementCount, Set(indices).count == indices.count,
+              indices.allSatisfy({ (0..<frameCount).contains($0) }) else {
+            throw ActionSheetError.incompatibleStrips(
+                reason: "repair indices do not match the replacement frames")
+        }
+
+        func heights(_ image: CharacterSheetRGBAImage, frames: [Int]) throws -> [Int] {
+            try frames.map { index in
+                let cell = crop(image, x: index * image.height, y: 0,
+                                width: image.height, height: image.height)
+                guard let bounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
+                    throw ActionSheetError.emptyCell(index: index)
+                }
+                return bounds.height
+            }
+        }
+        let retainedIndices = (0..<frameCount).filter { !indices.contains($0) }
+        if !retainedIndices.isEmpty {
+            let retained = try heights(strip, frames: retainedIndices).sorted()
+            var repaired = try heights(replacements, frames: Array(0..<replacementCount)).sorted()
+            let retainedMedian = retained[retained.count / 2]
+            var repairedMedian = repaired[repaired.count / 2]
+            var drift = abs(Double(repairedMedian - retainedMedian))
+                / Double(max(1, retainedMedian))
+            if drift > maximumMedianScaleDrift,
+               normalizeSmallerRepairs, repairedMedian < retainedMedian {
+                let normalized = try normalizingStripScale(
+                    replacementsPNG, toMedianHeight: retainedMedian)
+                replacements = try CharacterSheetProcessor.decodePNG(normalized)
+                repaired = try heights(replacements,
+                                       frames: Array(0..<replacementCount)).sorted()
+                repairedMedian = repaired[repaired.count / 2]
+                drift = abs(Double(repairedMedian - retainedMedian))
+                    / Double(max(1, retainedMedian))
+            }
+            guard drift <= maximumMedianScaleDrift else {
+                throw ActionSheetError.stripScaleMismatch(
+                    keyframeMedian: retainedMedian, inbetweenMedian: repairedMedian)
+            }
+        }
+
+        let cell = strip.height
+        for (replacementIndex, destinationIndex) in indices.enumerated() {
+            for y in 0..<cell {
+                let sourceStart = (y * replacements.width + replacementIndex * cell) * 4
+                let destinationStart = (y * strip.width + destinationIndex * cell) * 4
+                strip.pixels.replaceSubrange(
+                    destinationStart..<(destinationStart + cell * 4),
+                    with: replacements.pixels[sourceStart..<(sourceStart + cell * 4)])
+            }
+        }
+        return try CharacterSheetProcessor.encodePNG(strip)
+    }
+
+    /// Applies one uniform nearest-neighbour scale to every frame and restores
+    /// the shared feet baseline. This is intentionally opt-in: it is safe for
+    /// a complete, internally consistent local repair that came back uniformly
+    /// too small, but must not hide arbitrary per-frame generation drift.
+    static func normalizingStripScale(_ pngData: Data, toMedianHeight target: Int,
+                                      maximumUpscale: Double = 1.3) throws -> Data {
+        let source = try CharacterSheetProcessor.decodePNG(pngData)
+        guard source.height > 0, source.width % source.height == 0, target > 0 else {
+            throw ActionSheetError.incompatibleStrips(reason: "cannot normalize this strip")
+        }
+        let cell = source.height
+        let count = source.width / cell
+        var frames: [(image: CharacterSheetRGBAImage, bounds: CharacterSheetPixelBounds)] = []
+        for index in 0..<count {
+            let image = crop(source, x: index * cell, y: 0, width: cell, height: cell)
+            guard let bounds = CharacterSheetProcessor.alphaBounds(of: image) else {
+                throw ActionSheetError.emptyCell(index: index)
+            }
+            frames.append((image, bounds))
+        }
+        let heights = frames.map(\.bounds.height).sorted()
+        let median = heights[heights.count / 2]
+        let scale = Double(target) / Double(max(1, median))
+        guard scale >= 1.0, scale <= maximumUpscale else {
+            throw ActionSheetError.incompatibleStrips(
+                reason: String(format: "repair scale %.3f is outside the safe upscale range", scale))
+        }
+        let baseline = cell - outputPadding
+        var output = CharacterSheetRGBAImage(width: source.width, height: cell)
+        for (index, frame) in frames.enumerated() {
+            let width = max(1, Int((Double(frame.bounds.width) * scale).rounded()))
+            let height = max(1, Int((Double(frame.bounds.height) * scale).rounded()))
+            guard width <= cell - outputPadding * 2,
+                  height <= cell - outputPadding * 2 else {
+                throw ActionSheetError.incompatibleStrips(
+                    reason: "normalized repair frame \(index) would not fit")
+            }
+            let x = index * cell + (cell - width) / 2
+            let y = baseline - height
+            drawScaled(frame.image, from: frame.bounds, into: &output,
+                       destinationX: x, destinationY: y, width: width, height: height)
+        }
+        return try CharacterSheetProcessor.encodePNG(output)
+    }
 
     static func process(pngData: Data,
                         layout: ActionSheetLayout = .fourByFour,
@@ -164,14 +348,12 @@ enum ActionSheetProcessor {
                 CharacterSheetProcessor.removeEdgeIntruders(from: &cell)
                 // The mirror failure is the subject's own overflow: feet drawn
                 // on the grid line are feet amputated by it, and no amount of
-                // slicing can restore the missing toes. A real defect, so a
-                // real rejection — unlike the identity gate, a reroll on this
-                // signal is money well spent. One exception: on a framed
-                // sheet, the model stands the character ON the bottom frame
-                // bar as its floor — soles flush with the content's bottom
-                // edge are complete, not cut.
-                if let edge = clippedEdge(of: cell),
-                   !(drawnGrid != nil && edge == "bottom") {
+                // slicing can restore the missing toes. The current prompt
+                // reserves a concrete 96px bottom safety zone, so contact with
+                // a bottom frame is a defect too. The old exception for a
+                // model using the frame bar as its floor let an entire cropped
+                // last row pass as four half-bodied sprites.
+                if let edge = clippedEdge(of: cell) {
                     throw ActionSheetError.subjectClipped(index: index, edge: edge)
                 }
                 guard let cellBounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
