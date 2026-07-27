@@ -1,6 +1,6 @@
 > 伴灵模式计划 · 会话交接 — [索引](README.md)
 
-# 会话交接(2026-07-22)
+# 会话交接(2026-07-27)
 
 给下一个会话看的。**先读这份,再读 [README](README.md)。**
 
@@ -8,34 +8,57 @@
 
 ## 0. 下一个 session 从这里开始 ← 最新
 
-**当前伴灵(custom:e3851869…)已装齐四套动作条带**:walk / gaze / rest / wall
-(`manifest.json` 的 `actions` 字段,`actionURLs` 对外公布)。全部出自
-"画框 → 网格配准 → 逐格清理 → 底边贴地"的已验证管线,脚完整、无邻格污染。
+### Release baseline 与下一里程碑
 
-**已接线、用户重启即可见:**
-- **walk**:走路时按移动距离播 16 帧单步循环(不滑步);
-- **gaze**:站立不动 + 光标进入 380px 内 → 眼睛跟着光标(离开 460px 恢复),
-  头部方向按"上→左→下"扫描帧 + 右侧镜像。触发条件在
-  `companion_runtime.swift` 的 `updateGaze`。
+当前工作从“继续探索动作生成方法”切换为两步：
 
-**未接线(资产就位,运行时不会播)= 下一个 session 的主任务:**
-- **rest**(趴下入睡 4 帧过渡 + 睡息循环 + 梦泡 + 翻身):需要行为包能按名字
-  引用动作条带(如 `"strip": "rest", "frame": 5`)——现在 intent.frame 只驱动
-  单一 sprite,walk/gaze 是运行时特例。设计:CompanionIntent 加 strip 名,
-  Companion 持有 `[String: CompanionSprite]`,行为包 schema 升级。
-- **wall**(倚墙 1–8 帧循环 + 坐边缘晃腿 9–16 帧循环):同上机制 + attached
-  状态时用 wall 条带(倚墙帧),坐屏幕边缘是新行为(可先不做)。
-- 用户尚未确认 gaze/walk 实际观感,先等反馈再动。
+1. **收束 v0.2 release baseline**：生产代码、测试、生成工具、动作契约、
+   motion guide 与精选 preview 进入 Git；`output/`、Wan run、大型实验 GIF、
+   构建物与原始个人参考图保持本地并由 `.gitignore` 排除。
+2. **完整 custom pet generation**：把已定稿的动作生产接入 Mimo Studio，
+   形成 `references → canonical master → action families → local QA →
+   user preview → atomic install` 的可恢复流程。详见
+   [11-custom-pet-integration.md](11-custom-pet-integration.md)。
 
-**用户验证方法**(告诉过用户):重启 app 后①走路看脚下,②光标凑近看眼神,
-③rest/wall 现在**不会**出现是正常的。
+当前 app 已有安全的最后一段：`ActionGenerationJobStore` 能导入外部 result
+bundle、复制到 app-owned storage、在桌面循环预览、检查 hard QA，并在用户
+明确接受后写入 custom pet manifest。**尚缺的是 Studio 内部发起/编排动作生成**；
+设置页仍显示 `Action frames` placeholder，本地文件夹导入仍是开发者入口。
+
+**当前伴灵(custom:e3851869…)四套动作条带已全部接线**:walk / gaze / rest / wall。
+`manifest.json` 的任意 `actionURLs` 都会加载进 `[String: CompanionSprite]`;
+行为包 schema v2 的 pose 可写 `"strip": "rest", "frame": 5`,v1 继续兼容。
+
+**用户重启即可见:**
+- **walk**:当前已安装的仍是旧 16 帧条带;按移动距离播,但原始生成图的步态阶段
+  大量重复,所以肉眼仍不自然。2026-07-22 的 24 格尝试也失败:角色很稳,
+  但模型把 24 格画成几组重复宽跨步,已废弃该方案;
+- **gaze**:站立不动 + 光标进入 380px 内跟随,离开 460px 恢复;
+- **rest**:低概率触发“趴下 → 睡息 → 梦泡/翻身 → 起身”。起身复用入睡帧的
+  反向序列,避免从趴着直接啪切站立;
+- **wall**:空中碰左右屏幕墙后播 1–8 帧倚墙循环,右墙自动镜像,并把角色不透明
+  边缘重新配准到屏幕边,避免切分器居中后半身出屏。9–16 帧坐边缘晃腿仍未接线。
+
+**兼容保护:**行为引用的条带若未安装,对应行为会直接从加权瓮排除,旧伴灵不会
+出现“行为上睡着、画面却站着几十秒”的假动作。
+
+**验收不用等随机了:**右键伴灵 → `验收动作 / Preview Action` → 自动行为 /
+走路循环 /注视循环 /休息整条 /墙边整条。选自动行为或拖拽即停止强制预览。
+
+**下一步:**用户退出并从 `mac/build/Mimo.app` 重开,通过菜单验收四条动作。
+要验证新 16 关键相位步态需再做一次付费 OpenAI 生成,必须先得到用户明确确认。
 
 ---
 
 ## 1. 现在在哪
 
-分支 `feat/companion-runtime`,working tree 干净,**未 push**。
-21 个测试文件全绿,`./mac/build.sh` + `./mac/test.sh` 通过。
+分支 `codex/walk-rig-prototype`，包含此前 `feat/companion-runtime` 与
+`fix/pipeline-audit` 的全部未发布历史；不需要分别 push 旧分支。release baseline
+收束改动尚未 push。
+`./mac/build.sh` 通过；`./mac/test.sh` 29 个 target 全绿；动作/Modal/Python
+离线套件 66 项全绿。这台机器的 macOS Vision 仍会报
+Code=9(系统 ANE saliency 模型无法加载),测试只针对这一个系统错误 skip feature-print
+三项,尺寸分组/闸门等纯策略断言仍完整运行。
 
 已完成 **P00 / P0 / P1 / P3(代码部分)**。跳过了 P2(多屏漫游),未开始 P4。
 
@@ -55,6 +78,23 @@ e9ae256 feat(companion): add behavior packs and the weighted selector
 (再往前 8 个是文档 commit)
 
 ## 2. 眼下正在做的事 ← 从这里继续
+
+### 2026-07-22 新系统(优先于下方历史计划)
+
+- walk 生成改为 **16 个差异明确的关键相位,完整包含左+右两步**;
+- 生产输出回到验证过的 **2048²/4×4,16 格各512px**;
+- 去掉“为了露两只眼强拉 3/4 视角”的冲突,改固定近侧面;
+- 附带 `mac/assets/motion-reference/biped-walk-cycle-16.png` 骨架时间轴,
+  只提供关节/落脚/左右腿顺序,不提供第二个角色身份;
+- 两个硬锦标是 panel 5 与 panel 13 的 **FEET-TOGETHER PASS**:双脚在髋下并行,
+  把“左脚张开→并行→右脚张开→并行”的闭环写死;
+- 默认走速 46→88 px/s,Wander 34→72 px/s;110px 为完整两步周期,
+  16 帧约 12.8fps,右键验收用 16fps;
+- 尺寸闸门改为按“相似姿势组”比较:rest 的站→躺、wall 的倚墙→坐下
+  不会被当成缩放漂移,同类姿势内忽大忽小仍会拒绝/重掷。
+
+**新 16-key-pose 方案尚未付费跑。**现有伴灵还在用旧 walk strip。不要自动花钱,
+也不要宣称已修好步态。
 
 **动作清单已定稿 → [09-action-inventory.md](09-action-inventory.md)**(2026-07-20 用户拍板)。
 三个悬而未决的问题全部有了答案:
@@ -119,14 +159,90 @@ e9ae256 feat(companion): add behavior packs and the weighted selector
 - ~~点击 → 打断~~ **已实现(2026-07-20)**:行为包顶层 `"reactions": { "click": "Poked" }`。
   点击(非拖拽)先恢复抓取前状态(否则落地会 reset director 抹掉反应),
   再触发反应行为;包没定义或被门控时才回落到旧的"打开气泡"。右键菜单不变。
-- **动作表从未真跑过**:切分器/prompt/闸门/重掷策略全部写好并测好,
-  但**世界上不存在任何一张 9 帧动作表**。磁盘上的 3 帧全是老资产。
-- 表情帧在原生层不会切(恒用报上来的那一帧)。
+- **16 关键相位 biped 步态已真跑,第二轮 16 midpoint 也已真跑**;第一轮关键帧
+  可用,第二轮 M13–M16 被画布底边截成半身而拒绝,均尚未安装。骨架参考只解决
+  双足角色,四足动物需独立 body-plan guide,不能把当前图硬套。
+- 24 格真实结果已证明“多帧”不等于“多相位”;新方案靠 16 个差异明确的 phase
+  + 骨架 + 人眼验收。不要盲目加“重复就自动重掷”烧钱。
+- 尺寸漂移现在会按动作组检出并拒绝,不会对每帧 bbox 盲目强制缩放;
+  姿势高度变化与模型缩放漂移不能仅靠全身 bbox 安全区分。
 - 贴边收起、victory walk 对原生伴灵不生效(仍操作旧 panel)。
-- 墙/天花板碰到只会滑走。
+- 坐屏幕边缘的 wall 9–16 帧仍未接独立边缘行为;左右墙倚靠已接。
 - 内置像素包仍走旧 WebView 路径(D8:不资产化,但要接行为引擎 —— 未做)。
 
 ## 5. 花钱的事
+
+**2026-07-23 Wan2.2-Animate 真实侧身视频 POC：原始 77 帧成功，Mimo preview 导入成功，
+但硬 QA 拒绝安装。** 私有 Modal job `mimo-side-walk-v1-p0`，官方 Wan commit
+`42bf4cfa…`、模型 revision `cb93a225…`、seed 42、20 steps。第一次 pose 预处理发现
+f28/f52 单帧骨架坍塌；新增“只修孤立低置信关节、两侧同关节都可信才线性补”的保守修复，
+第二次 25 帧审核 sheet 通过。又发现官方 pose MP4 是 78 packets：Wan 的 77-frame
+window 会把它扩成 153 帧；H200 staging 现无损裁成精确 77，pose/face 均逐帧解码验证。
+官方固定 `src_ref.png` 在 14B 加载后触发 libpng/zlib 冲突，即便 `/tmp` 中 compression-0
+PNG 在加载前可回读；最终用**同路径、无压缩 lossless BMP payload**绕过，像素 SHA 与
+远端 CPU 双跑哈希均一致。成功原片：
+`artifacts/wan/runs/mimo-side-walk-v1-p0/output/wan-raw.mp4`
+（512²、30fps、77f，SHA `32a37a78…`）；24 帧 cycle/contact sheet 在相邻目录。
+
+肉眼：完整左右步态和承重相位明显优于静态 image-sheet，身高/衣服/纹身/手表基本稳定；
+中段头发出现橙黄高光漂移，脸被头发遮挡，脚底贴源画布边。确定性 postprocess 成功产出
+24×512 RGBA strip，Mimo `ActionGenerationJobStore` 用真实 bundle 导入/持久化/预览全过，
+但 fail-closed：alpha area deviation 16.98%（阈值 12%）、f24↔f48 alpha IoU 0.937
+（阈值 0.97）、appearance 0.150（阈值 0.05），且全周期触底；没有 authored
+cycle distance。因此**当前只能 Settings 预览，绝不能点击接受安装**。实际 loop seam
+relative-to-internal gate 通过；不要靠放宽阈值或随手填 README 的 provisional `144`
+假装 foot lock。下一轮应先把 ref + pose 整体上移留 ground padding，再做时序 video
+matting、接触脚追踪和逐帧/累计位移校准。
+
+本次 Modal list-price 估算：L4 两次 `$0.0133 + $0.0098`；前两次 H200 在采样前失败，
+按日志存活时间约 `$0.1721 + $0.1374`；成功 H200 160.047s 为 `$0.2527`
+（其中 GPU `$0.2018`）。已知合计约 **`$0.5853`**，另有少量 CPU validation/download/
+container overhead，非账单。此 Wan 路线**没有调用 OpenAI API，OpenAI 成本 $0**。
+
+**2026-07-22 walk32-v2 M13–M16 局部修复:技术上合成成功,用户肉眼拒绝,绝不能安装。** 不再重画
+M01–M12;新增 2×2 `biped-walk-inbetweens-13-16.png` 和 pass 4C prompt,明确四个 midpoint
+与 K13→K14→K15→K16→K01 的映射、完整全身和 96px 空底。成品在
+`~/Library/Application Support/Mimo/exports/walk32-v2/`;实际 32 帧预览为当前 Codex
+`artifacts/walk-image-experiments/2026-07-22/walk32-v2-preview.gif`。四个修复角色完整且身份稳定,但模型把它们
+统一画小(中位高 371px vs 保留帧 462px);本地用一个统一 nearest-neighbour 比例放大、
+重落同一脚底基线,再只覆盖 M13–M16。该归一化是显式 opt-in,上限 1.3×,不会掩盖任意
+per-frame drift。成功 blocking 调用 usage:image input 4,149、text input 703、image output
+1,756,按官方 standard 费率精确计算 **$0.089387**。此前同一修复有一次 streaming 请求
+在返回一张 partial 后 HTTP 200 流提前结束,没有 terminal usage;它是否/如何计费只能查
+OpenAI Usage Dashboard,不要把 `$0.089387` 误写成两笔请求的账户总额。另一次看似 6 分钟
+卡住其实发生在 API 前:runner 重编译后 ad-hoc CDHash 变化,macOS Keychain 等待授权;
+该次没有 preflight、也没有发 OpenAI 请求。**用户最终判断准确:这些仍是宽窄不同的
+开合腿站姿,没有可信的 contact/down/pass/up 承重链,32 格只是把错误动作采样得更密。**
+
+**2026-07-22 walk32-v1 第二轮 midpoint:拒绝使用,只调用 1 次,计算成本 $0.151009。**
+输入沿用 `walk16-v2` 的 16 个 K 帧,另附确定性 `biped-walk-inbetweens-16.png`,
+让 gpt-image-2 一次生成 M01…M16,再本地交错为 `K01,M01,…,K16,M16`。实际 usage:
+image input 4,273 tokens、text input 1,027、image output 3,723;按 2026-07-22 官方
+standard 费率($8/$5/$30 per 1M)分别为 $0.034184 + $0.005135 + $0.111690。
+产物在 `~/Library/Application Support/Mimo/exports/walk32-v1/`,动画预览在当前
+`artifacts/walk-image-experiments/2026-07-22/walk32-v1-preview.gif`。**M01–M12 身份/镜头/光照很好,
+但 M13–M16 从画布底边溢出,只剩腰部以上,所以 32 帧不能安装。** 这次还发现 slicer
+曾对 framed sheet 的 bottom contact 特判放行,导致四个半身 sprite 居然可切出;该例外
+已删除并加 framed-bottom regression test。之后只要任何格触底即 `subjectClipped`。
+
+**2026-07-22 walk16-v2 生成成功,等用户肉眼验收,尚未安装。** 仅跑 1 次 medium,
+确认 request 顺序为角色原图 → `biped-walk-cycle-16.png` → 风格图。产物在
+`~/Library/Application Support/Mimo/exports/walk16-v2/`;raw 4×4 和透明 16-frame strip 都成功。
+切分后 alpha bbox 高度 436–454px,最大差约 4.1%,大小一致性良好;无地面投影。
+Vision 闸门仍因“正面基准 vs 侧面动作”拒绝(worst 24.27),这是已知不可用信号,
+不代表肉眼身份漂移。动画预览在
+`artifacts/walk-image-experiments/2026-07-22/walk16-v2-preview.gif`。
+
+**2026-07-22 walk24-v1 付费尝试:拒绝使用。** `attempt-1-raw.png` 在
+`~/Library/Application Support/Mimo/exports/walk24-v1/`。优点是身份、大小、侧面镜头
+相当稳;致命问题是 24 格主要重复同一类宽跨步,没有清楚的双脚并行通过位。
+而且 slicer 正确拒绝了该表:`cell 0 subject is cut off at bottom edge`,所以没有 strip,
+不能安装。结论:改为 16 个关键相位,把 panel 5/13 的 feet-together pass 设为
+硬约束;站立角色缩到格高约 2/3,底部安全带从 48px 加到 96px。
+
+**2026-07-22 零花费诊断:**旧 walk raw sheet 的 16 格不是 16 个连续步态相位,
+而是几组几乎相同的宽跨/合腿姿势;问题在生成结果和旧 prompt,不在 slicer。
+加上 110/46=2.39s 才播完一条,16 帧只有约 6.7fps,运行时又进一步放大了拖沓。
 
 **2026-07-21 动作表管线首次真跑(walk 16 帧,共花 ~$0.20)。** 结论:
 
@@ -224,6 +340,12 @@ coordinator 的 progress/completion 回调派发到主队列;主线程上等 sem
 **每个大改动都要在回复里明确说明改了什么、为什么。**
 
 ## 7. 操作须知
+
+**所有 Mimo 相关保留产物必须在仓库内。** Wan 的输入、预处理、原片、PNG、QA、
+日志和费用 manifest 统一放 `artifacts/wan/runs/<job-id>/`；历史 image-sheet
+预览放 `artifacts/walk-image-experiments/`。`Downloads`、`~/.codex/visualizations`、
+`/tmp` 和 `~/Library/Application Support` 都不能再作为 canonical artifact location。
+工具内部临时目录可以用，但 turn 结束前必须把保留结果迁回仓库。
 
 **Claude 每次改完自己 build + test。用户只需退出重开:**
 ```

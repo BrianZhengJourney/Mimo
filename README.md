@@ -1,52 +1,32 @@
-# Mimo 米墨 — concept demo
+# Mimo 米墨
 
-A small creature that lives on top of your macOS screen. It is not just a pet:
+A local-first macOS work companion that **feeds on focus, reflects distraction,
+and remembers lost context**.
 
-**it feeds on focus, gets corrupted by distraction, and remembers lost context.**
+Mimo combines a quiet desktop familiar, an ambient focus journal, and a studio
+for turning a person, pet, or original character into a custom companion.
 
-This repo is a *product concept demo* — a simulated macOS desktop in the browser
-that plays a ~2-minute cinematic walkthrough of the idea, plus a sandbox where
-you can drive it yourself.
+## Status
 
-## Run it
+**v0.2 Alpha · release baseline in progress (2026-07-27).**
 
-```bash
-python3 -m http.server 5199 --directory .
-# open http://localhost:5199
-```
+The repository has moved beyond the original browser concept:
 
-No build step, no dependencies. Plain HTML/CSS/JS.
+- Native AppKit/CALayer companion with alpha hit testing, HiDPI rendering,
+  drag/throw physics, screen surfaces, gaze, and data-driven behavior packs.
+- Local app/browser activity classification, focus quests, context restore,
+  daily journal, week view, and Markdown/HTML export.
+- Mimo Studio reference preprocessing, canonical character generation,
+  expression assets, provider abstraction, generation ledger, and recovery.
+- Generated action strips can be safely imported, previewed on the desktop,
+  hard-QA checked, and explicitly installed into a custom pet manifest.
+- Action generation itself is still an external/experimental production step.
+  Bringing it into the Studio is the next product milestone.
 
-## What the demo shows
+See the [custom pet integration plan](docs/companion/11-custom-pet-integration.md)
+and [current handoff](docs/companion/SESSION-HANDOFF.md).
 
-1. **The quiet companion** — the familiar floats in the corner while you code.
-2. **Shapeshifting** — it knows *what kind* of work you're doing: shipping code
-   earns 🥩 protein, terminal grind smelts ⛓️ iron, papers earn 📖 spellbooks,
-   planning docs become 🔮 memory fragments.
-3. **Corruption** — open X and it gets dizzy; nine minutes of doomscrolling and
-   it's poisoned; frantic tab-switching turns it into a ghost.
-4. **Evolution** — a 92-minute deep-work streak levels it up into *Emberling, lv.2*.
-5. **Restore my context** — hours later you ask "what was I just doing?" and it
-   replays the thread: the file, the fix you made, and the next step you'd planned.
-6. **The daily quest map** — your day retold as an RPG: main quest, side quests,
-   admin tax, and the distraction pit you fell into.
-
-## Sandbox controls
-
-- click dock apps — deep-work apps feed it, feeds poison it
-- rapid app-switching (4 in 5s) — ghost mode
-- `R` / click the familiar / `⌥Space` — restore context
-- `Q` — quest map · `Esc` — close overlays
-
-## Design intent
-
-Desktop pet × RPG companion × screen-aware memory assistant × ambient
-productivity coach. Minimal, charming, high-signal — playful and slightly
-mischievous, never corporate.
-
-## Native macOS app (`mac/`)
-
-The real thing — a creature that floats above your actual desktop:
+## Build and test
 
 ```bash
 mac/build.sh                      # builds mac/build/Mimo.app with swiftc
@@ -60,19 +40,29 @@ macOS then re-prompts for browser Automation and invalidates the Keychain ACL
 on the stored API key. Set `MIMO_SIGN_IDENTITY` to a stable self-signed
 certificate in your login keychain to keep both across rebuilds.
 
-- Transparent, always-on-top, click-through panel (bottom-right, all Spaces);
-  never steals focus.
-- Watches the frontmost app via NSWorkspace (**no permissions needed**) and
-  classifies it: VS Code/Cursor/Claude/Terminal/KiCad/Notion/Preview → deep work;
-  X/Steam → distraction.
-- **Browser awareness**: reads the active tab URL via AppleScript
-  (one-time Automation permission prompt per browser). youtube/x/reddit/小红书/
-  bilibili → distraction; arxiv/github/overleaf/colab → deep.
-- Menu bar `◐`: switch character (Wisp / Robo-cat / Panda / 暗原子 Dark Atom /
-  Beaver), toggle clickable, pause, quit.
-- `⌥Space` anywhere: "what was I doing?" — the familiar replays your recent
-  app thread (Carbon hotkey, no permissions needed).
-- All tracking is local; nothing leaves the machine.
+Activity history stays local. Reference images leave the Mac only after the
+user confirms the identity board and starts a provider generation.
+
+## Product flow
+
+```text
+work context ──> local activity journal ──> focus/mood semantics
+                                              │
+reference images ──> canonical familiar ──> behavior + action assets
+                                              │
+                                              v
+                               native companion runtime
+```
+
+The intended custom-pet flow is:
+
+```text
+references → identity board → canonical master → action families
+           → local normalization/QA → user preview → atomic install
+```
+
+The first three stages and the final import/install seam exist. The next
+milestone connects them into one resumable Studio workflow.
 
 ### Exports
 
@@ -87,7 +77,27 @@ certificate in your login keychain to keep both across rebuilds.
   and is **updated in place** (`replace_content`) when newer data exists,
   never duplicated.
 
-## Files
+## Repository map
+
+- `mac/` — native app, runtime, Studio, tests, action tooling, and curated assets.
+- `docs/companion/` — architecture decisions, generation research, roadmap,
+  handoff, and integration plan.
+- `skills/mimo-animate-pet/` — reproducible hybrid action-generation workflow.
+- `artifacts/wan/README.md` — retained-run layout; generated runs stay local and
+  are intentionally ignored by Git.
+- `index.html`, `styles.css`, `js/` — original browser concept demo.
+
+Large generated intermediates under `output/`, Wan run outputs, walk experiments,
+build products, and raw personal reference images are local-only.
+
+## Browser concept demo
+
+The original two-minute concept walkthrough remains useful for product demos:
+
+```bash
+python3 -m http.server 5199 --directory .
+# open http://localhost:5199
+```
 
 - `index.html` — desktop shell, familiar SVG, overlays
 - `styles.css` — all theming; familiar states are CSS palettes on `[data-state]`

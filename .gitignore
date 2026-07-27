@@ -1,4 +1,10 @@
 mac/build/
+artifacts/wan/runs/
+artifacts/walk-image-experiments/
+mac/prototypes/**/output/
+output/
+李解for Mimo/
 .claude/*
 !.claude/launch.json
 .DS_Store
+__pycache__/
