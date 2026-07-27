@@ -11,6 +11,7 @@ APP_SOURCES=(
   companion_geometry.swift
   companion_physics.swift
   companion_sprite.swift
+  companion_preview_catalog.swift
   companion_window.swift
   companion_expression.swift
   companion_behavior.swift
@@ -19,6 +20,7 @@ APP_SOURCES=(
   activity_log.swift
   app_menu.swift
   custom_pet.swift
+  action_generation_job.swift
   character_sheet.swift
   action_sheet.swift
   action_sheet_run.swift

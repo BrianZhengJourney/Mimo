@@ -11,10 +11,9 @@ import ImageIO
 //
 // Two things here exist to replace guesses in the current implementation:
 //
-// The anchor is derived from the art, not assumed. Companion physics puts the
-// anchor at the feet, so it is the bottom-centre of the opaque pixels, not the
-// bottom-centre of the cell — cells carry uneven padding, and using the cell
-// would make a companion hover or sink depending on how the model framed it.
+// By default the anchor is derived from the art, not assumed. Action pipelines
+// may instead author one fixed registration point shared by every frame; that
+// prevents an AI-generated silhouette change from moving the physical feet.
 //
 // The hit mask is derived from alpha, not from a rectangle. main.swift
 // currently tests a hardcoded 260x265 box that has no relationship to the
@@ -25,7 +24,8 @@ struct CompanionFrame {
     let image: CGImage
     /// Opaque bounds within the cell, in cell pixels, y-down (CoreGraphics).
     let opaqueBounds: CGRect
-    /// Feet, in cell pixels, y-down: bottom-centre of `opaqueBounds`.
+    /// Registration point in cell pixels, y-down. Usually the derived feet;
+    /// for authored action strips it can be one fixed point across all frames.
     let anchorInCell: CGPoint
     /// Coarse alpha occupancy over `maskResolution` x `maskResolution`.
     let mask: [Bool]
@@ -45,6 +45,58 @@ enum CompanionFrameSemantics {
     case expressions
     /// Poses of one animation. Behaviour picks.
     case actionPoses
+}
+
+/// Timing facts authored with an action asset. The source bundle speaks in
+/// cell pixels; physics speaks in screen pixels, so conversion belongs at the
+/// render boundary where both dimensions are known.
+struct CompanionActionPlaybackSpec: Equatable {
+    let framesPerSecond: CGFloat
+    let cycleDistanceInCellPixels: CGFloat?
+    /// Optional authored preview timing. Behavior-pack actions keep using
+    /// their per-pose `hold`; this preserves that same rhythm when a bundled
+    /// strip is reviewed outside the behavior pack.
+    let frameDurationsSeconds: [CGFloat]?
+
+    init(framesPerSecond: CGFloat, cycleDistanceInCellPixels: CGFloat?,
+         frameDurationsSeconds: [CGFloat]? = nil) {
+        self.framesPerSecond = framesPerSecond
+        self.cycleDistanceInCellPixels = cycleDistanceInCellPixels
+        self.frameDurationsSeconds = frameDurationsSeconds
+    }
+
+    func cycleDistanceOnScreen(displayHeight: CGFloat,
+                               cellHeight: CGFloat) -> CGFloat? {
+        guard let source = cycleDistanceInCellPixels,
+              source.isFinite, source > 0,
+              displayHeight.isFinite, displayHeight > 0,
+              cellHeight.isFinite, cellHeight > 0 else { return nil }
+        return source * displayHeight / cellHeight
+    }
+
+    func frameIndex(at elapsed: CGFloat, frameCount: Int) -> Int {
+        guard frameCount > 0 else { return 0 }
+        if let durations = frameDurationsSeconds,
+           durations.count == frameCount,
+           durations.allSatisfy({ $0.isFinite && $0 > 0 }) {
+            let total = durations.reduce(0, +)
+            var cursor = max(0, elapsed).truncatingRemainder(dividingBy: total)
+            for (index, duration) in durations.enumerated() {
+                if cursor < duration { return index }
+                cursor -= duration
+            }
+            return frameCount - 1
+        }
+        let fps = framesPerSecond.isFinite && framesPerSecond > 0
+            ? framesPerSecond : 12
+        return Int(max(0, elapsed) * fps) % frameCount
+    }
+}
+
+/// One cell in a top-to-bottom atlas such as OpenAI HatchPet's 8×11 v2 sheet.
+struct CompanionAtlasCell: Equatable {
+    let row: Int
+    let column: Int
 }
 
 struct CompanionSprite {
@@ -71,21 +123,25 @@ struct CompanionSprite {
 
     /// Loads a horizontal strip of `frameCount` equal cells.
     static func load(contentsOf url: URL, frameCount: Int,
-                     semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
+                     semantics: CompanionFrameSemantics = .stages,
+                     fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
         guard frameCount > 0,
               let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        return slice(sheet: sheet, frameCount: frameCount, semantics: semantics)
+        return slice(sheet: sheet, frameCount: frameCount, semantics: semantics,
+                     fixedAnchorInCell: fixedAnchorInCell)
     }
 
     /// Same, from bytes — the store hands out sheet data rather than paths, so
     /// the companion layer never needs to know where a familiar lives on disk.
     static func load(data: Data, frameCount: Int,
-                     semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
+                     semantics: CompanionFrameSemantics = .stages,
+                     fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
         guard frameCount > 0,
               let source = CGImageSourceCreateWithData(data as CFData, nil),
               let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        return slice(sheet: sheet, frameCount: frameCount, semantics: semantics)
+        return slice(sheet: sheet, frameCount: frameCount, semantics: semantics,
+                     fixedAnchorInCell: fixedAnchorInCell)
     }
 
     /// Infers the frame count from the strip itself: every sheet this app
@@ -94,19 +150,82 @@ struct CompanionSprite {
     /// lets an 8-frame walk strip and a 3-frame stage sheet share one loader
     /// without anyone maintaining a count table.
     static func load(data: Data,
-                     semantics: CompanionFrameSemantics) -> CompanionSprite? {
+                     semantics: CompanionFrameSemantics,
+                     fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil),
               sheet.height > 0, sheet.width % sheet.height == 0 else { return nil }
         return slice(sheet: sheet, frameCount: sheet.width / sheet.height,
-                     semantics: semantics)
+                     semantics: semantics, fixedAnchorInCell: fixedAnchorInCell)
+    }
+
+    /// Loads an ordered set of cells from a rectangular atlas without first
+    /// rewriting it into temporary strips. This keeps HatchPet's final v2
+    /// atlas as the single source of truth while letting Mimo preview each
+    /// semantic row and the two-row 16-direction look loop independently.
+    static func loadAtlas(data: Data, columns: Int, rows: Int,
+                          cells: [CompanionAtlasCell],
+                          semantics: CompanionFrameSemantics = .actionPoses,
+                          fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
+        guard columns > 0, rows > 0, !cells.isEmpty,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        return loadAtlas(
+            sheet: sheet, columns: columns, rows: rows, cells: cells,
+            semantics: semantics, fixedAnchorInCell: fixedAnchorInCell)
+    }
+
+    /// The decoded-sheet overload lets a preview catalog fan one HatchPet
+    /// atlas out into all of its semantic rows without decoding the WebP once
+    /// per menu item.
+    static func loadAtlas(sheet: CGImage, columns: Int, rows: Int,
+                          cells: [CompanionAtlasCell],
+                          semantics: CompanionFrameSemantics = .actionPoses,
+                          fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
+        guard columns > 0, rows > 0, !cells.isEmpty,
+              sheet.width % columns == 0, sheet.height % rows == 0 else { return nil }
+        let cellWidth = sheet.width / columns
+        let cellHeight = sheet.height / rows
+        guard fixedAnchorInCell.map({ anchor in
+            anchor.x.isFinite && anchor.y.isFinite
+                && (0...CGFloat(cellWidth)).contains(anchor.x)
+                && (0...CGFloat(cellHeight)).contains(anchor.y)
+        }) ?? true else { return nil }
+
+        var frames: [CompanionFrame] = []
+        for location in cells {
+            guard (0..<rows).contains(location.row),
+                  (0..<columns).contains(location.column),
+                  let cell = sheet.cropping(to: CGRect(
+                    x: location.column * cellWidth,
+                    y: location.row * cellHeight,
+                    width: cellWidth, height: cellHeight)),
+                  let alpha = alphaSamples(of: cell) else { return nil }
+            let bounds = opaqueBounds(alpha: alpha, width: cell.width, height: cell.height)
+            guard !bounds.isEmpty else { return nil }
+            frames.append(CompanionFrame(
+                image: cell,
+                opaqueBounds: bounds,
+                anchorInCell: fixedAnchorInCell
+                    ?? CGPoint(x: bounds.midX, y: bounds.maxY),
+                mask: coarseMask(alpha: alpha, width: cell.width, height: cell.height)))
+        }
+        return CompanionSprite(
+            frames: frames, cellSize: CGSize(width: cellWidth, height: cellHeight),
+            semantics: semantics)
     }
 
     static func slice(sheet: CGImage, frameCount: Int,
-                      semantics: CompanionFrameSemantics = .stages) -> CompanionSprite? {
+                      semantics: CompanionFrameSemantics = .stages,
+                      fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
         let cellWidth = sheet.width / frameCount
         let cellHeight = sheet.height
-        guard cellWidth > 0, cellHeight > 0 else { return nil }
+        guard cellWidth > 0, cellHeight > 0,
+              fixedAnchorInCell.map({ anchor in
+                  anchor.x.isFinite && anchor.y.isFinite
+                      && (0...CGFloat(cellWidth)).contains(anchor.x)
+                      && (0...CGFloat(cellHeight)).contains(anchor.y)
+              }) ?? true else { return nil }
 
         var frames: [CompanionFrame] = []
         for index in 0..<frameCount {
@@ -122,7 +241,8 @@ struct CompanionSprite {
             frames.append(CompanionFrame(
                 image: cell,
                 opaqueBounds: bounds,
-                anchorInCell: CGPoint(x: bounds.midX, y: bounds.maxY),
+                anchorInCell: fixedAnchorInCell
+                    ?? CGPoint(x: bounds.midX, y: bounds.maxY),
                 mask: coarseMask(alpha: alpha, width: cell.width, height: cell.height)))
         }
         return CompanionSprite(frames: frames,

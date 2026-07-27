@@ -411,6 +411,9 @@ extension AppDelegate {
         cfg.userContentController.add(self, name: "settings")
         cfg.setURLSchemeHandler(CustomPetAssetSchemeHandler(store: customPetStore),
                                 forURLScheme: CustomPetStore.scheme)
+        cfg.setURLSchemeHandler(
+            ActionGenerationJobAssetSchemeHandler(store: actionGenerationJobStore),
+            forURLScheme: ActionGenerationJobStore.scheme)
         let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 560, height: 780), configuration: cfg)
         web.navigationDelegate = self
         if let dir = Bundle.main.resourceURL {
@@ -494,6 +497,7 @@ extension AppDelegate {
             "permText": permLine(code),
             "rules": rules,
             "idle": d.object(forKey: "idleThreshold") as? Double ?? 150,
+            "companionScalePercent": Double(companionDisplayScalePercent()),
             "retention": d.object(forKey: "retentionDays") as? Int ?? 90,
             "sounds": d.bool(forKey: "soundOn"),
             "login": SMAppService.mainApp.status == .enabled,
@@ -509,6 +513,7 @@ extension AppDelegate {
         ]
         if let customPet = storedCustomPetSpec() { state["customPet"] = customPet }
         state["customPets"] = (try? customPetStore.listRuntimeSpecs()) ?? []
+        state["actionJobs"] = actionGenerationJobStore.runtimeDictionaries()
         guard let data = try? JSONSerialization.data(withJSONObject: state),
               let json = String(data: data, encoding: .utf8) else { return }
         settingsWeb?.evaluateJavaScript("initSettings(\(json))", completionHandler: nil)
@@ -517,6 +522,22 @@ extension AppDelegate {
     private func generationRequestID(_ value: Any?) -> String? {
         guard let value = value as? String, let uuid = UUID(uuidString: value) else { return nil }
         return uuid.uuidString.lowercased()
+    }
+
+    private func activeCustomCharacterID(requested: Any? = nil) -> String? {
+        let active = UserDefaults.standard.string(forKey: "character") ?? ""
+        if let requested = requested as? String, requested != active { return nil }
+        guard active.hasPrefix(CustomPetStore.characterPrefix),
+              (try? customPetStore.runtimeSpec(characterID: active)) != nil else { return nil }
+        return active
+    }
+
+    private func reportActionJobError(_ error: Error, code: String) {
+        settingsCall("actionJobError", [
+            "code": code,
+            "messageZh": "无法处理这份 Wan 动作结果：\(error.localizedDescription)",
+            "messageEn": "Could not process this Wan action result: \(error.localizedDescription)",
+        ])
     }
 
     /// Decodes the bounded, browser-normalized reference set without retaining
@@ -1714,6 +1735,124 @@ extension AppDelegate {
                     }
                 }
             }
+        case "petActionImport":
+            guard let characterID = activeCustomCharacterID(requested: body["characterID"]) else {
+                reportActionJobError(ActionGenerationJobError.invalidCharacterID,
+                                     code: "invalid_character")
+                return
+            }
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.allowsMultipleSelection = false
+            panel.allowedContentTypes = [.folder]
+            panel.prompt = voice("导入结果", "Import Result")
+            panel.message = voice(
+                "选择包含 action-walk.png、metadata、QA 和 contact sheet 的 Wan 结果文件夹",
+                "Choose the Wan result folder containing the action strip, metadata, QA, and contact sheet")
+            guard panel.runModal() == .OK, let source = panel.url else { return }
+            settingsCall("actionJobImportStarted", [:])
+            let scoped = source.startAccessingSecurityScopedResource()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self else { return }
+                defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+                do {
+                    let record = try self.actionGenerationJobStore.importResultBundle(
+                        at: source, characterID: characterID)
+                    let job = self.actionGenerationJobStore.runtimeDictionary(for: record)
+                    DispatchQueue.main.async {
+                        self.settingsCall("actionJobImported", ["job": job])
+                        self.pushSettingsState()
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        self.reportActionJobError(error, code: "import_failed")
+                    }
+                }
+            }
+        case "petActionPreview":
+            guard let characterID = activeCustomCharacterID(requested: body["characterID"]),
+                  let jobID = body["jobID"] as? String else {
+                reportActionJobError(ActionGenerationJobError.invalidCharacterID,
+                                     code: "invalid_character")
+                return
+            }
+            do {
+                let record = try actionGenerationJobStore.record(jobID: jobID)
+                guard record.characterID == characterID else {
+                    throw ActionGenerationJobError.invalidCharacterID
+                }
+                let strip = try actionGenerationJobStore.stripData(jobID: record.id)
+                let anchor = record.metadata.anchorInCell.flatMap { value -> CGPoint? in
+                    guard value.count == 2 else { return nil }
+                    return CGPoint(x: CGFloat(value[0]), y: CGFloat(value[1]))
+                }
+                guard let sprite = CompanionSprite.load(
+                    data: strip, semantics: .actionPoses, fixedAnchorInCell: anchor) else {
+                    throw ActionGenerationJobError.invalidStrip
+                }
+                let playback = CompanionActionPlaybackSpec(
+                    framesPerSecond: CGFloat(record.metadata.framesPerSecond),
+                    cycleDistanceInCellPixels: record.metadata.cycleDistanceCellPixels.map {
+                        CGFloat($0)
+                    })
+                guard companionRuntime.previewExternalAction(
+                    named: record.metadata.action, sprite: sprite,
+                    playbackSpec: playback) else {
+                    throw ActionGenerationJobError.missingJob
+                }
+                revealOverlay()
+                settingsCall("actionJobPreviewing", ["jobID": record.id])
+            } catch {
+                reportActionJobError(error, code: "preview_failed")
+            }
+        case "petActionAccept":
+            guard let characterID = activeCustomCharacterID(requested: body["characterID"]),
+                  let jobID = body["jobID"] as? String else {
+                reportActionJobError(ActionGenerationJobError.invalidCharacterID,
+                                     code: "invalid_character")
+                return
+            }
+            do {
+                let record = try actionGenerationJobStore.record(jobID: jobID)
+                guard record.characterID == characterID else {
+                    throw ActionGenerationJobError.invalidCharacterID
+                }
+                // Fail closed: the external tool can never auto-authorize an
+                // install, and manual Accept is enabled only after hard QA.
+                guard record.isEligibleForManualInstall else {
+                    throw ActionGenerationJobError.invalidChecker
+                }
+                let strip = try actionGenerationJobStore.stripData(jobID: record.id)
+                let anchor = record.metadata.anchorInCell.flatMap { value -> CGPoint? in
+                    guard value.count == 2 else { return nil }
+                    return CGPoint(x: CGFloat(value[0]), y: CGFloat(value[1]))
+                }
+                let spec = try customPetStore.installActionStrip(
+                    characterID: characterID,
+                    action: record.metadata.action,
+                    pngData: strip,
+                    framesPerSecond: record.metadata.framesPerSecond,
+                    cycleDistance: record.metadata.cycleDistanceCellPixels,
+                    anchorInCell: anchor)
+                let installedRecord = (try? actionGenerationJobStore.markInstalled(
+                    jobID: record.id)) ?? record
+                if JSONSerialization.isValidJSONObject(spec),
+                   let data = try? JSONSerialization.data(withJSONObject: spec),
+                   let json = String(data: data, encoding: .utf8) {
+                    js("famSetCustomPet(\(json), false)")
+                }
+                refreshNativeCompanion()
+                _ = companionRuntime.previewAction(named: record.metadata.action)
+                settingsCall("actionJobAccepted", [
+                    "job": actionGenerationJobStore.runtimeDictionary(for: installedRecord),
+                    "spec": spec,
+                ])
+                pushSettingsState()
+                revealOverlay()
+            } catch {
+                reportActionJobError(error, code: "accept_failed")
+            }
         case "petSaveKeys":
             var failed: [String] = []
             if let value = body["pixelLab"] as? String, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -2066,6 +2205,12 @@ extension AppDelegate {
             }
         case "idle":
             if let secs = body["secs"] as? Double { d.set(secs, forKey: "idleThreshold") }
+        case "companionScale":
+            if let raw = body["percent"] as? NSNumber {
+                let percent = CompanionDisplaySize.clampedPercent(CGFloat(raw.doubleValue))
+                d.set(Double(percent), forKey: "companionDisplayScalePercent")
+                applyCompanionDisplayScale()
+            }
         case "sounds":
             d.set(body["on"] as? Bool ?? false, forKey: "soundOn")
         case "language":

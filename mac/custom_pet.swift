@@ -73,6 +73,22 @@ enum CustomPetTemperaments {
     }
 }
 
+/// Authored playback facts for one action strip. The legacy `actions` map stays
+/// in the manifest as the asset index; this optional v4 detail lets v3 pets
+/// continue loading without inventing anchors or timing they never authored.
+struct CustomPetActionSpec: Codable, Equatable, Sendable {
+    let asset: String
+    let revision: String
+    let frameCount: Int
+    let fps: Double
+    /// Distance covered by one full cycle in 512px source-cell pixels.
+    let cycleDistance: Double?
+    /// Fixed registration point in one 512px cell, in image-space (y-down).
+    /// Both coordinates are absent for legacy/per-frame-derived anchoring.
+    let anchorX: Double?
+    let anchorY: Double?
+}
+
 struct CustomPetManifest: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let kind: String
@@ -88,6 +104,34 @@ struct CustomPetManifest: Codable, Equatable, Sendable {
     /// run of square 512px cells whose frames a behaviour pack may drive.
     /// Absent on familiars generated before action sheets existed.
     let actions: [String: String]?
+    /// Rich action metadata, keyed by the same action name as `actions`.
+    /// Absent in v3 manifests.
+    let actionSpecs: [String: CustomPetActionSpec]?
+}
+
+struct CustomPetRuntimeActionSpec: Equatable, Sendable {
+    let assetURL: String
+    let revision: String
+    let frameCount: Int
+    let fps: Double
+    let cycleDistance: Double?
+    let anchorX: Double?
+    let anchorY: Double?
+
+    var dictionary: [String: Any] {
+        var value: [String: Any] = [
+            "assetURL": assetURL,
+            "revision": revision,
+            "frameCount": frameCount,
+            "fps": fps,
+        ]
+        if let cycleDistance { value["cycleDistance"] = cycleDistance }
+        if let anchorX, let anchorY {
+            value["anchorX"] = anchorX
+            value["anchorY"] = anchorY
+        }
+        return value
+    }
 }
 
 struct CustomPetRuntimeSpec: Equatable, Sendable {
@@ -104,6 +148,9 @@ struct CustomPetRuntimeSpec: Equatable, Sendable {
     let expressionURLs: [String: String]
     /// Action name ("walk") → asset URL for that action's frame strip.
     let actionURLs: [String: String]
+    /// Authored timing/registration for v4 actions. `actionURLs` remains the
+    /// compatibility surface for v3 actions that have no detailed spec.
+    let actionSpecs: [String: CustomPetRuntimeActionSpec]
 
     var dictionary: [String: Any] {
         [
@@ -118,6 +165,7 @@ struct CustomPetRuntimeSpec: Equatable, Sendable {
             "motionProfile": motionProfile,
             "expressionURLs": expressionURLs,
             "actionURLs": actionURLs,
+            "actionSpecs": actionSpecs.mapValues(\.dictionary),
         ]
     }
 }
@@ -161,9 +209,9 @@ enum CustomPetStoreError: LocalizedError {
 }
 
 final class CustomPetStore: @unchecked Sendable {
-    static let schemaVersion = 3
-    /// v2 manifests (no expression sheets) remain fully readable.
-    static let legacySchemaVersions: Set<Int> = [2]
+    static let schemaVersion = 4
+    /// v2 has no expression sheets; v3 has action filenames but no metadata.
+    static let legacySchemaVersions: Set<Int> = [2, 3]
     static let kind = "raster-sheet"
     static let characterPrefix = "custom:"
     static let scheme = "mimo-pet"
@@ -177,21 +225,87 @@ final class CustomPetStore: @unchecked Sendable {
         "expr-\(stageIndex).png"
     }
 
+    /// The v3 filename, retained only for reading existing manifests.
     static func actionFilename(_ name: String) -> String { "action-\(name).png" }
+
+    /// v4 assets are immutable/revisioned. Replacing a strip changes its URL,
+    /// so WebKit and the native sprite cache cannot retain stale frames.
+    static func actionFilename(_ name: String, revision: String) -> String {
+        "action-\(name)-\(revision).png"
+    }
     /// Lowercase ASCII words only — the name lands in filenames and URLs.
     static func isActionName(_ name: String) -> Bool {
         (1...24).contains(name.count)
             && name.allSatisfy { ("a"..."z").contains($0) }
     }
-    /// Cell edge of an action strip, and the frame counts worth storing —
-    /// one 4x4 sheet yields at most 16, and a 1-frame "animation" is a bug.
+
+    private static func isActionRevision(_ revision: String) -> Bool {
+        (8...64).contains(revision.count)
+            && revision.allSatisfy {
+                ("a"..."z").contains($0) || ("0"..."9").contains($0)
+            }
+    }
+
+    /// Accepts both v3 `action-walk.png` and v4
+    /// `action-walk-<revision>.png`, returning the validated action name.
+    private static func actionName(fromFilename filename: String) -> String? {
+        guard filename.hasPrefix("action-"), filename.hasSuffix(".png") else { return nil }
+        let body = String(filename.dropFirst("action-".count).dropLast(".png".count))
+        let pieces = body.split(separator: "-", maxSplits: 1,
+                                omittingEmptySubsequences: false).map(String.init)
+        guard let action = pieces.first, isActionName(action) else { return nil }
+        if pieces.count == 1 {
+            return actionFilename(action) == filename ? action : nil
+        }
+        let revision = pieces[1]
+        guard isActionRevision(revision),
+              actionFilename(action, revision: revision) == filename else { return nil }
+        return action
+    }
+    static func defaultActionFPS(_ name: String) -> Double {
+        switch name {
+        case "walk": 10
+        case "gaze": 6
+        case "rest": 4
+        case "wall": 3.5
+        default: 6
+        }
+    }
+
+    /// Cell edge of an action strip and supported authored frame counts. A
+    /// 1-frame "animation" is a bug; 24/32-frame video-driven cycles are valid.
     static let actionCellSize = 512
-    static let actionFrameRange = 2...16
+    static let actionFrameRange = 2...32
+    static let actionFPSRange = 1.0...60.0
+    static let actionCycleDistanceRange = 1.0...4096.0
     static let sheetWidth = 1536
     static let sheetHeight = 512
     static let frameWidth = 512
     static let maximumPNGBytes = 16 * 1024 * 1024
+    /// Action strips can contain 32 cells, so they need a separate bounded cap.
+    static let maximumActionPNGBytes = 48 * 1024 * 1024
     static let maximumManifestBytes = 64 * 1024
+
+    private static func isValidActionAnchor(_ anchor: CGPoint?) -> Bool {
+        guard let anchor else { return true }
+        let range = 0...CGFloat(actionCellSize)
+        return anchor.x.isFinite && anchor.y.isFinite
+            && range.contains(anchor.x) && range.contains(anchor.y)
+    }
+
+    private static func isValidActionSpec(_ spec: CustomPetActionSpec,
+                                          action: String) -> Bool {
+        guard isActionName(action), isActionRevision(spec.revision),
+              actionFilename(action, revision: spec.revision) == spec.asset,
+              actionFrameRange.contains(spec.frameCount),
+              spec.fps.isFinite, actionFPSRange.contains(spec.fps),
+              spec.cycleDistance.map({
+                  $0.isFinite && actionCycleDistanceRange.contains($0)
+              }) ?? true,
+              (spec.anchorX == nil) == (spec.anchorY == nil) else { return false }
+        guard let anchorX = spec.anchorX, let anchorY = spec.anchorY else { return true }
+        return isValidActionAnchor(CGPoint(x: anchorX, y: anchorY))
+    }
 
     private let fileManager: FileManager
     private let rootURL: URL
@@ -250,7 +364,8 @@ final class CustomPetStore: @unchecked Sendable {
                 accent: accent.uppercased(),
                 asset: Self.sheetFilename,
                 expressions: [],
-                actions: nil
+                actions: nil,
+                actionSpecs: nil
             )
             let manifestData = try Self.encodeManifest(manifest)
 
@@ -304,7 +419,8 @@ final class CustomPetStore: @unchecked Sendable {
                 accent: manifest.accent,
                 asset: manifest.asset,
                 expressions: indices,
-                actions: manifest.actions
+                actions: manifest.actions,
+                actionSpecs: manifest.actionSpecs
             )
             let manifestURL = directory.appendingPathComponent(Self.manifestFilename,
                                                                isDirectory: false)
@@ -321,13 +437,19 @@ final class CustomPetStore: @unchecked Sendable {
     /// keeps the exact procedural-motion behavior.
     @discardableResult
     func installActionStrip(characterID: String, action: String,
-                            pngData: Data) throws -> [String: Any] {
+                            pngData: Data, framesPerSecond: Double? = nil,
+                            cycleDistance: Double? = nil,
+                            anchorInCell: CGPoint? = nil) throws -> [String: Any] {
         try synchronized {
             try ensureStorageReady()
             guard Self.isActionName(action) else {
                 throw CustomPetStoreError.invalidActionName
             }
-            guard pngData.count <= Self.maximumPNGBytes,
+            let fps = framesPerSecond ?? Self.defaultActionFPS(action)
+            guard fps.isFinite, Self.actionFPSRange.contains(fps),
+                  cycleDistance.map({ $0.isFinite && Self.actionCycleDistanceRange.contains($0) }) ?? true,
+                  Self.isValidActionAnchor(anchorInCell),
+                  pngData.count <= Self.maximumActionPNGBytes,
                   let dimensions = CharacterSheetProcessor.pngPixelDimensions(pngData),
                   dimensions.height == Self.actionCellSize,
                   dimensions.width % Self.actionCellSize == 0,
@@ -338,17 +460,33 @@ final class CustomPetStore: @unchecked Sendable {
             let manifest = try loadManifest(uuidString: uuidString)
 
             let directory = petDirectory(uuidString)
-            let filename = Self.actionFilename(action)
+            let revision = UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+            let filename = Self.actionFilename(action, revision: revision)
             let stripURL = directory.appendingPathComponent(filename, isDirectory: false)
             guard Self.isDescendant(stripURL, of: petsURL) else {
                 throw CustomPetStoreError.unsafeAssetPath
             }
             try pngData.write(to: stripURL, options: [.atomic])
+            var committed = false
+            defer {
+                if !committed { try? fileManager.removeItem(at: stripURL) }
+            }
             try? fileManager.setAttributes([.posixPermissions: 0o600],
                                            ofItemAtPath: stripURL.path)
 
             var actions = manifest.actions ?? [:]
+            let previousFilename = actions[action]
             actions[action] = filename
+            var actionSpecs = manifest.actionSpecs ?? [:]
+            actionSpecs[action] = CustomPetActionSpec(
+                asset: filename,
+                revision: revision,
+                frameCount: dimensions.width / Self.actionCellSize,
+                fps: fps,
+                cycleDistance: cycleDistance,
+                anchorX: anchorInCell.map { Double($0.x) },
+                anchorY: anchorInCell.map { Double($0.y) }
+            )
             let updated = CustomPetManifest(
                 schemaVersion: Self.schemaVersion,
                 kind: manifest.kind,
@@ -358,13 +496,22 @@ final class CustomPetStore: @unchecked Sendable {
                 accent: manifest.accent,
                 asset: manifest.asset,
                 expressions: manifest.expressions,
-                actions: actions
+                actions: actions,
+                actionSpecs: actionSpecs
             )
             let manifestURL = directory.appendingPathComponent(Self.manifestFilename,
                                                                isDirectory: false)
             try Self.encodeManifest(updated).write(to: manifestURL, options: [.atomic])
             try? fileManager.setAttributes([.posixPermissions: 0o600],
                                            ofItemAtPath: manifestURL.path)
+            committed = true
+            if let previousFilename, previousFilename != filename {
+                let previousURL = directory.appendingPathComponent(previousFilename,
+                                                                   isDirectory: false)
+                if Self.isDescendant(previousURL, of: petsURL) {
+                    try? fileManager.removeItem(at: previousURL)
+                }
+            }
             return runtimeSpec(for: updated).dictionary
         }
     }
@@ -459,7 +606,7 @@ final class CustomPetStore: @unchecked Sendable {
                 }
                 // Strips are not stage sheets: different dimensions, and the
                 // three-stage sanitizer would reject them outright.
-                guard Self.isSafeRegularFile(fileURL, maximumBytes: Self.maximumPNGBytes,
+                guard Self.isSafeRegularFile(fileURL, maximumBytes: Self.maximumActionPNGBytes,
                                              fileManager: fileManager) else {
                     throw CustomPetStoreError.unsafeAssetPath
                 }
@@ -467,7 +614,10 @@ final class CustomPetStore: @unchecked Sendable {
                 guard let dimensions = CharacterSheetProcessor.pngPixelDimensions(data),
                       dimensions.height == Self.actionCellSize,
                       dimensions.width % Self.actionCellSize == 0,
-                      Self.actionFrameRange.contains(dimensions.width / Self.actionCellSize) else {
+                      Self.actionFrameRange.contains(dimensions.width / Self.actionCellSize),
+                      manifest.actionSpecs?[action].map({
+                          $0.frameCount == dimensions.width / Self.actionCellSize
+                      }) ?? true else {
                     throw CustomPetStoreError.invalidActionStrip
                 }
                 return data
@@ -583,6 +733,23 @@ final class CustomPetStore: @unchecked Sendable {
                 throw CustomPetStoreError.corruptManifest
             }
         }
+        if let actions = manifest.actions {
+            guard actions.allSatisfy({ action, filename in
+                Self.isActionName(action)
+                    && Self.actionName(fromFilename: filename) == action
+            }) else {
+                throw CustomPetStoreError.corruptManifest
+            }
+        }
+        if let actionSpecs = manifest.actionSpecs {
+            let actions = manifest.actions ?? [:]
+            guard actionSpecs.allSatisfy({ action, spec in
+                actions[action] == spec.asset
+                    && Self.isValidActionSpec(spec, action: action)
+            }) else {
+                throw CustomPetStoreError.corruptManifest
+            }
+        }
         return manifest
     }
 
@@ -604,15 +771,37 @@ final class CustomPetStore: @unchecked Sendable {
         // Same present-and-sane rule as expressions: only advertise strips
         // whose file is actually there.
         var actionURLs: [String: String] = [:]
+        var actionSpecs: [String: CustomPetRuntimeActionSpec] = [:]
         for (action, filename) in manifest.actions ?? [:] {
-            guard Self.isActionName(action), Self.actionFilename(action) == filename else { continue }
+            guard Self.isActionName(action), Self.actionName(fromFilename: filename) == action else { continue }
             let fileURL = petDirectory(manifest.id).appendingPathComponent(filename,
                                                                            isDirectory: false)
-            guard Self.isSafeRegularFile(fileURL, maximumBytes: Self.maximumPNGBytes,
+            guard Self.isSafeRegularFile(fileURL, maximumBytes: Self.maximumActionPNGBytes,
                                          fileManager: fileManager),
-                  Self.isDescendant(fileURL, of: petsURL) else { continue }
-            actionURLs[action] =
+                  Self.isDescendant(fileURL, of: petsURL),
+                  let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]),
+                  let dimensions = CharacterSheetProcessor.pngPixelDimensions(data),
+                  dimensions.height == Self.actionCellSize,
+                  dimensions.width % Self.actionCellSize == 0,
+                  Self.actionFrameRange.contains(dimensions.width / Self.actionCellSize) else { continue }
+            let frameCount = dimensions.width / Self.actionCellSize
+            if let authored = manifest.actionSpecs?[action], authored.frameCount != frameCount {
+                continue
+            }
+            let assetURL =
                 "\(Self.scheme)://\(Self.schemeHost)/\(manifest.id)/\(filename)?v=\(Self.assetRevision)"
+            actionURLs[action] = assetURL
+            if let authored = manifest.actionSpecs?[action] {
+                actionSpecs[action] = CustomPetRuntimeActionSpec(
+                    assetURL: assetURL,
+                    revision: authored.revision,
+                    frameCount: authored.frameCount,
+                    fps: authored.fps,
+                    cycleDistance: authored.cycleDistance,
+                    anchorX: authored.anchorX,
+                    anchorY: authored.anchorY
+                )
+            }
         }
         return CustomPetRuntimeSpec(
             // The manifest's own version, not the current one. Hardcoding
@@ -629,7 +818,8 @@ final class CustomPetStore: @unchecked Sendable {
             assetURL: "\(Self.scheme)://\(Self.schemeHost)/\(manifest.id)/\(Self.sheetFilename)?v=\(Self.assetRevision)",
             motionProfile: profile.motionID,
             expressionURLs: expressionURLs,
-            actionURLs: actionURLs
+            actionURLs: actionURLs,
+            actionSpecs: actionSpecs
         )
     }
 
@@ -728,9 +918,7 @@ final class CustomPetStore: @unchecked Sendable {
                 expressionFilename(stageIndex: $0) == filename
             }) {
                 stageIndex = match
-            } else if filename.hasPrefix("action-"), filename.hasSuffix(".png"),
-                      case let name = String(filename.dropFirst("action-".count).dropLast(".png".count)),
-                      isActionName(name), actionFilename(name) == filename {
+            } else if let name = Self.actionName(fromFilename: filename) {
                 actionName = name
             } else {
                 throw CustomPetStoreError.unsafeAssetPath

@@ -10,6 +10,7 @@
   --font-magic: 'Fraunces', Georgia, serif;
   --font-mono: 'SF Mono', Menlo, monospace;
   --ink:#e9e6f7; --ink-dim:#9d97b8;
+  --fam-display-scale:1;
   --fam-glow: rgba(146,120,255,.45);
   /* wisp dynamic palette */
   --fam-hi:#cabcf5; --fam-lo:#7e68dc; --wisp:#b9a5ff;
@@ -20,12 +21,12 @@
 html,body{ width:100%; height:100%; background:transparent; overflow:hidden; }
 body{ font-family:var(--font-ui); -webkit-user-select:none; }
 
-.stage{ position:absolute; right:10px; bottom:6px; width:150px; }
+.stage{ position:absolute; right:10px; bottom:6px; width:calc(150px * var(--fam-display-scale)); }
 /* set by famSetNativeHosted() when companion_runtime.swift owns the familiar */
 body.native-hosted .stage{ display:none; }
 
 /* ── creature container ── */
-.familiar{ position:relative; width:150px; height:150px;
+.familiar{ position:relative; width:calc(150px * var(--fam-display-scale)); height:calc(150px * var(--fam-display-scale));
   animation:bob 3.6s ease-in-out infinite; transition:filter .6s, opacity .6s; }
 @keyframes bob{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-8px);} }
 .familiar svg{ width:100%; height:100%; overflow:visible; display:none; }
@@ -1592,6 +1593,10 @@ function famPause(p){ Fam.paused = p; Fam.setState(p ? 'idle' : Fam.state); }
    the cursor. The journal, HUD and status badge are unaffected. */
 function famSetNativeHosted(on){
   document.body.classList.toggle('native-hosted', !!on);
+}
+function famSetDisplayScale(value){
+  const scale=Math.max(.6,Math.min(1.4,Number(value)||1));
+  document.documentElement.style.setProperty('--fam-display-scale',String(scale));
 }
 
 /* user went idle / screen locked: close the open entry so away-time

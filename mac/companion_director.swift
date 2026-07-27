@@ -20,6 +20,9 @@ struct CompanionIntent: Equatable {
     var velocity: CGVector = .zero
     /// Frame index to draw.
     var frame: Int = 0
+    /// Named action strip containing that frame, when the behavior authored
+    /// one. Nil leaves strip choice to runtime rules such as walk and gaze.
+    var strip: String?
     /// Whether the companion should face right.
     var facingRight: Bool = false
     /// Native behaviour to hand off to, if the action is embedded.
@@ -96,6 +99,7 @@ final class CompanionDirector {
     private let pack: CompanionBehaviorPack
     private let selector: CompanionBehaviorSelector
     private let random: () -> Double
+    private let availableStrips: Set<String>
 
     private(set) var currentBehavior: CompanionBehavior?
     private(set) var currentAction: CompanionAction?
@@ -107,9 +111,11 @@ final class CompanionDirector {
     private var frozenDuration: Double?
     private var frozenTargetX: Double?
 
-    init(pack: CompanionBehaviorPack, random: @escaping () -> Double = { Double.random(in: 0..<1) }) {
+    init(pack: CompanionBehaviorPack, availableStrips: Set<String> = [],
+         random: @escaping () -> Double = { Double.random(in: 0..<1) }) {
         self.pack = pack
         self.selector = CompanionBehaviorSelector(pack: pack)
+        self.availableStrips = availableStrips
         self.random = random
     }
 
@@ -134,14 +140,14 @@ final class CompanionDirector {
         elapsed += dt
 
         if action.kind == .embedded {
-            return CompanionIntent(velocity: .zero, frame: 0,
+            return CompanionIntent(velocity: .zero, frame: 0, strip: nil,
                                    facingRight: snapshot.lookRight,
                                    embedded: action.implementation)
         }
 
         guard let animation = action.animation(for: snapshot),
               let pose = animation.pose(at: elapsed) else {
-            return CompanionIntent(frame: 0, facingRight: snapshot.lookRight)
+            return CompanionIntent(frame: 0, strip: nil, facingRight: snapshot.lookRight)
         }
 
         var velocity = pose.velocity
@@ -159,7 +165,7 @@ final class CompanionDirector {
             facingRight = velocity.dx > 0
         }
 
-        return CompanionIntent(velocity: velocity, frame: pose.frame,
+        return CompanionIntent(velocity: velocity, frame: pose.frame, strip: pose.strip,
                                facingRight: facingRight, embedded: nil)
     }
 
@@ -180,6 +186,7 @@ final class CompanionDirector {
         guard let name = pack.reactions[event],
               let behavior = pack.behavior(named: name),
               let action = pack.action(named: behavior.actionName),
+              action.requiredStrips.isSubset(of: availableStrips),
               action.requires.isSatisfied(by: snapshot.state),
               behavior.isEffective(for: snapshot) else { return false }
         clear()
@@ -224,7 +231,12 @@ final class CompanionDirector {
     private func advanceToNextBehavior(snapshot: CompanionSnapshot) {
         clear()
 
+        let available: (CompanionBehavior) -> Bool = { [pack, availableStrips] behavior in
+            guard let action = pack.action(named: behavior.actionName) else { return false }
+            return action.requiredStrips.isSubset(of: availableStrips)
+        }
         var candidate = selector.selectNext(after: currentBehavior, source: snapshot,
+                                            isAvailable: available,
                                             random: random)
 
         // A chain can lead somewhere that is legal in the pack but illegal
@@ -233,7 +245,8 @@ final class CompanionDirector {
         if let picked = candidate,
            let action = pack.action(named: picked.actionName),
            !action.requires.isSatisfied(by: snapshot.state) {
-            candidate = selector.selectNext(after: nil, source: snapshot, random: random)
+            candidate = selector.selectNext(after: nil, source: snapshot,
+                                            isAvailable: available, random: random)
         }
 
         guard let behavior = candidate,

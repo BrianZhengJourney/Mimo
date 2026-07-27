@@ -27,7 +27,7 @@ enum CompanionMotionState: Equatable {
 /// One companion: where it is, what it is doing, and what it looks like.
 final class Companion {
     private(set) var sprite: CompanionSprite
-    let displayHeight: CGFloat
+    var displayHeight: CGFloat
     let layer: CALayer
 
     var anchor: CGPoint
@@ -62,6 +62,23 @@ final class Companion {
     /// wipes the very reaction the tap was meant to trigger.
     var stateBeforeGrab: CompanionMotionState = .airborne
 
+    /// All installed action strips, keyed exactly as advertised by the pet
+    /// manifest. `activeActionStripName` is behavior-owned; walk and gaze keep
+    /// their runtime-owned selection rules.
+    var actionSprites: [String: CompanionSprite] = [:]
+    var actionPlaybackSpecs: [String: CompanionActionPlaybackSpec] = [:]
+    var activeActionStripName: String?
+    /// Acceptance mode: loop one installed strip on the spot until the user
+    /// returns to automatic behavior. This is deliberately runtime-only; it
+    /// never mutates the behavior pack or the pet manifest.
+    var previewActionName: String?
+    /// Imported result under review. It is intentionally not installed into
+    /// `actionSprites`, so closing/rejecting a preview cannot affect behavior.
+    var transientPreviewSprite: CompanionSprite?
+    var previewElapsed: CGFloat = 0
+    var previewPlaybackSpec = CompanionActionPlaybackSpec(
+        framesPerSecond: 12, cycleDistanceInCellPixels: nil)
+
     init(sprite: CompanionSprite, displayHeight: CGFloat, anchor: CGPoint) {
         self.sprite = sprite
         self.displayHeight = displayHeight
@@ -77,34 +94,55 @@ final class Companion {
     /// travelled rather than by the behaviour pack or the clock: distance is
     /// what makes footfalls line up with the ground, the same reason the
     /// procedural gait bob keys off `travelled`.
-    var walkSprite: CompanionSprite?
+    var walkSprite: CompanionSprite? { actionSprites["walk"] }
 
     /// Drawn gaze sweep, when one exists: the "she watches your cursor"
     /// frames. `gazeFrameIndex` is set by the runtime each tick — nil when
     /// the cursor is too far away or the companion is busy moving.
-    var gazeSprite: CompanionSprite?
+    var gazeSprite: CompanionSprite? { actionSprites["gaze"] }
     var gazeFrameIndex: Int?
     /// Distance hysteresis so the boundary does not flicker.
     var gazeEngaged = false
 
     /// Whether the drawn walk frames are what should be on screen right now.
-    var walkFramesActive: Bool { walkSprite != nil && walkSpeed > 1 }
-    var gazeFramesActive: Bool { gazeSprite != nil && gazeFrameIndex != nil && !walkFramesActive }
+    var activeActionSprite: CompanionSprite? {
+        activeActionStripName.flatMap { actionSprites[$0] }
+    }
+    var previewActionSprite: CompanionSprite? {
+        guard previewActionName != nil else { return nil }
+        return transientPreviewSprite ?? previewActionName.flatMap { actionSprites[$0] }
+    }
+    var walkFramesActive: Bool {
+        previewActionSprite == nil && activeActionSprite == nil && walkSprite != nil && walkSpeed > 1
+    }
+    var gazeFramesActive: Bool {
+        previewActionSprite == nil && activeActionSprite == nil
+            && gazeSprite != nil && gazeFrameIndex != nil && !walkFramesActive
+    }
 
     /// The sheet the current frame comes from — walk strip while walking,
     /// gaze strip while watching the cursor, the art sheet otherwise.
     var activeSprite: CompanionSprite {
+        if let previewActionSprite { return previewActionSprite }
+        if let activeActionSprite { return activeActionSprite }
         if walkFramesActive { return walkSprite! }
         if gazeFramesActive { return gazeSprite! }
         return sprite
     }
 
     var currentFrame: CompanionFrame {
+        if let previewActionSprite {
+            let index = previewPlaybackSpec.frameIndex(
+                at: previewElapsed, frameCount: previewActionSprite.frameCount)
+            return previewActionSprite.frame(index)
+        }
+        if let activeActionSprite { return activeActionSprite.frame(frameIndex) }
         if walkFramesActive, let walkSprite {
-            // The strip is authored as ONE finely-subdivided step that loops
-            // into itself (PetActionPose), so one strip cycle is one stride
-            // of travel.
-            let cycle = CompanionRuntime.strideLength
+            // The strip is one complete left-plus-right gait period, so one
+            // cycle covers both steps and stays anatomically closed.
+            let cycle = actionPlaybackSpecs["walk"]?.cycleDistanceOnScreen(
+                displayHeight: displayHeight, cellHeight: walkSprite.cellSize.height)
+                ?? CompanionRuntime.strideLength
             let phase = (travelled / cycle).truncatingRemainder(dividingBy: 1)
             let index = Int(phase * CGFloat(walkSprite.frameCount)) % walkSprite.frameCount
             return walkSprite.frame(index)
@@ -125,7 +163,26 @@ final class Companion {
 
     /// On-screen rect in global (screen) coordinates.
     func screenRect() -> CGRect {
-        currentFrame.rect(anchoredAt: anchor, displayHeight: displayHeight, cellSize: activeSprite.cellSize)
+        let frame = currentFrame
+        var rect = frame.rect(anchoredAt: anchor, displayHeight: displayHeight,
+                              cellSize: activeSprite.cellSize)
+        // Action-sheet processing centres every pose in its cell. That is right
+        // for feet-on-floor actions, but a wall pose centred on a screen-edge
+        // anchor would be half off-screen. Re-register the authored wall-facing
+        // edge to the physical wall; right-wall art is the mirrored left-wall
+        // drawing, so the same source-space edge becomes its right edge.
+        guard activeActionStripName == "wall", case .attached(let id) = state,
+              activeSprite.cellSize.height > 0 else { return rect }
+        let scale = displayHeight / activeSprite.cellSize.height
+        switch id {
+        case .workAreaLeft, .windowLeft:
+            rect.origin.x = anchor.x - frame.opaqueBounds.minX * scale
+        case .workAreaRight, .windowRight:
+            rect.origin.x = anchor.x - rect.width + frame.opaqueBounds.minX * scale
+        default:
+            break
+        }
+        return rect
     }
 
     func isOpaque(atScreenPoint point: CGPoint) -> Bool {
@@ -136,12 +193,12 @@ final class Companion {
 final class CompanionRuntime {
     /// How tall a companion renders. Matches the raster familiar size the
     /// current overlay uses so the change of host does not change its size.
-    static let defaultDisplayHeight: CGFloat = 240
+    static let defaultDisplayHeight = CompanionDisplaySize.nativeBaseHeight
     /// Landing squash: peak compression and how long the recovery runs.
     static let squashDepth: CGFloat = 0.22
     static let squashDuration: CGFloat = 0.28
-    /// Pixels of travel per full stride, and how far the body rises within one.
-    /// A stride roughly the companion's own height reads naturally.
+    /// Pixels of travel per complete two-step gait period, and how far the
+    /// fallback body rises within it.
     static let strideLength: CGFloat = 110
     static let gaitBobHeight: CGFloat = 7
     /// Shear into the direction of travel, at full walking speed.
@@ -156,6 +213,7 @@ final class CompanionRuntime {
     private var held: Companion?
     private var observingScreens = false
     private var behaviorPack: CompanionBehaviorPack?
+    private(set) var displayScalePercent = CompanionDisplaySize.defaultPercent
 
     /// Mimo's semantic layer, pushed from the focus engine. Behaviour packs
     /// gate on these, which is what lets the companion go quiet during deep
@@ -172,6 +230,7 @@ final class CompanionRuntime {
     private var pressWasDrag = false
 
     var isEmpty: Bool { companions.isEmpty }
+    var previewActionName: String? { companions.first?.previewActionName }
 
     // MARK: - Lifecycle
 
@@ -265,16 +324,31 @@ final class CompanionRuntime {
 
     // MARK: - Population
 
+    func setDisplayScalePercent(_ value: CGFloat) {
+        let clamped = CompanionDisplaySize.clampedPercent(value)
+        displayScalePercent = clamped
+        let height = CompanionDisplaySize.nativeHeight(percent: clamped)
+        for companion in companions {
+            companion.displayHeight = height
+            commit(companion)
+        }
+    }
+
     func spawn(sprite: CompanionSprite, at anchor: CGPoint? = nil) {
         let screen = NSScreen.main ?? NSScreen.screens.first
         let visible = screen?.visibleFrame ?? .zero
-        let start = anchor ?? CGPoint(x: visible.maxX - 140, y: visible.minY + 260)
+        let displayHeight = CompanionDisplaySize.nativeHeight(percent: displayScalePercent)
+        let start = anchor ?? CGPoint(
+            x: visible.maxX - displayHeight * 0.58,
+            y: visible.minY + displayHeight + 20)
         let companion = Companion(sprite: sprite,
-                                  displayHeight: Self.defaultDisplayHeight,
+                                  displayHeight: displayHeight,
                                   anchor: start)
-        companion.director = behaviorPack.map { CompanionDirector(pack: $0) }
-        companion.walkSprite = walkSprite
-        companion.gazeSprite = gazeSprite
+        companion.director = behaviorPack.map {
+            CompanionDirector(pack: $0, availableStrips: Set(actionSprites.keys))
+        }
+        companion.actionSprites = actionSprites
+        companion.actionPlaybackSpecs = actionPlaybackSpecs
         companions.append(companion)
         reattachLayers()
         commit(companion)
@@ -288,28 +362,33 @@ final class CompanionRuntime {
         }
     }
 
-    /// Installs (or clears) the drawn walk cycle on every companion, present
-    /// and future. Kept separate from `setArt`: expression swaps replace the
-    /// standing art many times a minute and must not disturb the walk strip.
-    func setWalkSprite(_ sprite: CompanionSprite?) {
-        walkSprite = sprite
-        for companion in companions { companion.walkSprite = sprite }
+    /// Installs all named action strips on every companion, present and future.
+    /// Kept separate from `setArt`: expression swaps replace standing art many
+    /// times a minute and must not disturb authored actions.
+    func setActionSprites(_ sprites: [String: CompanionSprite],
+                          playbackSpecs: [String: CompanionActionPlaybackSpec] = [:]) {
+        actionSprites = sprites
+        actionPlaybackSpecs = playbackSpecs.filter { sprites[$0.key] != nil }
+        for companion in companions {
+            companion.actionSprites = sprites
+            companion.actionPlaybackSpecs = actionPlaybackSpecs
+            if let name = companion.activeActionStripName, sprites[name] == nil {
+                companion.activeActionStripName = nil
+            }
+            companion.director = behaviorPack.map {
+                CompanionDirector(pack: $0, availableStrips: Set(sprites.keys))
+            }
+        }
     }
-    private var walkSprite: CompanionSprite?
-
-    /// Same for the gaze sweep.
-    func setGazeSprite(_ sprite: CompanionSprite?) {
-        gazeSprite = sprite
-        for companion in companions { companion.gazeSprite = sprite }
-    }
-    private var gazeSprite: CompanionSprite?
+    private var actionSprites: [String: CompanionSprite] = [:]
+    private var actionPlaybackSpecs: [String: CompanionActionPlaybackSpec] = [:]
 
     func removeAll() {
         companions.forEach { $0.layer.removeFromSuperlayer() }
         companions.removeAll()
         held = nil
-        walkSprite = nil
-        gazeSprite = nil
+        actionSprites.removeAll()
+        actionPlaybackSpecs.removeAll()
         releaseClickThrough()
     }
 
@@ -365,9 +444,13 @@ final class CompanionRuntime {
             }
         }
         for companion in companions where companion.state != .held {
-            advanceFree(companion, dt: dt, world: world.set)
+            if companion.previewActionName != nil {
+                advancePreview(companion, dt: dt, world: world.set)
+            } else {
+                advanceFree(companion, dt: dt, world: world.set)
+            }
             recoverIfLost(companion)
-            updateGaze(companion)
+            if companion.previewActionName == nil { updateGaze(companion) }
         }
 
         reportBehaviorIfChanged()
@@ -378,6 +461,10 @@ final class CompanionRuntime {
     }
 
     private func advanceHeld(_ companion: Companion, dt: CGFloat) {
+        companion.previewActionName = nil
+        companion.activeActionStripName = nil
+        companion.gazeFrameIndex = nil
+        companion.walkSpeed = 0
         let target = CGPoint(x: cursor.position.x + companion.grabOffset.dx,
                              y: cursor.position.y + companion.grabOffset.dy)
         if hypot(target.x - companion.anchor.x, target.y - companion.anchor.y) > 3 {
@@ -390,6 +477,39 @@ final class CompanionRuntime {
         companion.anchor = target
         companion.spring.step(target: horizontalTravel * 12, dt: dt)
         companion.landingElapsed = .greatestFiniteMagnitude
+    }
+
+    /// Freezes a grounded companion and advances only the acceptance strip.
+    /// If its supporting surface disappears, ordinary physics resumes rather
+    /// than leaving a preview glued in mid-air.
+    private func advancePreview(_ companion: Companion, dt: CGFloat, world: SurfaceSet) {
+        companion.previewElapsed += dt
+        companion.activeActionStripName = nil
+        companion.gazeFrameIndex = nil
+        companion.gazeEngaged = false
+        companion.walkSpeed = 0
+        switch companion.state {
+        case .grounded(let id):
+            guard let surface = world.surface(with: id), surface.contains(companion.anchor) else {
+                companion.previewActionName = nil
+                companion.state = .airborne
+                companion.integrator.velocity = .zero
+                return
+            }
+            companion.anchor.y = surface.position
+        case .attached(let id):
+            guard let surface = world.surface(with: id), surface.contains(companion.anchor) else {
+                companion.previewActionName = nil
+                companion.state = .airborne
+                companion.integrator.velocity = .zero
+                return
+            }
+        case .airborne:
+            // Preview is an on-the-spot acceptance tool, not an airborne state.
+            companion.previewActionName = nil
+        case .held:
+            companion.previewActionName = nil
+        }
     }
 
     private func advanceFree(_ companion: Companion, dt: CGFloat, world: SurfaceSet) {
@@ -421,6 +541,9 @@ final class CompanionRuntime {
         case .held:
             return
         case .airborne:
+            companion.activeActionStripName = nil
+            companion.gazeFrameIndex = nil
+            companion.walkSpeed = 0
             companion.airborneSeconds += dt
         }
 
@@ -455,14 +578,20 @@ final class CompanionRuntime {
     /// action rather than stepping into space.
     private func walk(_ companion: Companion, on surface: Surface,
                       dt: CGFloat, world: SurfaceSet) {
-        guard let director = companion.director else { return }
+        guard let director = companion.director else {
+            companion.activeActionStripName = nil
+            return
+        }
         let intent = director.update(dt: Double(dt), snapshot: snapshot(for: companion, world: world))
         // Only an action sheet's frames mean poses. On a stage or expression
         // sheet the same index means something else entirely, and applying a
         // pack's pose index to a stage sheet is what made a familiar revert to
         // its youngest form the moment it landed.
-        if companion.sprite.framesAreBehaviourDriven {
-            companion.frameIndex = min(max(intent.frame, 0), companion.sprite.frameCount - 1)
+        companion.activeActionStripName = intent.strip.flatMap {
+            companion.actionSprites[$0] == nil ? nil : $0
+        }
+        if companion.activeActionSprite != nil || companion.sprite.framesAreBehaviourDriven {
+            companion.frameIndex = min(max(intent.frame, 0), companion.activeSprite.frameCount - 1)
         }
         companion.facingRight = intent.facingRight
 
@@ -511,10 +640,22 @@ final class CompanionRuntime {
             director.reset()
             return
         }
-        if companion.sprite.framesAreBehaviourDriven {
-            companion.frameIndex = min(max(intent.frame, 0), companion.sprite.frameCount - 1)
+        companion.activeActionStripName = intent.strip.flatMap {
+            companion.actionSprites[$0] == nil ? nil : $0
+        }
+        if companion.activeActionSprite != nil || companion.sprite.framesAreBehaviourDriven {
+            companion.frameIndex = min(max(intent.frame, 0), companion.activeSprite.frameCount - 1)
         }
         companion.walkSpeed = 0
+        // Wall art is authored against the left edge and mirrored for the
+        // right edge. Keep this geometric fact separate from the pose data;
+        // otherwise the companion may preserve whichever direction it faced
+        // before the collision and lean into empty space.
+        switch surface.id {
+        case .workAreaLeft, .windowLeft: companion.facingRight = false
+        case .workAreaRight, .windowRight: companion.facingRight = true
+        default: companion.facingRight = intent.facingRight
+        }
 
         let along = surface.isVertical ? intent.velocity.dy : intent.velocity.dx
         if surface.isVertical {
@@ -565,14 +706,15 @@ final class CompanionRuntime {
     /// small deadband so the body does not flicker when the cursor crosses
     /// the centreline.
     private func updateGaze(_ companion: Companion) {
-        guard companion.gazeSprite != nil, !companion.walkFramesActive,
+        guard companion.gazeSprite != nil, companion.activeActionSprite == nil,
+              !companion.walkFramesActive,
               case .grounded = companion.state else {
             companion.gazeFrameIndex = nil
             companion.gazeEngaged = false
             return
         }
         let eye = CGPoint(x: companion.anchor.x,
-                          y: companion.anchor.y + Self.defaultDisplayHeight * 0.8)
+                          y: companion.anchor.y + companion.displayHeight * 0.8)
         let dx = cursor.position.x - eye.x
         let dy = cursor.position.y - eye.y
         let distance = hypot(dx, dy)
@@ -649,8 +791,65 @@ final class CompanionRuntime {
     func setBehaviorPack(_ pack: CompanionBehaviorPack?) {
         behaviorPack = pack
         for companion in companions {
-            companion.director = pack.map { CompanionDirector(pack: $0) }
+            companion.director = pack.map {
+                CompanionDirector(pack: $0, availableStrips: Set(actionSprites.keys))
+            }
         }
+    }
+
+    /// Loops one installed action for visual acceptance, or nil to return to
+    /// the behavior pack. Returns false when there is no companion/strip so a
+    /// menu action can fail quietly without changing the current preview.
+    @discardableResult
+    func previewAction(named name: String?) -> Bool {
+        guard let companion = companions.first else { return false }
+        guard let name else {
+            companion.previewActionName = nil
+            companion.transientPreviewSprite = nil
+            companion.previewElapsed = 0
+            companion.director?.reset()
+            return true
+        }
+        guard companion.actionSprites[name] != nil else { return false }
+        companion.transientPreviewSprite = nil
+        companion.previewActionName = name
+        companion.previewElapsed = 0
+        companion.previewPlaybackSpec = companion.actionPlaybackSpecs[name]
+            ?? Self.defaultPreviewPlaybackSpec(for: name)
+        companion.facingRight = false
+        companion.director?.reset()
+        return true
+    }
+
+    /// Loops an imported-but-not-installed strip for manual acceptance. The
+    /// behavior action map remains untouched until CustomPetStore accepts it.
+    @discardableResult
+    func previewExternalAction(named name: String, sprite: CompanionSprite,
+                               playbackSpec: CompanionActionPlaybackSpec) -> Bool {
+        guard let companion = companions.first else { return false }
+        companion.transientPreviewSprite = sprite
+        companion.previewActionName = name
+        companion.previewElapsed = 0
+        companion.previewPlaybackSpec = playbackSpec
+        companion.activeActionStripName = nil
+        companion.gazeFrameIndex = nil
+        companion.facingRight = false
+        companion.director?.reset()
+        return true
+    }
+
+    private static func defaultPreviewPlaybackSpec(for name: String)
+        -> CompanionActionPlaybackSpec {
+        let fps: CGFloat
+        switch name {
+        case "walk": fps = 10
+        case "gaze": fps = 6
+        case "rest": fps = 4
+        case "wall": fps = 3.5
+        default: fps = 6
+        }
+        return CompanionActionPlaybackSpec(
+            framesPerSecond: fps, cycleDistanceInCellPixels: nil)
     }
 
     /// Reports what the companion is doing, when it changes.

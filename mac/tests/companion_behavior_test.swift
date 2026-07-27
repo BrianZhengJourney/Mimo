@@ -66,6 +66,30 @@ struct CompanionBehaviorTests {
         expect(animation.poses[1].velocity.dx == -40, "velocity is px/second")
     }
 
+    static func testSchemaTwoPoseNamesAnActionStrip() throws {
+        var json = basicPack(
+            behaviors: [["name": "Stand", "frequency": 100]],
+            actions: [[
+                "name": "Stand", "type": "stay", "requires": "grounded",
+                "animations": [["poses": [["strip": "rest", "frame": 7, "hold": 0.4]]]],
+            ]])
+        json["schemaVersion"] = 2
+        let pose = try pack(json).action(named: "Stand")!.animations[0].poses[0]
+        expect(pose.strip == "rest", "schema v2 keeps the authored strip name")
+        expect(pose.frame == 7, "the frame remains local to that strip")
+    }
+
+    static func testSchemaOneStillLoadsWithoutStripSemantics() throws {
+        let loaded = try pack(basicPack(
+            behaviors: [["name": "Stand", "frequency": 100]],
+            actions: [[
+                "name": "Stand", "type": "stay", "requires": "grounded",
+                "animations": [["poses": [["strip": "rest", "frame": 2]]]],
+            ]]))
+        expect(loaded.action(named: "Stand")!.animations[0].poses[0].strip == nil,
+               "v1 remains backward-compatible and does not acquire v2 meaning")
+    }
+
     /// Frame lookup is `time % total`, matching Shimeji — there is no separate
     /// animation player holding its own cursor.
     static func testPoseLookupWrapsOnTotalDuration() throws {
@@ -251,7 +275,13 @@ struct CompanionBehaviorTests {
     static func testShippedDefaultPackLoads() throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: "mac/assets/behavior/default.json"))
         let loaded = try CompanionBehaviorPack.load(data: data)
+        expect(loaded.schemaVersion == 2, "the shipped pack uses named action strips")
         expect(loaded.behavior(named: "ClingWall") != nil, "the wall cling is shipped")
+        expect(loaded.behavior(named: "RestSettle") != nil, "the rest theater is shipped")
+        expect(loaded.action(named: "ClingWall")?.animations[0].poses[0].strip == "wall",
+               "wall contact selects the wall strip")
+        expect(abs(loaded.action(named: "WalkRight")?.animations[0].poses[0].velocity.dx ?? 0) >= 80,
+               "the complete two-step cycle advances briskly instead of dragging")
         expect(loaded.reactions["click"] == "Poked", "the click reaction is shipped")
     }
 
@@ -382,10 +412,36 @@ struct CompanionBehaviorTests {
                "an empty urn returns nil so the caller can fall back deliberately")
     }
 
+    static func testMissingActionStripRemovesBehaviorFromTheUrn() throws {
+        var json = basicPack(
+            behaviors: [
+                ["name": "Stand", "frequency": 100],
+                ["name": "Rest", "frequency": 100],
+            ],
+            actions: [
+                ["name": "Stand", "type": "stay", "requires": "grounded"],
+                ["name": "Rest", "type": "stay", "requires": "grounded",
+                 "animations": [["poses": [["strip": "rest", "frame": 0]]]]],
+            ])
+        json["schemaVersion"] = 2
+        let loaded = try pack(json)
+        let selector = CompanionBehaviorSelector(pack: loaded)
+        let available: (CompanionBehavior) -> Bool = { behavior in
+            loaded.action(named: behavior.actionName)!.requiredStrips.isSubset(of: [])
+        }
+        for roll in [0.1, 0.9] {
+            expect(selector.selectNext(after: nil, source: bag(), isAvailable: available,
+                                       random: { roll })?.name == "Stand",
+                   "a missing strip must not produce an invisible Rest behavior")
+        }
+    }
+
     static func main() throws {
         try testLoadsActionsAndBehaviors()
         try testActionDefaultsToBehaviorName()
         try testPosesParseInSecondsAndPixelsPerSecond()
+        try testSchemaTwoPoseNamesAnActionStrip()
+        try testSchemaOneStillLoadsWithoutStripSemantics()
         try testPoseLookupWrapsOnTotalDuration()
         try testFirstMatchingAnimationWins()
         testUnknownActionIsRejected()
@@ -404,6 +460,7 @@ struct CompanionBehaviorTests {
         try testAdditiveChainUnionsWithThePool()
         try testSelfChainProducesDwell()
         try testNoCandidatesReturnsNil()
+        try testMissingActionStripRemovesBehaviorFromTheUrn()
         print("companion behavior: all assertions passed")
     }
 }

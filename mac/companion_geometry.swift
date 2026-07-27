@@ -15,6 +15,22 @@ import CoreGraphics
 // surface is a tolerance test and landing is a segment-crossing test, so the
 // probe is unnecessary. See docs/companion/01-shimeji-research.md §1.5.
 
+enum CompanionDisplaySize {
+    static let minimumPercent: CGFloat = 60
+    static let maximumPercent: CGFloat = 140
+    static let defaultPercent: CGFloat = 100
+    static let nativeBaseHeight: CGFloat = 240
+
+    static func clampedPercent(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else { return defaultPercent }
+        return min(maximumPercent, max(minimumPercent, value))
+    }
+
+    static func nativeHeight(percent: CGFloat) -> CGFloat {
+        nativeBaseHeight * clampedPercent(percent) / 100
+    }
+}
+
 enum SurfaceKind {
     /// Supports a companion from below. Anchor rests at `position`.
     case floor

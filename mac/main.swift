@@ -411,8 +411,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     let gitWatcher = GitWatcher()
     let petGenerator = PetGenerationCoordinator()
     let customPetStore = CustomPetStore(root: logDir)
+    let actionGenerationJobStore = ActionGenerationJobStore(root: logDir)
     let companionRuntime = CompanionRuntime()
     var companionSpriteCache: [String: CompanionSprite] = [:]
+    var bundledPreviewAssets: [String: CompanionPreviewAsset] = [:]
     var activeCompanionSpec: [String: Any]?
     let generationDraftStore = FamiliarGenerationDraftStore(root: logDir)
     var studioGenerationLedger = StudioGenerationLedger()
@@ -580,7 +582,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let settings = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        appMenu.addItem(makeCompanionPreviewRoot())
         appMenu.addItem(NSMenuItem.separator())
+        appMenu.delegate = self
 
         let quit = NSMenuItem(title: voice("退出 Mimo", "Quit Mimo"), action: #selector(quitApp(_:)), keyEquivalent: "q")
         quit.target = self
@@ -627,6 +631,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         menu.addItem(item(voice("预览成长形态", "Preview evolution"),
                           #selector(previewEvolution), "", "sparkles"))
+        menu.addItem(makeCompanionPreviewRoot())
 
         menu.addItem(NSMenuItem.separator())
 
@@ -798,6 +803,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         UserDefaults.standard.object(forKey: "companionNativeRuntime") as? Bool ?? true
     }
 
+    func companionDisplayScalePercent() -> CGFloat {
+        let stored = UserDefaults.standard.object(
+            forKey: "companionDisplayScalePercent") as? NSNumber
+        return CompanionDisplaySize.clampedPercent(
+            stored.map { CGFloat($0.doubleValue) } ?? CompanionDisplaySize.defaultPercent)
+    }
+
+    func applyCompanionDisplayScale() {
+        let percent = companionDisplayScalePercent()
+        companionRuntime.setDisplayScalePercent(percent)
+        js("typeof famSetDisplayScale === 'function' && famSetDisplayScale(\(percent / 100))")
+    }
+
     func startNativeCompanionIfAvailable() {
         // Every bail-out says why. Falling back to the webview silently is how
         // you end up staring at a familiar that drags but cannot be thrown with
@@ -838,19 +856,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             self?.recordCompanionStatus(line)
         }
         companionRuntime.setBehaviorPack(loadDefaultBehaviorPack())
+        companionRuntime.setDisplayScalePercent(companionDisplayScalePercent())
         companionRuntime.start()
         companionRuntime.spawn(sprite: sprite)
         let actions = spec["actionURLs"] as? [String: String] ?? [:]
-        if let walk = actions["walk"], let walkURL = URL(string: walk),
-           let walkSprite = loadCompanionSprite(assetURL: walkURL, semantics: .actionPoses) {
-            companionRuntime.setWalkSprite(walkSprite)
-            recordCompanionStatus("walk strip loaded, \(walkSprite.frameCount) frames")
+        let actionSpecs = spec["actionSpecs"] as? [String: [String: Any]] ?? [:]
+        var actionSprites: [String: CompanionSprite] = [:]
+        var playbackSpecs: [String: CompanionActionPlaybackSpec] = [:]
+        for (name, rawURL) in actions.sorted(by: { $0.key < $1.key }) {
+            let metadata = actionSpecs[name] ?? [:]
+            let anchorX = finiteNumber(metadata["anchorX"])
+            let anchorY = finiteNumber(metadata["anchorY"])
+            let fixedAnchor = anchorX.flatMap { x in
+                anchorY.map { y in CGPoint(x: x, y: y) }
+            }
+            guard let url = URL(string: rawURL),
+                  let actionSprite = loadCompanionSprite(assetURL: url,
+                                                         semantics: .actionPoses,
+                                                         fixedAnchorInCell: fixedAnchor) else { continue }
+            if let expected = (metadata["frameCount"] as? NSNumber)?.intValue,
+               actionSprite.frameCount != expected {
+                recordCompanionStatus("\(name) strip rejected: expected \(expected) frames, got \(actionSprite.frameCount)")
+                continue
+            }
+            actionSprites[name] = actionSprite
+            if let fps = finiteNumber(metadata["fps"]), fps > 0 {
+                let cycle = finiteNumber(metadata["cycleDistance"]).flatMap { $0 > 0 ? $0 : nil }
+                playbackSpecs[name] = CompanionActionPlaybackSpec(
+                    framesPerSecond: fps, cycleDistanceInCellPixels: cycle)
+            }
+            recordCompanionStatus("\(name) strip loaded, \(actionSprite.frameCount) frames")
         }
-        if let gaze = actions["gaze"], let gazeURL = URL(string: gaze),
-           let gazeSprite = loadCompanionSprite(assetURL: gazeURL, semantics: .actionPoses) {
-            companionRuntime.setGazeSprite(gazeSprite)
-            recordCompanionStatus("gaze strip loaded, \(gazeSprite.frameCount) frames")
-        }
+        companionRuntime.setActionSprites(actionSprites, playbackSpecs: playbackSpecs)
         // The webview is told to hide its own stage in webView(_:didFinish:),
         // not here — at launch the page has not loaded yet and the call would
         // be silently dropped, leaving the familiar drawn twice.
@@ -906,15 +943,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     /// Slices a sheet into frames, memoised — art changes on every expression
     /// swap and re-decoding a 1536x512 PNG per swap would be wasteful.
+    private func finiteNumber(_ value: Any?) -> CGFloat? {
+        guard let number = value as? NSNumber else { return nil }
+        let result = CGFloat(number.doubleValue)
+        return result.isFinite ? result : nil
+    }
+
     func loadCompanionSprite(assetURL: URL,
-                             semantics: CompanionFrameSemantics) -> CompanionSprite? {
-        let key = "\(assetURL.absoluteString)#\(semantics)"
+                             semantics: CompanionFrameSemantics,
+                             fixedAnchorInCell: CGPoint? = nil) -> CompanionSprite? {
+        let anchorKey = fixedAnchorInCell.map { "#anchor=\($0.x),\($0.y)" } ?? ""
+        let key = "\(assetURL.absoluteString)#\(semantics)\(anchorKey)"
         if let cached = companionSpriteCache[key] { return cached }
         // Frame count is inferred from the strip itself (square cells), so
-        // 3-frame stage sheets and 8- or 16-frame action strips share this
+        // 3-frame stage sheets and 8- through 32-frame action strips share this
         // one loader and cache.
         guard let data = try? customPetStore.assetData(for: assetURL),
-              let sprite = CompanionSprite.load(data: data, semantics: semantics)
+              let sprite = CompanionSprite.load(data: data, semantics: semantics,
+                                                fixedAnchorInCell: fixedAnchorInCell)
         else { return nil }
         companionSpriteCache[key] = sprite
         return sprite
@@ -961,8 +1007,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         syncNativeHosting()
     }
 
-    /// The familiar's right-click menu. Shared by the webview bridge and the
-    /// native layer so both hosts offer exactly the same three items.
+    /// The familiar's right-click menu. Native raster familiars also expose an
+    /// acceptance loop so generated strips can be inspected on demand instead
+    /// of waiting for a low-probability behavior to fire.
     func showCompanionMenu() {
         let m = NSMenu()
         let hideIt = NSMenuItem(title: overlayHidden ? voice("显示米墨", "Show Mimo") : voice("藏起米墨", "Hide Mimo"),
@@ -974,11 +1021,140 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         settingsIt.target = self
         settingsIt.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         m.addItem(settingsIt)
+        if nativeCompanionActive {
+            m.addItem(makeCompanionPreviewRoot())
+        }
         m.addItem(NSMenuItem.separator())
         let quitIt = NSMenuItem(title: voice("退出 Mimo", "Quit Mimo"), action: #selector(quitApp(_:)), keyEquivalent: "")
         quitIt.target = self
         m.addItem(quitIt)
         m.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func makeCompanionPreviewRoot() -> NSMenuItem {
+        let root = NSMenuItem(title: voice("验收动作", "Preview Action"),
+                              action: nil, keyEquivalent: "")
+        root.identifier = .init("previewActions")
+        root.image = NSImage(systemSymbolName: "play.rectangle",
+                             accessibilityDescription: nil)
+        root.isEnabled = nativeCompanionActive
+        root.submenu = makeCompanionPreviewMenu()
+        return root
+    }
+
+    private func makeCompanionPreviewMenu() -> NSMenu {
+        let menu = NSMenu()
+        let automatic = NSMenuItem(title: voice("自动行为", "Automatic"),
+                                   action: #selector(previewCompanionAction(_:)),
+                                   keyEquivalent: "")
+        automatic.target = self
+        automatic.representedObject = NSNull()
+        automatic.state = companionRuntime.previewActionName == nil ? .on : .off
+        menu.addItem(automatic)
+        menu.addItem(.separator())
+
+        addBundledPreviewGroup(
+            title: voice("HatchPet · v2 Atlas", "HatchPet · v2 Atlas"),
+            definitions: CompanionPreviewCatalog.hatchPet,
+            to: menu)
+        addBundledPreviewGroup(
+            title: voice(
+                "Mimo 混合方案 · 高保真一致动作组",
+                "Mimo Hybrid · High-Fidelity Coherent Family"),
+            definitions: CompanionPreviewCatalog.hybridFrames,
+            to: menu)
+        addBundledPreviewGroup(
+            title: voice(
+                "Mimo 实验 · 逐帧独立生成",
+                "Mimo Experiment · Independent Frames"),
+            definitions: CompanionPreviewCatalog.independentFrames,
+            to: menu)
+
+        let labels = [
+            ("walk", voice("走路 · 循环", "Walk · Loop")),
+            ("gaze", voice("注视 · 循环", "Gaze · Loop")),
+            ("rest", voice("休息 · 整条循环", "Rest · Full Loop")),
+            ("wall", voice("墙边 · 整条循环", "Wall · Full Loop")),
+        ]
+        let available = Set((activeCompanionSpec?["actionURLs"] as? [String: String] ?? [:]).keys)
+        let installed = labels.filter { available.contains($0.0) }
+        if !installed.isEmpty {
+            let group = NSMenuItem(
+                title: voice(
+                    "Mimo 原方案 · 整张动作表一次生成",
+                    "Mimo Original · One Full Action Sheet"),
+                action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            for (name, title) in installed {
+                let item = NSMenuItem(
+                    title: title, action: #selector(previewCompanionAction(_:)),
+                    keyEquivalent: "")
+                item.target = self
+                item.representedObject = "installed:\(name)"
+                item.state = companionRuntime.previewActionName == name ? .on : .off
+                submenu.addItem(item)
+            }
+            menu.setSubmenu(submenu, for: group)
+            menu.addItem(group)
+        }
+        return menu
+    }
+
+    private func addBundledPreviewGroup(title: String,
+                                        definitions: [CompanionPreviewDefinition],
+                                        to menu: NSMenu) {
+        loadBundledPreviewAssetsIfNeeded()
+        let available = definitions.compactMap { definition -> CompanionPreviewAsset? in
+            bundledPreviewAssets[definition.id]
+        }
+        guard !available.isEmpty else { return }
+        let group = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        for asset in available {
+            let definition = asset.definition
+            let item = NSMenuItem(
+                title: voice(definition.titleZh, definition.titleEn),
+                action: #selector(previewCompanionAction(_:)),
+                keyEquivalent: "")
+            item.target = self
+            item.representedObject = "bundled:\(definition.id)"
+            item.state = companionRuntime.previewActionName == definition.id ? .on : .off
+            submenu.addItem(item)
+        }
+        menu.setSubmenu(submenu, for: group)
+        menu.addItem(group)
+    }
+
+    private func loadBundledPreviewAssetsIfNeeded() {
+        guard bundledPreviewAssets.isEmpty else { return }
+        let assets = CompanionPreviewCatalog.loadHatchPet()
+            + CompanionPreviewCatalog.loadHybridFrames()
+            + CompanionPreviewCatalog.loadIndependentFrames()
+        bundledPreviewAssets = Dictionary(
+            uniqueKeysWithValues: assets.map { ($0.definition.id, $0) })
+    }
+
+    @objc func previewCompanionAction(_ sender: NSMenuItem) {
+        guard let selection = sender.representedObject as? String else {
+            _ = companionRuntime.previewAction(named: nil)
+            recordCompanionStatus("preview selected: automatic")
+            return
+        }
+        if selection.hasPrefix("installed:") {
+            let name = String(selection.dropFirst("installed:".count))
+            _ = companionRuntime.previewAction(named: name)
+            recordCompanionStatus("preview selected: installed:\(name)")
+            return
+        }
+        if selection.hasPrefix("bundled:") {
+            let id = String(selection.dropFirst("bundled:".count))
+            loadBundledPreviewAssetsIfNeeded()
+            guard let asset = bundledPreviewAssets[id] else { return }
+            _ = companionRuntime.previewExternalAction(
+                named: id, sprite: asset.sprite,
+                playbackSpec: asset.playbackSpec)
+            recordCompanionStatus("preview selected: bundled:\(id)")
+        }
     }
 
     // ── hover hot-zone: click-through everywhere except over the creature ──
@@ -1292,6 +1468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if webView === settingsWeb { pushSettingsState(); return }
         js("famSetLanguage('\(voiceLanguage())')")
+        applyCompanionDisplayScale()
         syncNativeHosting()
         restoreCustomPetIfNeeded()
         js("famLoadHistory(\(readTodayLog()))")
@@ -1339,6 +1516,10 @@ extension AppDelegate: NSMenuDelegate {
 
             if item.identifier?.rawValue == "aiStatus" { item.title = SmartClassifier.shared.statusLine }
             if item.identifier?.rawValue == "hideToggle" { item.title = overlayHidden ? "Show familiar" : "Hide familiar" }
+            if item.identifier?.rawValue == "previewActions" {
+                item.isEnabled = nativeCompanionActive
+                item.submenu = makeCompanionPreviewMenu()
+            }
             if item.identifier?.rawValue == "studioStatus" {
                 item.isHidden = studioNotice == nil
                 item.title = studioNotice.map { voice("Mimo Studio：\($0)", "Mimo Studio: \($0)") } ?? ""

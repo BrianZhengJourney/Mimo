@@ -81,6 +81,31 @@ struct CompanionSpriteTests {
         expectClose(sprite.frame(1).anchorInCell.x, 22, 1, "frame 1 centre")
     }
 
+    /// Video-driven frames change silhouette from pose to pose. An authored
+    /// registration point must win over those changing opaque bounds so the
+    /// body does not jitter even when the visible feet move within the cell.
+    static func testAuthoredAnchorIsFixedAcrossFrames() {
+        let sheet = makeSheet(cell: 64, blobs: [
+            CGRect(x: 6, y: 8, width: 18, height: 42),
+            CGRect(x: 30, y: 4, width: 26, height: 54),
+        ])
+        let authored = CGPoint(x: 32, y: 60)
+        guard let sprite = CompanionSprite.slice(sheet: sheet, frameCount: 2,
+                                                 semantics: .actionPoses,
+                                                 fixedAnchorInCell: authored) else {
+            preconditionFailure("authored-anchor slice failed")
+        }
+        for index in 0..<sprite.frameCount {
+            expectClose(sprite.frame(index).anchorInCell.x, authored.x, 0.01,
+                        "frame \(index) uses authored anchor x")
+            expectClose(sprite.frame(index).anchorInCell.y, authored.y, 0.01,
+                        "frame \(index) uses authored anchor y")
+        }
+        expect(CompanionSprite.slice(sheet: sheet, frameCount: 2,
+                                     fixedAnchorInCell: CGPoint(x: 65, y: 60)) == nil,
+               "an authored anchor outside the cell must be rejected")
+    }
+
     /// A blank cell has no derivable anchor. Failing the load is right — the
     /// alternative is a familiar rendering at a nonsense position.
     static func testEmptyCellIsRejected() {
@@ -97,6 +122,41 @@ struct CompanionSpriteTests {
         // to a real frame rather than trap.
         _ = sprite.frame(9)
         _ = sprite.frame(-3)
+    }
+
+    static func testCycleDistanceScalesFromCellPixelsToScreenPixels() {
+        let playback = CompanionActionPlaybackSpec(
+            framesPerSecond: 30, cycleDistanceInCellPixels: 144)
+        let screenDistance = playback.cycleDistanceOnScreen(
+            displayHeight: 240, cellHeight: 512)
+        expectClose(screenDistance ?? -1, 67.5, 0.001,
+                    "144 source-cell pixels scale with a 240/512 render ratio")
+        expect(CompanionActionPlaybackSpec(framesPerSecond: 30,
+                                           cycleDistanceInCellPixels: nil)
+            .cycleDistanceOnScreen(displayHeight: 240, cellHeight: 512) == nil,
+               "missing authored distance must retain the runtime fallback")
+    }
+
+    static func testAuthoredFrameDurationsPreserveSlowHolds() {
+        let playback = CompanionActionPlaybackSpec(
+            framesPerSecond: 60,
+            cycleDistanceInCellPixels: nil,
+            frameDurationsSeconds: [0.5, 0.2, 0.3])
+        expect(playback.frameIndex(at: 0.49, frameCount: 3) == 0,
+               "the opening pose should keep its authored long hold")
+        expect(playback.frameIndex(at: 0.50, frameCount: 3) == 1,
+               "the next pose begins at the authored boundary")
+        expect(playback.frameIndex(at: 0.71, frameCount: 3) == 2,
+               "the final pose receives its own authored interval")
+        expect(playback.frameIndex(at: 1.01, frameCount: 3) == 0,
+               "authored timing should loop at the summed duration")
+
+        let invalid = CompanionActionPlaybackSpec(
+            framesPerSecond: 5,
+            cycleDistanceInCellPixels: nil,
+            frameDurationsSeconds: [0.5])
+        expect(invalid.frameIndex(at: 0.21, frameCount: 3) == 1,
+               "invalid duration metadata should fall back to constant FPS")
     }
 
     // MARK: - Anchoring on screen
@@ -174,8 +234,11 @@ struct CompanionSpriteTests {
         testSlicingFindsOpaqueBounds()
         testAnchorIsFeetOfArtNotCentreOfCell()
         testMultipleCellsSliceIndependently()
+        testAuthoredAnchorIsFixedAcrossFrames()
         testEmptyCellIsRejected()
         testFrameIndexIsClamped()
+        testCycleDistanceScalesFromCellPixelsToScreenPixels()
+        testAuthoredFrameDurationsPreserveSlowHolds()
         testRectPutsFeetOnTheAnchor()
         testHitMaskFollowsTheArtwork()
         testHitMaskRejectsEmptySpaceInsideTheRect()

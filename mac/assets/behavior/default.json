@@ -1,15 +1,14 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
 
   "_comment": [
     "Default behavior pack. Every generated familiar falls back to this until",
     "it ships its own.",
     "",
-    "Authored against three frames, because that is what the generation",
-    "pipeline produces today (see docs/companion/04-generation-and-consistency.md).",
-    "Motion therefore comes from velocity plus the runtime's procedural",
-    "transforms rather than from a drawn walk cycle. When action sheets land in",
-    "P3b, the Walk animation gains real frames and nothing else here changes.",
+    "A pose may name an installed action strip. Missing strips fall back to the",
+    "familiar's standing art, so this pack also works for older generated pets.",
+    "Walk and gaze remain runtime-driven because they key frames to distance and",
+    "cursor angle; rest and wall are ordinary strip-authored behaviors.",
     "",
     "Durations are seconds and velocities are px/second. Shimeji counts ticks,",
     "which bakes its 25fps into every pack.",
@@ -55,8 +54,8 @@
       "duration": "${3 + random() * 5}",
       "animations": [
         { "poses": [
-          { "frame": 0, "hold": 0.18, "velocity": [-46, 0] },
-          { "frame": 0, "hold": 0.18, "velocity": [-46, 0] }
+          { "frame": 0, "hold": 0.18, "velocity": [-88, 0] },
+          { "frame": 0, "hold": 0.18, "velocity": [-88, 0] }
         ] }
       ]
     },
@@ -68,8 +67,8 @@
       "duration": "${3 + random() * 5}",
       "animations": [
         { "poses": [
-          { "frame": 0, "hold": 0.18, "velocity": [46, 0] },
-          { "frame": 0, "hold": 0.18, "velocity": [46, 0] }
+          { "frame": 0, "hold": 0.18, "velocity": [88, 0] },
+          { "frame": 0, "hold": 0.18, "velocity": [88, 0] }
         ] }
       ]
     },
@@ -80,7 +79,7 @@
       "targetX": "${world.display.workArea.left + 60 + random() * (world.display.workArea.right - world.display.workArea.left - 120)}",
       "duration": "${4 + random() * 6}",
       "animations": [
-        { "poses": [ { "frame": 0, "hold": 0.2, "velocity": [34, 0] } ] }
+        { "poses": [ { "frame": 0, "hold": 0.2, "velocity": [72, 0] } ] }
       ]
     },
 
@@ -123,12 +122,96 @@
       ]
     },
     {
+      "name": "RestSettle",
+      "type": "animate",
+      "requires": "grounded",
+      "animations": [
+        { "poses": [
+          { "strip": "rest", "frame": 0, "hold": 0.30 },
+          { "strip": "rest", "frame": 1, "hold": 0.24 },
+          { "strip": "rest", "frame": 2, "hold": 0.24 },
+          { "strip": "rest", "frame": 3, "hold": 0.28 },
+          { "strip": "rest", "frame": 4, "hold": 0.32 },
+          { "strip": "rest", "frame": 5, "hold": 0.55 }
+        ] }
+      ]
+    },
+    {
+      "name": "RestSleep",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": "${7 + random() * 8}",
+      "animations": [
+        { "poses": [
+          { "strip": "rest", "frame": 5,  "hold": 0.85 },
+          { "strip": "rest", "frame": 6,  "hold": 0.85 },
+          { "strip": "rest", "frame": 7,  "hold": 0.85 },
+          { "strip": "rest", "frame": 8,  "hold": 0.85 },
+          { "strip": "rest", "frame": 9,  "hold": 0.85 },
+          { "strip": "rest", "frame": 10, "hold": 0.85 }
+        ] }
+      ]
+    },
+    {
+      "name": "RestDream",
+      "type": "animate",
+      "requires": "grounded",
+      "animations": [
+        { "poses": [
+          { "strip": "rest", "frame": 11, "hold": 0.65 },
+          { "strip": "rest", "frame": 12, "hold": 1.10 },
+          { "strip": "rest", "frame": 11, "hold": 0.65 }
+        ] }
+      ]
+    },
+    {
+      "name": "RestStir",
+      "type": "animate",
+      "requires": "grounded",
+      "animations": [
+        { "poses": [
+          { "strip": "rest", "frame": 13, "hold": 0.30 },
+          { "strip": "rest", "frame": 14, "hold": 0.32 },
+          { "strip": "rest", "frame": 15, "hold": 0.55 },
+          { "strip": "rest", "frame": 14, "hold": 0.30 },
+          { "strip": "rest", "frame": 13, "hold": 0.30 }
+        ] }
+      ]
+    },
+    {
+      "name": "RestRise",
+      "type": "animate",
+      "requires": "grounded",
+      "animations": [
+        { "poses": [
+          { "strip": "rest", "frame": 10, "hold": 0.20 },
+          { "strip": "rest", "frame": 8,  "hold": 0.18 },
+          { "strip": "rest", "frame": 6,  "hold": 0.18 },
+          { "strip": "rest", "frame": 5,  "hold": 0.20 },
+          { "strip": "rest", "frame": 4,  "hold": 0.22 },
+          { "strip": "rest", "frame": 3,  "hold": 0.22 },
+          { "strip": "rest", "frame": 2,  "hold": 0.22 },
+          { "strip": "rest", "frame": 1,  "hold": 0.22 },
+          { "strip": "rest", "frame": 0,  "hold": 0.30 }
+        ] }
+      ]
+    },
+    {
       "name": "ClingWall",
       "type": "stay",
       "requires": "attached",
-      "duration": "${0.8 + random() * 1.4}",
+      "duration": "${2.5 + random() * 2.5}",
       "animations": [
-        { "poses": [ { "frame": 1, "hold": 1.0, "velocity": [0, 0] } ] }
+        { "poses": [
+          { "strip": "wall", "frame": 0, "hold": 0.38 },
+          { "strip": "wall", "frame": 1, "hold": 0.38 },
+          { "strip": "wall", "frame": 2, "hold": 0.38 },
+          { "strip": "wall", "frame": 3, "hold": 0.38 },
+          { "strip": "wall", "frame": 4, "hold": 0.38 },
+          { "strip": "wall", "frame": 5, "hold": 0.38 },
+          { "strip": "wall", "frame": 6, "hold": 0.38 },
+          { "strip": "wall", "frame": 7, "hold": 0.38 }
+        ] }
       ]
     },
 
@@ -201,6 +284,49 @@
       "next": { "additive": false, "refs": [
         { "name": "Sit",   "frequency": 100 },
         { "name": "Stand", "frequency": 6 }
+      ] }
+    },
+    {
+      "name": "RestSettle",
+      "frequency": 18,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "next": { "additive": false, "refs": [
+        { "name": "RestSleep", "frequency": 100 }
+      ] }
+    },
+    {
+      "name": "RestSleep",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "RestSleep", "frequency": 72 },
+        { "name": "RestDream", "frequency": 14 },
+        { "name": "RestStir",  "frequency": 9 },
+        { "name": "RestRise",  "frequency": 5 }
+      ] }
+    },
+    {
+      "name": "RestDream",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "RestSleep", "frequency": 100 }
+      ] }
+    },
+    {
+      "name": "RestStir",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "RestSleep", "frequency": 100 }
+      ] }
+    },
+    {
+      "name": "RestRise",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "Stand", "frequency": 100 }
       ] }
     },
 

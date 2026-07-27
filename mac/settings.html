@@ -345,6 +345,9 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 /* toggles + rows */
 .row{ display:flex; align-items:center; gap:10px; padding:6px 0; font-size:13px; }
 .row .grow{ flex:1; }
+.size-control{ display:flex; align-items:center; gap:8px; min-width:190px; }
+.size-control input[type="range"]{ width:140px; accent-color:var(--good); }
+.size-control output{ width:38px; text-align:right; color:var(--dim); font:10.5px ui-monospace,monospace; }
 .toggle{ position:relative; width:36px; height:21px; }
 .toggle input{ opacity:0; width:0; height:0; }
 .toggle i{ position:absolute; inset:0; background:#37306290; border-radius:11px;
@@ -355,6 +358,22 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .toggle input:checked + i::after{ transform:translateX(15px); }
 
 .forget{ display:flex; gap:8px; margin-top:8px; }
+.action-review{ display:grid; gap:9px; }
+.action-review-head{ display:flex; align-items:center; gap:8px; }
+.action-review-head b{ flex:1; font-size:12px; }
+.action-review-preview{ width:100%; height:168px; object-fit:contain; border-radius:10px;
+  background:#0e0b20; border:1px solid var(--line); }
+.action-review-meta{ display:flex; flex-wrap:wrap; gap:5px; }
+.action-review-meta span{ font:10px ui-monospace,monospace; color:var(--dim);
+  border:1px solid var(--line); border-radius:10px; padding:2px 7px; }
+.action-review-actions{ display:flex; gap:7px; flex-wrap:wrap; }
+.action-review-actions button{ flex:1; min-width:120px; }
+.action-review-qa{ font-size:11px; line-height:1.45; padding:7px 9px; border-radius:8px;
+  color:#efc98f; background:#3d2d173d; border:1px solid #8b6737; }
+.action-review-qa.ok{ color:#9fdec7; background:#14372b4f; border-color:#376f5b; }
+.action-review-history{ display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; }
+.action-review-history button{ white-space:nowrap; font-size:9px; padding:4px 7px; }
+.action-review-error{ color:#f1aaa6; font-size:11px; }
 .stats{ font-size:12px; color:var(--dim); margin-bottom:8px; }
 .footer{ text-align:center; margin-top:20px; }
 .kbd{ font-family:ui-monospace,monospace; background:#ffffff12; border-radius:5px;
@@ -380,6 +399,11 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 <div class="sec">
   <h2><span class="ico">🐾</span><span data-zh="你的伴灵" data-en="Your familiar">你的伴灵</span></h2>
   <div class="cards" id="cards"></div>
+</div>
+
+<div class="sec" id="actionImportSection">
+  <h2><span class="ico">🎞</span><span data-zh="Wan 动作验收" data-en="Wan action review">Wan 动作验收</span> <span class="proto-tag">LOCAL IMPORT</span></h2>
+  <div class="action-review" id="actionReview"></div>
 </div>
 
 <div class="sec" id="petLab">
@@ -476,6 +500,9 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
       <option value="60" data-zh="1 分钟" data-en="1 minute">1 分钟</option><option value="150" data-zh="2.5 分钟" data-en="2.5 minutes">2.5 分钟</option>
       <option value="300" data-zh="5 分钟" data-en="5 minutes">5 分钟</option><option value="600" data-zh="10 分钟" data-en="10 minutes">10 分钟</option>
     </select></div>
+  <div class="row"><span class="grow" data-zh="伴灵显示大小" data-en="Familiar display size">伴灵显示大小</span>
+    <div class="size-control"><input id="companionScale" type="range" min="60" max="140" step="5" value="100"
+      oninput="changeCompanionScale(this.value)" aria-label="Familiar display size"><output id="companionScaleValue">100%</output></div></div>
   <div class="row"><span class="grow" data-zh="声音（升级、连续成长、掉进分心坑）" data-en="Sounds (level-ups, streaks, distractions)">声音（升级、连续成长、掉进分心坑）</span>
     <label class="toggle"><input type="checkbox" id="sndTog" onchange="send({type:'sounds', on:this.checked})"><i></i></label></div>
   <div class="row"><span class="grow" data-zh="登录时启动" data-en="Start at login">登录时启动</span>
@@ -562,7 +589,7 @@ function applyLanguage(){
 }
 function changeLanguage(lang){
   LANG = lang === 'en' ? 'en' : 'zh';
-  applyLanguage(); renderCards(); renderPetLab(); renderChips(); renderRules();
+  applyLanguage(); renderCards(); renderActionReview(); renderPetLab(); renderChips(); renderRules();
   send({type:'language', language:LANG});
 }
 
@@ -1464,7 +1491,60 @@ function send(msg){
   try { window.webkit.messageHandlers.settings.postMessage(msg); } catch(e) { console.warn('Settings bridge unavailable:', msg?.type || 'unknown'); }
 }
 
+let companionScaleTimer=null;
+function changeCompanionScale(value){
+  const percent=Math.max(60,Math.min(140,Math.round(Number(value)||100)));
+  document.getElementById('companionScaleValue').textContent=`${percent}%`;
+  clearTimeout(companionScaleTimer);
+  companionScaleTimer=setTimeout(()=>send({type:'companionScale',percent}),32);
+}
+
 let S = { character: 'lulu' };
+let selectedActionJobID = null;
+let actionJobBusy = false;
+let actionJobNotice = '';
+
+function activeActionJobs(){
+  return (S.actionJobs||[]).filter(job=>job.characterID===S.character);
+}
+function renderActionReview(){
+  const box=document.getElementById('actionReview');if(!box)return;
+  const custom=String(S.character||'').startsWith('custom:');
+  if(!custom){
+    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵，再导入它的 Wan 动作结果。','Select a DIY familiar above before importing its Wan action result.')}</div>`;return;
+  }
+  const jobs=activeActionJobs();
+  if(!jobs.some(job=>job.jobID===selectedActionJobID))selectedActionJobID=jobs[0]?.jobID||null;
+  const job=jobs.find(item=>item.jobID===selectedActionJobID)||null;
+  const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择 Wan 结果文件夹…','Choose Wan result folder…')}</button>`;
+  if(!job){
+    box.innerHTML=`<div class="note">${tx('这里只导入本地结果，不会启动 Modal、Wan 或 Python。结果文件夹会复制进 Mimo，关掉设置或重启后仍在。','This only imports a local result; it does not launch Modal, Wan, or Python. The bundle is copied into Mimo and survives closing Settings or restarting.')}</div><div class="action-review-actions">${choose}</div>${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}`;return;
+  }
+  const hasCycle=Number.isFinite(+job.cycleDistanceCellPixels);
+  const qaOK=job.installEligible===true;
+  const qa=qaOK
+    ? `<div class="action-review-qa ok">${tx('硬性 QA 已通过 · 仍需你亲自预览并接受，永不自动安装。','Hard QA passed · manual preview and acceptance are still required; never auto-installed.')}</div>`
+    : `<div class="action-review-qa">${tx('QA 未通过，或 walk 缺少 authored cycle distance。可以预览，但安装保持锁定。','QA did not pass, or walk lacks an authored cycle distance. Preview is available; installation stays locked.')}</div>`;
+  const preview=job.previewURL||job.stripURL;
+  const anchor=(Number.isFinite(+job.anchorX)&&Number.isFinite(+job.anchorY))?`${job.anchorX},${job.anchorY}`:tx('逐帧推断','derived');
+  const history=jobs.length>1?`<div class="action-review-history">${jobs.map((item,index)=>`<button type="button" class="${item.jobID===job.jobID?'sel':''}" onclick="selectedActionJobID='${item.jobID}';actionJobNotice='';renderActionReview()">${esc(item.action)} · ${item.frameCount}f${index===0?' · latest':''}</button>`).join('')}</div>`:'';
+  box.innerHTML=`${history}<div class="action-review-head"><b>${esc(job.sourceLabel||tx('Wan 结果','Wan result'))}</b><span>${job.installed?tx('已安装 ✓','installed ✓'):tx('待验收','review')}</span></div><img class="action-review-preview" src="${esc(preview)}" alt="${esc(tx('动作 contact sheet','action contact sheet'))}"><div class="action-review-meta"><span>${esc(job.action)}</span><span>${job.frameCount} frames</span><span>${job.fps} fps</span><span>cycle ${hasCycle?`${job.cycleDistanceCellPixels}px cell`:'—'}</span><span>anchor ${esc(anchor)}</span></div>${qa}<div class="action-review-actions">${choose}<button type="button" ${actionJobBusy?'disabled':''} onclick="previewActionJob('${job.jobID}')">${tx('在桌面循环预览','Loop on desktop')}</button><button type="button" ${actionJobBusy||!qaOK||job.installed?'disabled':''} onclick="acceptActionJob('${job.jobID}')">${job.installed?tx('已经装进动作库','Installed in action library'):tx('接受并安装','Accept & install')}</button></div>${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}`;
+}
+function requestActionBundle(){send({type:'petActionImport',characterID:S.character})}
+function previewActionJob(jobID){actionJobNotice='';send({type:'petActionPreview',characterID:S.character,jobID})}
+function acceptActionJob(jobID){actionJobBusy=true;actionJobNotice='';renderActionReview();send({type:'petActionAccept',characterID:S.character,jobID})}
+function actionJobImportStarted(){actionJobBusy=true;actionJobNotice='';renderActionReview()}
+function actionJobImported(event){
+  actionJobBusy=false;if(event.job){S.actionJobs=(S.actionJobs||[]).filter(job=>job.jobID!==event.job.jobID).concat([event.job]);selectedActionJobID=event.job.jobID}
+  actionJobNotice=tx('已复制进 Mimo；请先预览，再决定是否安装。','Copied into Mimo. Preview it before deciding whether to install.');renderActionReview();
+}
+function actionJobPreviewing(event){actionJobNotice=tx('正在桌面上循环预览；这还没有安装。','Looping on the desktop; this is not installed yet.');renderActionReview()}
+function actionJobAccepted(event){
+  actionJobBusy=false;if(event.job)S.actionJobs=(S.actionJobs||[]).filter(job=>job.jobID!==event.job.jobID).concat([event.job]);
+  if(event.spec)S.customPets=(S.customPets||[]).filter(p=>p.characterID!==event.spec.characterID).concat([event.spec]);
+  actionJobNotice=tx('已安装，并切换到新 revision 循环预览。','Installed and looping the new revision.');renderCards();renderActionReview();
+}
+function actionJobError(event){actionJobBusy=false;actionJobNotice=(LANG==='zh'?event.messageZh:event.messageEn)||event.message||tx('动作结果处理失败。','Could not process the action result.');renderActionReview()}
 
 function renderCards(){
   const builtins=Object.entries(MINI).map(([characterID,m])=>({characterID,m,custom:false}));
@@ -1477,7 +1557,7 @@ function renderCards(){
     return `<div class="card ${S.character===characterID?'sel':''}" onclick="pick('${characterID}')">${custom?`<button type="button" class="card-delete" aria-label="${esc(tx(`删除 ${m.name}`,`Delete ${m.name}`))}" onclick="event.preventDefault();event.stopPropagation();removeCustomPet('${characterID}')">⌫</button>`:''}${art}<div class="nm">${esc(m.name)}</div><div class="ds">${esc(desc)}</div></div>`;
   }).join('');
 }
-function pick(id){ S.character = id; renderCards(); send({ type: 'pick', id }); }
+function pick(id){ S.character = id; selectedActionJobID=null; actionJobNotice=''; renderCards(); renderActionReview(); send({ type: 'pick', id }); }
 
 const filters = () => [['all',tx('全部','all')],['deep',tx('\u{1F4AA} 成长','\u{1F4AA} growth')],
   ['neutral',tx('\u{1F610} 日常','\u{1F610} everyday')],['distraction',tx('\u{1F573}\uFE0F 分心坑','\u{1F573}\uFE0F pit')]];
@@ -1522,6 +1602,7 @@ function initSettings(state){
   if(IMAGE_QUALITIES.some(q=>q.id===state.imageQuality))petLab.quality=state.imageQuality;
   applyLanguage();
   renderCards();
+  renderActionReview();
   renderPetLab();
   renderChips();
   renderRules();
@@ -1529,6 +1610,9 @@ function initSettings(state){
   pill.textContent = state.permText;
   pill.className = 'pill ' + (state.permCode === 0 ? 'ok' : state.permCode === -1743 ? 'no' : 'ask');
   document.getElementById('idleSel').value = String(state.idle || 150);
+  const scale=Math.max(60,Math.min(140,Math.round(Number(state.companionScalePercent)||100)));
+  document.getElementById('companionScale').value=String(scale);
+  document.getElementById('companionScaleValue').textContent=`${scale}%`;
   document.getElementById('retSel').value = String(state.retention ?? 90);
   document.getElementById('sndTog').checked = !!state.sounds;
   document.getElementById('loginTog').checked = !!state.login;
@@ -1540,6 +1624,7 @@ function initSettings(state){
 }
 applyLanguage();
 renderCards();
+renderActionReview();
 renderPetLab();
 installPetDrop();
 </script>

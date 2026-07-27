@@ -83,10 +83,22 @@ private final class FakeSchemeTask: NSObject, WKURLSchemeTask {
 struct CustomPetTests {
     static func main() throws {
         testTemperaments()
+        testDefaultActionTempo()
         try testStoreAndSchemeHandler()
         try testActionStrips()
         try testStorageBoundaryRecovery()
         print("custom pet persistence tests passed")
+    }
+
+    private static func testDefaultActionTempo() {
+        expect(CustomPetStore.defaultActionFPS("rest") == 4,
+               "ambient rest preview should use the slower authored default")
+        expect(CustomPetStore.defaultActionFPS("wall") == 3.5,
+               "wall idle should feel slower than an active gesture")
+        expect(CustomPetStore.defaultActionFPS("walk") == 10,
+               "large locomotion should remain visibly energetic")
+        expect(CustomPetStore.defaultActionFPS("unknown") == 6,
+               "unclassified actions should not inherit the old busy 12fps default")
     }
 
     private static func testActionStrips() throws {
@@ -99,16 +111,58 @@ struct CustomPetTests {
                                         temperamentID: "quiet-curious", accent: "#7DF0CF")
         let characterID = runtime["characterID"] as! String
 
-        // An 8-frame strip of square 512px cells installs and is advertised.
-        let strip = makeSheet(width: 4096, height: 512)
+        expect(CustomPetStore.maximumActionPNGBytes > CustomPetStore.maximumPNGBytes,
+               "multi-frame actions need a separate bounded size cap")
+
+        // A 24-frame video-driven strip installs with authored timing and one
+        // fixed registration point shared by every frame.
+        let strip = makeSheet(width: 24 * 512, height: 512)
         let updated = try store.installActionStrip(characterID: characterID,
-                                                   action: "walk", pngData: strip)
+                                                   action: "walk", pngData: strip,
+                                                   framesPerSecond: 24,
+                                                   cycleDistance: 132,
+                                                   anchorInCell: CGPoint(x: 256, y: 500))
         let actionURLs = updated["actionURLs"] as? [String: String] ?? [:]
         guard let walkURL = actionURLs["walk"].flatMap(URL.init(string:)) else {
             preconditionFailure("an installed strip must be advertised in actionURLs")
         }
+        expect(walkURL.lastPathComponent.hasPrefix("action-walk-")
+               && walkURL.lastPathComponent != CustomPetStore.actionFilename("walk"),
+               "new actions must use revisioned filenames")
+        let actionSpecs = updated["actionSpecs"] as? [String: [String: Any]] ?? [:]
+        let walkSpec = actionSpecs["walk"] ?? [:]
+        expect((walkSpec["frameCount"] as? NSNumber)?.intValue == 24,
+               "runtime metadata should advertise all 24 frames")
+        expect((walkSpec["fps"] as? NSNumber)?.doubleValue == 24,
+               "runtime metadata should preserve authored fps")
+        expect((walkSpec["cycleDistance"] as? NSNumber)?.doubleValue == 132,
+               "runtime metadata should preserve gait distance")
+        expect((walkSpec["anchorX"] as? NSNumber)?.doubleValue == 256
+               && (walkSpec["anchorY"] as? NSNumber)?.doubleValue == 500,
+               "runtime metadata should preserve the fixed anchor")
         let served = try store.assetData(for: walkURL)
         expect(served == strip, "the scheme must serve the strip bytes unmodified")
+
+        // 32 frames are valid too, and replacement changes the URL rather than
+        // relying on callers to evict a stale fixed-name cache entry.
+        let strip32 = makeSheet(width: 32 * 512, height: 512)
+        let replaced = try store.installActionStrip(characterID: characterID,
+                                                    action: "walk", pngData: strip32,
+                                                    framesPerSecond: 30,
+                                                    cycleDistance: 144,
+                                                    anchorInCell: CGPoint(x: 256, y: 500))
+        let replacedURLs = replaced["actionURLs"] as? [String: String] ?? [:]
+        let replacementURL = replacedURLs["walk"].flatMap(URL.init(string:))!
+        expect(replacementURL != walkURL, "replacing an action must bust its asset URL")
+        expect(((replaced["actionSpecs"] as? [String: [String: Any]])?["walk"]?["frameCount"]
+                as? NSNumber)?.intValue == 32,
+               "runtime metadata should advertise all 32 replacement frames")
+        let servedReplacement = try store.assetData(for: replacementURL)
+        expect(servedReplacement == strip32,
+               "the replacement URL should serve the new 32-frame strip")
+        expectThrows("a superseded revision must no longer be authorized") {
+            _ = try store.assetData(for: walkURL)
+        }
 
         // The strip survives an expression install (manifest round-trip).
         _ = try store.installExpressionSheet(characterID: characterID, stageIndex: 2,
@@ -116,6 +170,8 @@ struct CustomPetTests {
         let after = try store.runtimeSpec(characterID: characterID)
         expect(((after["actionURLs"] as? [String: String]) ?? [:])["walk"] != nil,
                "installing expressions must not drop the walk strip from the manifest")
+        expect(((after["actionSpecs"] as? [String: [String: Any]]) ?? [:])["walk"] != nil,
+               "installing expressions must preserve action metadata")
 
         // Rejections: bad names and non-strip dimensions never reach disk.
         do {
@@ -127,6 +183,34 @@ struct CustomPetTests {
                 preconditionFailure("expected invalidActionName, got \(error)")
             }
         }
+
+        // A genuine v3 action manifest has only the fixed filename map. It
+        // remains loadable and servable, while correctly advertising no
+        // timing/anchor facts that it never authored.
+        let uuidString = String(characterID.dropFirst(CustomPetStore.characterPrefix.count))
+        let directory = root.appendingPathComponent("Pets/\(uuidString)")
+        let manifestURL = directory.appendingPathComponent(CustomPetStore.manifestFilename)
+        let legacyFilename = CustomPetStore.actionFilename("walk")
+        try strip.write(to: directory.appendingPathComponent(legacyFilename), options: [.atomic])
+        var legacyObject = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: manifestURL)) as! [String: Any]
+        legacyObject["schemaVersion"] = 3
+        legacyObject["actions"] = ["walk": legacyFilename]
+        legacyObject.removeValue(forKey: "actionSpecs")
+        try JSONSerialization.data(withJSONObject: legacyObject)
+            .write(to: manifestURL, options: [.atomic])
+        let legacyRuntime = try store.runtimeSpec(characterID: characterID)
+        expect(legacyRuntime["schemaVersion"] as? Int == 3,
+               "v3 action manifests must retain their advertised version")
+        expect((legacyRuntime["actionSpecs"] as? [String: [String: Any]])?.isEmpty == true,
+               "v3 actions must not gain invented playback metadata")
+        let legacyURL = ((legacyRuntime["actionURLs"] as? [String: String])?["walk"])
+            .flatMap(URL.init(string:))!
+        expect(legacyURL.lastPathComponent == legacyFilename,
+               "v3 fixed action filenames must remain readable")
+        let servedLegacy = try store.assetData(for: legacyURL)
+        expect(servedLegacy == strip,
+               "v3 fixed-name actions must remain servable")
         do {
             _ = try store.installActionStrip(characterID: characterID,
                                              action: "hop",
@@ -184,10 +268,10 @@ struct CustomPetTests {
         let expectedKeys: Set<String> = [
             "schemaVersion", "kind", "id", "characterID", "name",
             "temperamentID", "accent", "assetURL", "motionProfile", "expressionURLs",
-            "actionURLs",
+            "actionURLs", "actionSpecs",
         ]
         expect(Set(runtime.keys) == expectedKeys, "runtime dictionary should expose only the agreed keys")
-        expect(runtime["schemaVersion"] as? Int == 3, "runtime schema should be v3")
+        expect(runtime["schemaVersion"] as? Int == 4, "new installs should use runtime schema v4")
         expect(runtime["kind"] as? String == "raster-sheet", "runtime kind should be raster-sheet")
         expect(runtime["id"] as? String == canonicalID, "runtime should expose the canonical UUID")
         expect(runtime["characterID"] as? String == "custom:\(canonicalID)", "selection ID should be namespaced")
@@ -195,6 +279,8 @@ struct CustomPetTests {
         expect(runtime["motionProfile"] as? String == "dreamy-float", "motion should derive from temperament")
         expect((runtime["expressionURLs"] as? [String: String])?.isEmpty == true,
                "a fresh install should have no expression sheets yet")
+        expect((runtime["actionSpecs"] as? [String: [String: Any]])?.isEmpty == true,
+               "a fresh install should have no action metadata yet")
         let assetURLString = "mimo-pet://asset/\(canonicalID)/sheet.png?v=4"
         expect(runtime["assetURL"] as? String == assetURLString, "asset URL should be computed, not persisted input")
 
@@ -292,9 +378,18 @@ struct CustomPetTests {
         expect((replacedRuntime["expressionURLs"] as? [String: String])?.count == 1,
                "re-installing one stage should not duplicate manifest entries")
 
-        // Legacy v2 manifests (no expressions field) must keep loading.
-        let v3ManifestData = try Data(contentsOf: manifestURL)
-        var legacyObject = try JSONSerialization.jsonObject(with: v3ManifestData) as! [String: Any]
+        // Legacy v3 manifests (no action metadata) must keep loading.
+        let v4ManifestData = try Data(contentsOf: manifestURL)
+        var legacyObject = try JSONSerialization.jsonObject(with: v4ManifestData) as! [String: Any]
+        legacyObject["schemaVersion"] = 3
+        legacyObject.removeValue(forKey: "actionSpecs")
+        try JSONSerialization.data(withJSONObject: legacyObject)
+            .write(to: manifestURL, options: [.atomic])
+        let v3Listed = try store.listRuntimeSpecs()
+        expect(v3Listed.count == 1 && v3Listed[0]["schemaVersion"] as? Int == 3,
+               "legacy v3 manifests must remain readable and report v3")
+
+        // Legacy v2 manifests (no expressions field) remain readable too.
         legacyObject["schemaVersion"] = 2
         legacyObject.removeValue(forKey: "expressions")
         try JSONSerialization.data(withJSONObject: legacyObject)
@@ -308,10 +403,10 @@ struct CustomPetTests {
         // from a migrated v3 pet that simply has no expression sheets.
         expect(legacyListed[0]["schemaVersion"] as? Int == 2,
                "a v2 manifest must report v2, not be silently relabelled v3")
-        try v3ManifestData.write(to: manifestURL, options: [.atomic])
+        try v4ManifestData.write(to: manifestURL, options: [.atomic])
         let currentListed = try store.listRuntimeSpecs()
-        expect(currentListed[0]["schemaVersion"] as? Int == 3,
-               "a v3 manifest still reports v3")
+        expect(currentListed[0]["schemaVersion"] as? Int == 4,
+               "a v4 manifest still reports v4")
 
         let handler = CustomPetAssetSchemeHandler(store: store)
         let goodTask = FakeSchemeTask(URLRequest(url: URL(string: assetURLString)!))

@@ -93,6 +93,41 @@ struct CompanionDirectorTests {
         expect(intent.frame == 1, "the authored pose frame is what gets drawn")
     }
 
+    static func testPoseStripIsReported() {
+        let pack = makePack([
+            "schemaVersion": 2,
+            "actions": [[
+                "name": "Rest", "type": "stay", "requires": "grounded", "duration": "1",
+                "animations": [["poses": [["strip": "rest", "frame": 9, "hold": 1.0]]]],
+            ]],
+            "behaviors": [["name": "Rest", "frequency": 100]],
+        ])
+        let intent = CompanionDirector(pack: pack, availableStrips: ["rest"], random: { 0.5 })
+            .update(dt: 0.016, snapshot: grounded())
+        expect(intent.strip == "rest", "the director carries the named strip to the runtime")
+        expect(intent.frame == 9, "the frame stays local to the named strip")
+    }
+
+    static func testMissingStripBehaviorIsNotSelected() {
+        let pack = makePack([
+            "schemaVersion": 2,
+            "actions": [
+                ["name": "Stand", "type": "stay", "requires": "grounded", "duration": "1",
+                 "animations": [["poses": [["frame": 0]]]]],
+                ["name": "Rest", "type": "stay", "requires": "grounded", "duration": "1",
+                 "animations": [["poses": [["strip": "rest", "frame": 0]]]]],
+            ],
+            "behaviors": [
+                ["name": "Stand", "frequency": 1],
+                ["name": "Rest", "frequency": 1000],
+            ],
+        ])
+        let director = CompanionDirector(pack: pack, availableStrips: [], random: { 0.99 })
+        _ = director.update(dt: 0.016, snapshot: grounded())
+        expect(director.currentBehaviorName == "Stand",
+               "missing strip actions stay out of the director's urn")
+    }
+
     // MARK: - The interruption rule
 
     /// Being grabbed outranks whatever the pack was doing. Shimeji's one cold
@@ -345,6 +380,8 @@ struct CompanionDirectorTests {
         testMoveWalksTowardTheTargetNotThePoseDirection()
         testMoveEndsOnArrival()
         testPoseFrameIsReported()
+        testPoseStripIsReported()
+        testMissingStripBehaviorIsNotSelected()
         testGrabInterruptsImmediately()
         testLosingTheGroundSwitchesToFall()
         testGroundedActionsAreNotSelectedWhileAirborne()

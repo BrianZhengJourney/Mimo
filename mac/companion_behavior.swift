@@ -36,6 +36,9 @@ enum CompanionActionKind: String, Codable {
 /// offsets. Shimeji's units bake its 25fps into every pack, so its frame rate
 /// cannot be raised without changing how far everything moves.
 struct CompanionPose {
+    /// Optional named action strip. Nil keeps using the companion's base art
+    /// (or a runtime-driven strip such as walk/gaze).
+    let strip: String?
     let frame: Int
     let hold: Double
     let velocity: CGVector
@@ -75,6 +78,13 @@ struct CompanionAction {
     let children: [String]
     /// For `.embedded`, which native behaviour to hand off to.
     let implementation: String?
+
+    /// Every named strip this action can draw. The director uses this to keep
+    /// actions whose assets are absent out of the urn, rather than running an
+    /// invisible behavior against the standing fallback art.
+    var requiredStrips: Set<String> {
+        Set(animations.flatMap { $0.poses.compactMap(\.strip) })
+    }
 
     /// First animation whose condition passes.
     func animation(for source: CompanionVariableSource) -> CompanionAnimation? {
@@ -212,13 +222,14 @@ struct CompanionBehaviorSelector {
 
     func selectNext(after previous: CompanionBehavior?,
                     source: CompanionVariableSource,
+                    isAvailable: (CompanionBehavior) -> Bool = { _ in true },
                     random: () -> Double = { Double.random(in: 0..<1) }) -> CompanionBehavior? {
         var candidates: [(CompanionBehavior, Int)] = []
 
         if previous == nil || previous!.nextIsAdditive {
             for name in pack.behaviorOrder {
                 guard let behavior = pack.behaviors[name], behavior.frequency > 0,
-                      behavior.isEffective(for: source) else { continue }
+                      behavior.isEffective(for: source), isAvailable(behavior) else { continue }
                 candidates.append((behavior, behavior.frequency))
             }
         }
@@ -228,7 +239,7 @@ struct CompanionBehaviorSelector {
                 guard let behavior = pack.behaviors[reference.name], reference.frequency > 0
                 else { continue }
                 if let condition = reference.condition, !condition.evaluateBool(source) { continue }
-                guard behavior.isEffective(for: source) else { continue }
+                guard behavior.isEffective(for: source), isAvailable(behavior) else { continue }
                 candidates.append((behavior, reference.frequency))
             }
         }
@@ -248,7 +259,9 @@ struct CompanionBehaviorSelector {
 // MARK: - Loading
 
 extension CompanionBehaviorPack {
-    static let supportedSchemaVersion = 1
+    /// v2 adds `strip` to authored poses. v1 remains readable so third-party
+    /// packs do not break when the app upgrades.
+    static let supportedSchemaVersion = 2
 
     static func load(data: Data,
                      schema: CompanionVariableSchema = .current) throws -> CompanionBehaviorPack {
@@ -261,7 +274,7 @@ extension CompanionBehaviorPack {
     static func load(_ root: [String: Any],
                      schema: CompanionVariableSchema = .current) throws -> CompanionBehaviorPack {
         let version = (root["schemaVersion"] as? NSNumber)?.intValue ?? 1
-        guard version == supportedSchemaVersion else {
+        guard (1...supportedSchemaVersion).contains(version) else {
             throw CompanionPackError.unsupportedSchema(version)
         }
 
@@ -308,6 +321,7 @@ extension CompanionBehaviorPack {
                 var poses: [CompanionPose] = []
                 for pose in block["poses"] as? [[String: Any]] ?? [] {
                     poses.append(CompanionPose(
+                        strip: version >= 2 ? pose["strip"] as? String : nil,
                         frame: integer(pose["frame"], default: 0),
                         hold: double(pose["hold"], default: 0.2),
                         velocity: vector(pose["velocity"])))
