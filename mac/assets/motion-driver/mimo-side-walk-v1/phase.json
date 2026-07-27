@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "driverID": "muybridge-side-walk-v1",
+  "framesPerSecond": 30,
+  "frameCount": 77,
+  "cycleLengthFrames": 24,
+  "cycleStartFrame": 24,
+  "cycleEndFrameExclusive": 48,
+  "outputFrameCount": 24,
+  "duplicateEndpoint": false,
+  "direction": "left",
+  "matteRGB": [127, 127, 127],
+  "targetCharacterHeight": 451,
+  "notes": "The middle complete left-plus-right gait cycle is authoritative. Frames 48 onward provide a second-cycle seam check and must not be packed as a duplicate endpoint."
+}
