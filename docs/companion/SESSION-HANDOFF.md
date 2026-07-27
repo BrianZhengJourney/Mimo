@@ -8,14 +8,16 @@
 
 ## 0. 下一个 session 从这里开始 ← 最新
 
-### Release baseline 与下一里程碑
+### Release baseline 已完成；下一里程碑
 
-当前工作从“继续探索动作生成方法”切换为两步：
+**v0.2 Alpha working baseline 已完成、可直接运行使用，并已 push 到
+`codex/walk-rig-prototype`（Draft PR #2）。**当前工作从“继续探索动作生成方法”
+切换为下一阶段集成：
 
-1. **收束 v0.2 release baseline**：生产代码、测试、生成工具、动作契约、
-   motion guide 与精选 preview 进入 Git；`output/`、Wan run、大型实验 GIF、
+1. **已完成 release baseline**：生产代码、测试、生成工具、动作契约、
+   motion guide 与精选 preview 已进入 Git；`output/`、Wan run、大型实验 GIF、
    构建物与原始个人参考图保持本地并由 `.gitignore` 排除。
-2. **完整 custom pet generation**：把已定稿的动作生产接入 Mimo Studio，
+2. **下一步：完整 custom pet generation**：把已定稿的动作生产接入 Mimo Studio，
    形成 `references → canonical master → action families → local QA →
    user preview → atomic install` 的可恢复流程。详见
    [11-custom-pet-integration.md](11-custom-pet-integration.md)。
@@ -53,8 +55,8 @@ bundle、复制到 app-owned storage、在桌面循环预览、检查 hard QA，
 ## 1. 现在在哪
 
 分支 `codex/walk-rig-prototype`，包含此前 `feat/companion-runtime` 与
-`fix/pipeline-audit` 的全部未发布历史；不需要分别 push 旧分支。release baseline
-收束改动尚未 push。
+`fix/pipeline-audit` 的全部历史；不需要分别 push 旧分支。release baseline 已
+push，并已创建面向 `main` 的 Draft PR #2。
 `./mac/build.sh` 通过；`./mac/test.sh` 29 个 target 全绿；动作/Modal/Python
 离线套件 66 项全绿。这台机器的 macOS Vision 仍会报
 Code=9(系统 ANE saliency 模型无法加载),测试只针对这一个系统错误 skip feature-print

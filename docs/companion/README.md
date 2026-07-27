@@ -3,9 +3,9 @@
 把 Mimo 从"角落里会换表情的状态指示器"升级成一个**有物理手感、有行为系统、
 可拖可扔、能被 DIY 生成管线喂养**的桌面伴灵。参照物是 Shimeji / Shimeji-ee。
 
-**状态**:v0.2 Alpha 已实施。P00 / P0 / P1 / P3 主要代码完成；当前正在建立
-release baseline，下一里程碑是把定稿的动作生产接入完整 custom pet generation。
-最后更新 2026-07-27。
+**状态**:v0.2 Alpha working baseline 已完成，可直接运行使用。P00 / P0 / P1 /
+P3 主要代码与动作 runtime 均已落地；下一里程碑是在这个稳定版本上，把定稿的
+动作生产编排接入完整 custom pet generation。最后更新 2026-07-27。
 
 ---
 

@@ -8,7 +8,10 @@ for turning a person, pet, or original character into a custom companion.
 
 ## Status
 
-**v0.2 Alpha · release baseline in progress (2026-07-27).**
+**v0.2 Alpha · complete working baseline (2026-07-27).**
+
+The current native app is complete and directly usable. The next milestone
+extends this working version; it is not a prerequisite for running Mimo today.
 
 The repository has moved beyond the original browser concept:
 
@@ -20,8 +23,8 @@ The repository has moved beyond the original browser concept:
   expression assets, provider abstraction, generation ledger, and recovery.
 - Generated action strips can be safely imported, previewed on the desktop,
   hard-QA checked, and explicitly installed into a custom pet manifest.
-- Action generation itself is still an external/experimental production step.
-  Bringing it into the Studio is the next product milestone.
+- The finalized action-production workflow currently runs outside Mimo Studio.
+  Bringing its orchestration into the Studio is the next product milestone.
 
 See the [custom pet integration plan](docs/companion/11-custom-pet-integration.md)
 and [current handoff](docs/companion/SESSION-HANDOFF.md).
