@@ -4,7 +4,7 @@
 可拖可扔、能被 DIY 生成管线喂养**的桌面伴灵。参照物是 Shimeji / Shimeji-ee。
 
 **状态**：v0.2 Alpha working baseline + P1 Starter Actions 已完成，可直接运行。
-五套动作已接入 Studio、断点 job、0-call 本机重新抠图、安全 preview/install 与
+四套动作已接入 Studio、断点 job、0-call 本机重新抠图、安全 preview/install 与
 runtime；下一步是用户完成桌面视觉验收，再扩到更多用户。最后更新 2026-07-28。
 
 ---
@@ -23,7 +23,7 @@ runtime；下一步是用户完成桌面视觉验收，再扩到更多用户。�
 | [09-action-inventory.md](09-action-inventory.md) | §9 | **动作清单定稿** —— 分层帧预算、六套气质签名集、道具内嵌决策(D9–D11)、打包规则与首验计划 | 生成任何帧之前 |
 | [10-hybrid-action-generation.md](10-hybrid-action-generation.md) | §10 | **高保真 × 强一致动作生成** —— HatchPet 实证拆解、D12 hybrid coherent-family、慢节奏与新 skill | 生成或修复动作时 |
 | [11-custom-pet-integration.md](11-custom-pet-integration.md) | §11 | **完整 DIY 生成接线** —— canonical master → action family → QA → preview → atomic install | 当前实施入口 |
-| [12-starter-actions.md](12-starter-actions.md) | §12 | **P1 实施记录与验收** —— 五卡、调用预算、断点状态机、runtime 与检查清单 | 当前验收入口 |
+| [12-starter-actions.md](12-starter-actions.md) | §12 | **P1 实施记录与验收** —— 四卡、调用预算、断点状态机、runtime 与检查清单 | 当前验收入口 |
 | [05-roadmap.md](05-roadmap.md) | §5 | P00 → P4 分阶段路线与验收标准 | 排期 |
 | [06-open-questions.md](06-open-questions.md) | §6 | 已拍板汇总 + 仍待拍板项 | 决策时 |
 | [07-unverified-and-sources.md](07-unverified-and-sources.md) | §7, 附录 | **未证实的事实断言清单** + 源码/文献引用 | 引用本文任何事实之前 |

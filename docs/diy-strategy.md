@@ -7,7 +7,7 @@
 ## TL;DR
 
 The whole pipeline is a **pixel-sprite pipeline**. The realistic/人像 path is being
-forced through the *same* machinery (full-body framing, fit-to-square, binary alpha
+forced through the *same* machinery (full-body framing, fit-to-square, legacy opaque alpha
 matte, nearest-neighbor downscale, pixel-sized viewBox). Pixel art tolerates all of
 this; a raster human portrait does not — so it comes out tiny and ugly.
 
@@ -55,7 +55,7 @@ Pixel mascots dodge this because they're big-head chibi that fill the square.
 
 | Cause | File |
 |-------|------|
-| **Binary alpha matte** — foreground alpha forced to 255, no anti-alias → jagged edges on a photographic face ("crisp sprite edges" comment) | `character_sheet.swift:740` |
+| **Legacy opaque alpha matte (fixed 2026-07-28)** — the audit found foreground alpha forced to 255; current extraction uses feathered warm-matte edges and premultiplied RGBA chroma repair | `character_sheet.swift` |
 | **Nearest-neighbor downscale** (`interpolationQuality = .none`, `floor()` sampling) → aliasing on a photo | `character_sheet.swift:553, 976-979` |
 | **State CSS filters hue-rotate/desaturate the whole portrait** (poisoned `saturate(.58) hue-rotate(45deg)`, ghost `hue-rotate(175deg)`, etc.) → sickly face | `overlay.html:997-1001, 1130` |
 | **Opaque `#F1ECE2` background** then crudely keyed out | `pet_generation.swift:627, 955` |

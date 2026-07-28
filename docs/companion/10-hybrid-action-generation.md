@@ -2,8 +2,8 @@
 
 # 10. 高保真 × 强一致动作生成
 
-**状态：方案 v1（2026-07-23）**。依据本仓库 Mimo 动作管线与一次完整
-OpenAI HatchPet v2 run 的真实产物、prompt、manifest、QA 和失败记录。
+**状态：方案 v1（2026-07-23；2026-07-28 收束）**。走路在多轮真实实验后
+仍未通过肉眼验收，已退出 Starter；本文中的 walk 记录只保留作历史证据。
 
 ## 10.0 结论
 
@@ -64,7 +64,7 @@ Mimo 的方案是：
 - 一个 action 一张 sheet，避免逐帧独立调用；
 - motion guide 只管骨架节奏，style board 只管 rendering language；
 - `mac/action_sheet.swift` 已使用全帧共享 scale 与 baseline；
-- walk phase 已按 travelled distance / cycle distance 驱动，避免 moonwalk；
+- 历史 walk asset 仍可按 travelled distance / cycle distance 驱动；
 - `mac/consistency_metric.swift` 已有同阶段 identity gate；
 - 自动 retry 有硬上限与成本记录；
 - behavior pack 已支持每 pose 单独 `hold`，不必被恒定 FPS 绑架。
@@ -97,13 +97,13 @@ canonical master
 | 动作类型 | 生成方式 |
 |---|---|
 | Idle / 呼吸 | 3 帧，一次生成 |
-| Walk | `3 + 3 + 2`；最后一格复画 K1，只验 loop seam |
 | Sleep | 躺下 3 + 呼吸 3 + 起身 3 |
-| Gaze | 中 / 上 / 右 / 下 / 左，共 5 帧 |
+| Gaze | 顺时针八方向，共 8 帧 |
 | 打网球 | 准备 3 + 击球 3 + 恢复 3；球由 runtime 确定性绘制 |
-| 靠墙站着 | 3 帧微呼吸 / 重心变化；墙由 runtime 提供 |
+| 墙边站 / 坐 | stand 3 + ledge-sit 3；墙与屏幕边缘由 runtime 提供 |
 
-产品动作只保留以上六类。每次 image call 只画连续三帧；后一批同时引用
+产品 Starter 只保留 gaze / sleep / tennis / wall，Idle 是扩展工具。每次 image call
+只画连续三帧；后一批同时引用
 canonical master 与上一批已通过结果，但 canonical 永远具有最高优先级。
 
 ### 修复单位
@@ -124,8 +124,7 @@ canonical master 与上一批已通过结果，但 canonical 永远具有最高�
 |---|---|
 | idle/breathe | 3 帧约 2.1s |
 | sleep | 3 帧躺下 + 3 帧慢呼吸 + 3 帧起身 |
-| walk | 8 帧；按距离驱动；preview cycle 1.4–1.8s |
-| gaze | 5 个方向；按 cursor angle 取帧 |
+| gaze | 8 个方向；按 cursor angle 取帧 |
 | tennis | 9 帧约 1.7s |
 | wall-standing | 3 帧约 2.2s |
 
@@ -134,7 +133,6 @@ canonical master 与上一批已通过结果，但 canonical 永远具有最高�
 - calm loop 用 per-frame `hold`，endpoint 多停，transition 少停；
 - `rest-enter → sleep-loop → rest-rise` 分段，不用一个 FPS 同时控制躺下和
   呼吸；
-- walk 的帧相位由行走距离控制，不独立降 FPS，否则会滑步；
 - gaze 根据 cursor angle 取 direction，必要时对 angle 做短 easing，不循环播。
 
 完整 hold 表见
@@ -191,15 +189,14 @@ skills/mimo-animate-pet/
 
 - pose 顺序正确、loop seam 无跳变；
 - ambient 不忙，大动作不拖；
-- 无 foot skate、phase reverse、duplicate stride；
-- locomotion 有 `cycleDistanceCellPixels`；
+- 无 phase reverse 或重复动作阶段；
 - preview 使用 authored holds，而不是统一随便设一个 FPS。
 
 ## 10.7 推进顺序
 
-1. 用直接透明背景重做 Walk `K1–K3`，先解决头发 matte；
-2. 通过后按 `K4–K6`、`K7–K8 + K1 closure` 完成 Walk；
-3. 依次完成 Idle、Sleep、Gaze、打网球、靠墙站着；
-4. 最后才把 workflow 接进 app 的付费自动生成入口。
+1. 用 `#F1ECE2` 暖色 matte 生成 gaze / sleep / tennis / wall；
+2. legacy chroma 只做本机 premultiplied RGBA 反混合，不再付费重掷；
+3. 每套先桌面 Preview，用户明确 Accept 后才安装；
+4. 走路实验保持冻结，除非用户明确重新开启。
 
 每一步只解决一个变量。不要同时换模型、风格、分辨率、帧数和动作设计。

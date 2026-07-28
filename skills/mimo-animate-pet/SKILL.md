@@ -1,6 +1,6 @@
 ---
 name: mimo-animate-pet
-description: Design, generate, repair, validate, and package the approved high-fidelity Mimo companion actions—idle breathing, walking, sleep transitions and breathing, eight-direction gaze, tennis, and wall stand/sit—with chained three-frame generation, shared 512px geometry, canonical identity references, conservative transparency, authored timing, and deterministic QA. Use when creating or fixing one of these Mimo DIY animation assets or diagnosing identity drift, hair-matte loss, size popping, baseline jitter, or motion timing.
+description: Design, generate, repair, validate, and package the approved high-fidelity Mimo companion actions—idle breathing, sleep transitions and breathing, eight-direction gaze, tennis, and wall stand/sit—with chained three-frame generation, shared 512px geometry, canonical identity references, conservative transparency, authored timing, and deterministic QA. Use when creating or fixing one of these Mimo DIY animation assets or diagnosing identity drift, hair-matte loss, size popping, baseline jitter, or motion timing.
 ---
 
 # Mimo Animate Pet
@@ -33,11 +33,13 @@ lock, coherent-family generation, deterministic registration, and QA gates.
    Never fit each frame independently.
 6. Slow ambient motion with authored frame holds and behavior residency, not
    with many nearly identical generated frames.
-7. Drive walking phase from distance travelled and authored cycle distance.
-   FPS is only a preview fallback.
-8. Prefer direct RGBA transparency. A chroma fallback must use zero alpha-edge
-   contraction; despill may change RGB only. Inspect hair on light, dark, and
-   checkerboard backgrounds.
+7. Do not offer generated walking as a Starter Action. Keep historical
+   `action-walk` assets loadable, but do not spend or regenerate them unless the
+   user explicitly reopens that experiment.
+8. Prefer direct RGBA transparency. Otherwise generate on Mimo's flat
+   `#F1ECE2` warm extraction matte. For legacy chroma, unmix key spill from
+   premultiplied RGB and alpha together while retaining partial edge coverage.
+   Inspect hair on light, dark, and checkerboard backgrounds.
 9. Repair deterministic failures deterministically. Regenerate the complete
    three-frame batch when identity, rendering, anatomy, or source motion is wrong.
 
@@ -51,7 +53,6 @@ The in-app Starter Action pack is the activation contract:
 | Gaze | 8 | up / upper-right / right `3` + lower-right / down / lower-left `3` + left / upper-left `2` |
 | Tennis | 9 | preparation `3` + hit `3` + recovery `3` |
 | Wall | 6 | wall-standing `3` + ledge-sitting `3` |
-| Walk | 8 | `3 + 3 + 2`; mirror for the other direction |
 
 The extended production tooling may also prepare:
 
@@ -98,7 +99,6 @@ Classify the action before drawing:
 
 - `ambient`: idle breathing, wall-standing, or ledge-sitting
 - `segmented`: sleep lie-down → breathing loop → rise
-- `locomotion`: walk
 - `directional`: gaze
 - `gesture`: tennis
 
@@ -142,11 +142,6 @@ job in `imagegen-jobs.json`.
 Generate `batch-01` first and approve it. Every later job receives the canonical
 master plus the immediately preceding approved batch. The canonical master
 always outranks chained evidence so errors cannot accumulate.
-
-For walk, keep `K1–K3`, then `K4–K6`, then `K7–K8`; the third slot in the last
-batch recreates `K1` only to test the loop seam and is discarded. Start with the
-eight approved key poses. Add local midpoint batches only after a real-size
-preview proves they are necessary.
 
 For tennis, keep the racket identical across all batches and draw no ball. The
 runtime owns one deterministic ball trajectory, preventing duplicate or drifting
@@ -195,11 +190,10 @@ Accept only when all are true:
 - the same person/pet is immediately recognizable in every frame
 - face, hair, outfit, markings, palette, lighting, and detail density stay fixed
 - no frame is visibly simplified relative to the canonical master
-- the loop has no scale pop, baseline hop, foot skate, phase reversal, or seam
+- the loop has no scale pop, baseline hop, phase reversal, or visible seam
 - ambient motion reads slowly and calmly at actual desktop size
-- locomotion is phase-locked to travel distance
 - generated imagery contains no visible guide, grid, label, effect debris, or
-  chroma residue
+  matte residue / purple fringe / black key fringe
 - every retry and paid call is recorded
 
 Do not install automatically after deterministic checks alone. Require a

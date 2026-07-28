@@ -9,7 +9,7 @@
 ```text
 领养 DIY 伴灵
       ↓
-自动建立 5 张动作卡（不花钱）
+自动建立 4 张动作卡（不花钱）
       ↓ 用户逐卡点击
 显示 calls / quality / 预计成本
       ↓
@@ -32,9 +32,8 @@ hard QA → 桌面 Preview → 用户 Accept
 | 睡觉 | `rest` | 9 | 3 | lie-down 3 → breathe 3 → rise 3 |
 | 打网球 | `tennis` | 9 | 3 | 一次完整正手；球由 runtime 确定性合成 |
 | 墙边站 / 坐 | `wall` | 6 | 2 | wall-stand 3 / ledge-sit 3 |
-| 走路 | `walk` | 8 | 3 | 两步闭环；按 travelled distance / 384 cell-px 驱动 |
 
-总计 40 帧、14 个显式 provider calls。五张卡互相独立；任何一张失败都不影响
+总计 32 帧、11 个显式 provider calls。四张卡互相独立；任何一张失败都不影响
 canonical familiar 或已安装动作。
 
 ## 12.2 Durable 状态机
@@ -56,6 +55,8 @@ awaiting_review / installed --本机重新抠图（0 calls）--> local_processin
 - 最多 3 次显式 attempt；没有静默重掷；
 - Preview 不安装；只有 Accept 才更新 manifest。
 - retained raw batches 可重新做 matte / despill / scale / baseline；不创建 provider request。
+- 新 batch 使用原 Mimo `#F1ECE2` 暖色 extraction matte；
+- 旧 `#FF00FF` batch 通过 premultiplied RGBA 反混合保留半透明边缘，不再把紫边去色成黑边。
 
 ## 12.3 真实验收
 
@@ -69,7 +70,7 @@ open "./mac/build/Mimo.app"
 App checklist：
 
 1. `◐ → Settings`，选择或新建一个 DIY 伴灵；
-2. Starter Actions 出现 gaze / sleep / tennis / wall / walk 五张卡；
+2. Starter Actions 出现 gaze / sleep / tennis / wall 四张卡；
 3. 先生成一张，确认开始前可见 calls、quality 与预计成本；
 4. 生成中关闭再打开 Settings，状态和已完成 batch 仍在；
 5. 结果进入待验收后先点 Desktop Preview，确认没有自动安装；
@@ -77,17 +78,16 @@ App checklist：
 7. sleep：躺下、慢呼吸、起身连贯，没有 scale pop / baseline hop；
 8. tennis：完整正手，画面中始终只有一个球，loop seam 无重复球；
 9. wall：撞左右墙可站靠；ledge-sit 使用后 3 帧；
-10. walk：两步 loop 无 foot skate，移动变慢时 gait 也随距离同比变慢；
-11. 对旧 sleep / tennis / wall 点“本机重新抠图”，确认 0 calls、无整块洋红或紫边；
-12. DIY 卡片左上角 ✎ 可改名，重开后名称仍保留；
-13. Accept 后退出重开，动作 revision 仍能加载。
+10. 对旧 sleep / tennis / wall 点“本机重新抠图”，确认 0 calls、无整块洋红、紫边或黑边；
+11. DIY 卡片左上角 ✎ 可改名，重开后名称仍保留；
+12. Accept 后退出重开，动作 revision 仍能加载。
 
 视觉不通过时不要 Accept；保留 job/result 作为诊断证据，再决定是 deterministic
 本机修复还是显式重新生成一个 coherent batch。
 
 ## 12.4 P2 扩展入口
 
-Starter 五动作稳定后，按以下顺序扩展：
+Starter 四动作稳定后，按以下顺序扩展：
 
 1. **Action packs**：把 optional motion 做成不阻塞领养的独立包；
 2. **Creator template**：复用 canonical/action contract，让创作者只定义 motion；

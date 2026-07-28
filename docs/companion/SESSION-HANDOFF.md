@@ -15,16 +15,17 @@
 
 当前完成：
 
-1. 五套生产契约：`gaze 8 / sleep(rest) 9 / tennis 9 / wall 6 / walk 8`；
-2. 每次 provider call 固定一个 coherent 3-frame batch，共 `3/3/3/2/3` calls；
+1. 四套生产契约：`gaze 8 / sleep(rest) 9 / tennis 9 / wall 6`；
+2. 每次 provider call 固定一个 coherent 3-frame batch，共 `3/3/3/2` calls；
 3. 每个成功 batch 立即落盘；重启显示 interrupted，显式重试从断点继续；
-4. Studio 五张卡显示 frames、calls、质量、预计成本、进度、取消、重试与本机重新抠图；
+4. Studio 四张卡显示 frames、calls、质量、预计成本、进度、取消、重试与本机重新抠图；
 5. canonical mature frame → chained generation → shared normalize/baseline →
    hard QA → desktop Preview → explicit Accept → manifest install 已全接通；
-6. runtime 已接八方向 gaze、睡觉三段、完整正手、单个确定性 tennis ball、
-   wall stand/sit 与 distance-driven walk；
+6. runtime 已接八方向 gaze、睡觉三段、完整正手、单个确定性 tennis ball 与
+   wall stand/sit；历史 `action-walk` 仍可加载，但走路生成已退出 Starter；
 7. 外部 result-folder import 仍保留，但只在 Advanced。
-8. white-frame chroma、全局 RGB despill 与 DIY 宠物改名已接通。
+8. 原 Mimo 暖色 matte 已恢复；legacy chroma 使用 premultiplied RGBA 反混合，
+   不再把紫边变成黑边；DIY 宠物改名已接通。
 
 本轮**没有替用户触发任何付费生成，也没有自动启动 App**。代码与离线测试能证明
 编排/安全边界，不能替代真实视觉验收。下一步由用户从
@@ -45,6 +46,7 @@ ac353ea feat(runtime): animate the starter tennis ball
 aed2ad6 Add calm eight-direction starter motion
 92e665c Repair starter action matte extraction
 bd72061 Let users rename custom familiars
+b250870 Fix starter action edge matting
 ```
 
 验收通过后的扩展方向：更多 optional action packs、creator template、可分享的
@@ -57,7 +59,7 @@ pet package、用户发布/下载渠道；个人参考图与 credential 永不�
 分支 `codex/walk-rig-prototype`，包含此前 `feat/companion-runtime` 与
 `fix/pipeline-audit` 的全部历史；不需要分别 push 旧分支。release baseline 已
 push，并已创建面向 `main` 的 Draft PR #2。
-`./mac/build.sh` 通过；`./mac/test.sh` 29 个 target 全绿；动作/Modal/Python
+`./mac/build.sh` 通过；`./mac/test.sh` 32 个 target 全绿；动作/Modal/Python
 离线套件 66 项全绿。这台机器的 macOS Vision 仍会报
 Code=9(系统 ANE saliency 模型无法加载),测试只针对这一个系统错误 skip feature-print
 三项,尺寸分组/闸门等纯策略断言仍完整运行。
