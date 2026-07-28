@@ -8,7 +8,6 @@ enum StarterActionID: String, Codable, CaseIterable, Sendable {
     case sleep
     case tennis
     case wall
-    case walk
 }
 
 enum StarterActionDirection: String, Codable, Equatable, Sendable {
@@ -107,13 +106,6 @@ struct StarterActionDefinition: Equatable, Sendable {
         let duration = frameDurations.reduce(0, +)
         guard duration > 0 else { return 2 }
         return Double(finalFrameCount) / duration
-    }
-
-    /// Locomotion is keyed to travelled distance, not wall-clock frequency.
-    /// 384 source-cell pixels becomes roughly one calm 110pt two-step cycle at
-    /// the normal desktop display size.
-    var cycleDistanceCellPixels: Double? {
-        id == .walk ? 384 : nil
     }
 }
 
@@ -277,45 +269,6 @@ enum StarterActionCatalog {
                 directions: [],
                 runtimeEffect: .none)
 
-        case .walk:
-            return StarterActionDefinition(
-                id: .walk,
-                manifestActionName: "walk",
-                titleZh: "走路",
-                titleEn: "Walking",
-                motionClass: "locomotion",
-                poseContract: "Author one calm side-view two-step walk cycle. Keep identity, "
-                    + "scale, baseline, facing direction, and limb count fixed. The first "
-                    + "and final retained phases must close without a visible jump.",
-                batches: [
-                    StarterActionBatch(
-                        poses: [
-                            "left-foot contact, right leg trailing",
-                            "left-foot recoil and body passing over support",
-                            "left-foot high point with right leg swinging forward",
-                        ],
-                        keepCount: 3),
-                    StarterActionBatch(
-                        poses: [
-                            "right-foot contact, left leg trailing",
-                            "right-foot recoil and body passing over support",
-                            "right-foot high point with left leg swinging forward",
-                        ],
-                        keepCount: 3),
-                    StarterActionBatch(
-                        poses: [
-                            "return toward left-foot contact",
-                            "closed left-foot contact matching frame one",
-                            "closure check: recreate right-foot contact; discard this frame",
-                        ],
-                        keepCount: 2),
-                ],
-                frameDurations: Array(repeating: 0.28, count: 8),
-                segments: [
-                    StarterActionSegment(name: "two-step-cycle", frameRange: 0..<8, loops: true),
-                ],
-                directions: [],
-                runtimeEffect: .none)
         }
     }
 

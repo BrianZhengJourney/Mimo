@@ -11,8 +11,8 @@ private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
 @main
 struct StarterActionTests {
     static func testCatalogMatchesTheUserFacingStarterPack() {
-        expect(StarterActionID.allCases == [.gaze, .sleep, .tennis, .wall, .walk],
-               "the starter pack has gaze, sleep, tennis, wall, and walk")
+        expect(StarterActionID.allCases == [.gaze, .sleep, .tennis, .wall],
+               "the starter pack stays focused on the four accepted actions")
 
         let gaze = StarterActionCatalog.definition(.gaze)
         expect(gaze.manifestActionName == "gaze", "gaze installs under the runtime gaze key")
@@ -41,11 +41,10 @@ struct StarterActionTests {
         expect(wall.segments.map(\.name) == ["wall-stand", "ledge-sit"],
                "wall exposes both user-requested edge poses")
 
-        let walk = StarterActionCatalog.definition(.walk)
-        expect(walk.manifestActionName == "walk", "walk installs under the locomotion key")
-        expect(walk.finalFrameCount == 8, "walk authors one closed two-step gait")
-        expect(walk.cycleDistanceCellPixels == 384,
-               "walk advances by authored distance instead of timer frequency")
+        expect(StarterActionCatalog.all.reduce(0) { $0 + $1.finalFrameCount } == 32,
+               "the four accepted actions author 32 retained frames")
+        expect(StarterActionCatalog.all.reduce(0) { $0 + $1.estimatedProviderCalls } == 11,
+               "the four accepted actions disclose 11 provider calls")
     }
 
     static func testEveryDefinitionIsAValidCoherentFamilyPlan() {

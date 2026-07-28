@@ -955,14 +955,14 @@ function sheetStages(sheet,allowRedo=true,state=petLab){
   // The sheet still carries three slices (three independent draws of the same
   // form — redundancy for the consistency gate), but the product has one look:
   // the runtime always draws the mature form, so that is all we show. The
-  // second panel is where action frames (walk, play) will land once the
+  // second panel is where action frames (gaze, play) will land once the
   // action-sheet pipeline runs.
   const i=2;
   const override=(state.stageImages||[])[i],source=override||sheet;
   const img=override?`<img class="single" src="${esc(source)}" alt="Final form">`:`<img src="${esc(source)}" alt="Final form">`;
   const busy=petLab.status==='busy'&&petLab.operation==='stage'&&petLab.stageBusyIndex===i;
   const currentQuality=(state.stageQualities||[])[i]||(!state.sheetQuality||state.sheetQuality==='mixed'?null:state.sheetQuality);
-  return `<div class="sheet-stages"><div class="sheet-stage ${busy?'stage-busy':''}"><div class="sheet-frame s${i}">${img}</div><span>${tx('最终形态','Final form')}</span>${currentQuality?`<span class="form-quality">${esc(currentQuality.toUpperCase())}</span>`:''}${allowRedo?`<div class="stage-tools"><button type="button" class="stage-redo" ${studioBusy()?'disabled':''} onclick="regenerateStage(${i})" aria-label="${esc(tx(`用 ${quality.name} 重画最终形态`,`Redraw the final form at ${quality.name}`))}">${tx(`重画 · ${quality.name}`,`redraw · ${quality.name}`)}</button><span class="stage-cost">${quality.stageCost}+</span></div>`:''}</div><div class="sheet-stage frames-soon"><div class="frames-soon-box">✦</div><span>${tx('动作帧','Action frames')}</span><small>${tx('走路、玩耍等动作帧生成后会出现在这里','walk & play frames will appear here')}</small></div></div>`;
+  return `<div class="sheet-stages"><div class="sheet-stage ${busy?'stage-busy':''}"><div class="sheet-frame s${i}">${img}</div><span>${tx('最终形态','Final form')}</span>${currentQuality?`<span class="form-quality">${esc(currentQuality.toUpperCase())}</span>`:''}${allowRedo?`<div class="stage-tools"><button type="button" class="stage-redo" ${studioBusy()?'disabled':''} onclick="regenerateStage(${i})" aria-label="${esc(tx(`用 ${quality.name} 重画最终形态`,`Redraw the final form at ${quality.name}`))}">${tx(`重画 · ${quality.name}`,`redraw · ${quality.name}`)}</button><span class="stage-cost">${quality.stageCost}+</span></div>`:''}</div><div class="sheet-stage frames-soon"><div class="frames-soon-box">✦</div><span>${tx('动作帧','Action frames')}</span><small>${tx('注视、玩耍等动作帧生成后会出现在这里','gaze & play frames will appear here')}</small></div></div>`;
 }
 function phaseInfo(){
   const phase=(petLab.phase||'queued').toLowerCase(),local=/local|analyz|extract|process|normal|validate|matte|pack/.test(phase);
@@ -1546,16 +1546,17 @@ function activeActionJobs(){
   return (S.actionJobs||[]).filter(job=>job.characterID===S.character);
 }
 function activeStarterActionJobs(){
-  const order={gaze:0,sleep:1,tennis:2,wall:3,walk:4};
-  return (S.starterActionJobs||[]).filter(job=>job.characterID===S.character)
+  const order={gaze:0,sleep:1,tennis:2,wall:3};
+  return (S.starterActionJobs||[]).filter(job=>
+      job.characterID===S.character
+      && Object.prototype.hasOwnProperty.call(order,job.actionID))
     .sort((a,b)=>(order[a.actionID]??99)-(order[b.actionID]??99));
 }
 const STARTER_ACTION_UI={
   gaze:{glyph:'👀',zh:'跟随光标',en:'Follow cursor'},
   sleep:{glyph:'💤',zh:'睡觉',en:'Sleeping'},
   tennis:{glyph:'🎾',zh:'打网球',en:'Play tennis'},
-  wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'},
-  walk:{glyph:'🚶',zh:'走路',en:'Walking'}
+  wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'}
 };
 function starterActionCost(job){
   const editable=['planned','failed','cancelled'].includes(job.state);
@@ -1628,7 +1629,7 @@ function actionResultReview(job){
 function renderActionReview(){
   const box=document.getElementById('actionReview');if(!box)return;
   if(!String(S.character||'').startsWith('custom:')){
-    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵；五套动作会属于那只伴灵。','Select a DIY familiar above; the five motion sets belong to that familiar.')}</div>`;return;
+    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵；四套动作会属于那只伴灵。','Select a DIY familiar above; the four motion sets belong to that familiar.')}</div>`;return;
   }
   const jobs=activeActionJobs(),starterJobs=activeStarterActionJobs();
   const linked=starterJobs.find(job=>job.resultJobID===selectedActionJobID);
@@ -1638,7 +1639,7 @@ function renderActionReview(){
   }
   const job=jobs.find(item=>item.jobID===selectedActionJobID)||null;
   const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择外部结果文件夹…','Choose external result folder…')}</button>`;
-  const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的五张动作卡…','Preparing the five motion cards…')}</div>`;
+  const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的四张动作卡…','Preparing the four motion cards…')}</div>`;
   const history=jobs.length>1?`<div class="action-review-history">${jobs.map(item=>`<button type="button" class="${item.jobID===selectedActionJobID?'sel':''}" onclick="selectActionResult('${item.jobID}')">${esc(item.action)} · ${item.frameCount}f</button>`).join('')}</div>`:'';
   box.innerHTML=`<div class="starter-actions-intro"><span>✦</span><div><b>${tx('一次生成一套；调用数和进度都可见','Generate one set at a time; calls and progress stay visible')}</b>${tx('Mimo 会自动保持角色一致、保存每个 batch，并在安装前要求你桌面预览。','Mimo locks identity, checkpoints every batch, and requires desktop preview before install.')}</div></div><div class="starter-actions-grid">${cards}</div>${job?`${history}${actionResultReview(job)}`:''}${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}<details class="starter-actions-advanced"><summary>${tx('高级：导入外部动作结果','Advanced: import an external action result')}</summary><div class="note">${tx('只导入本地结果，不会启动 CLI、Modal、Wan 或 Python。','Local import only; this does not launch CLI, Modal, Wan, or Python.')}</div><div class="action-review-actions">${choose}</div></details>`;
 }

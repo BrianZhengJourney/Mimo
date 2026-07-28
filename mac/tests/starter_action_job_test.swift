@@ -56,7 +56,7 @@ struct StarterActionJobTests {
 
         expect(first.map(\.actionID) == StarterActionID.allCases,
                "Studio receives starter jobs in product order")
-        expect(Set(first.map(\.id)).count == 5, "every action has its own durable job")
+        expect(Set(first.map(\.id)).count == 4, "every accepted action has its own durable job")
         expect(first == second, "ensuring a plan is idempotent")
         expect(first.allSatisfy { $0.state == .planned && $0.attempt == 0 },
                "new cards have not spent or started anything")
