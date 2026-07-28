@@ -232,6 +232,89 @@ final class ActionGenerationJobStore: @unchecked Sendable {
         }
     }
 
+    /// Persists an in-app generated result through the exact same canonical
+    /// review boundary as an imported bundle. Studio still cannot authorize
+    /// installation: hard QA only unlocks the user's Preview + Accept step.
+    @discardableResult
+    func storeGeneratedResult(characterID: String,
+                              sourceLabel: String,
+                              metadata: ActionResultBundleMetadata,
+                              stripData: Data,
+                              previewData: Data?,
+                              checkerData: Data,
+                              now: Date = Date(),
+                              id: UUID = UUID()) throws -> ActionGenerationJobRecord {
+        try synchronized {
+            try prepareStorage()
+            let characterID = try Self.canonicalCharacterID(characterID)
+            guard Self.validMetadata(metadata) else {
+                throw ActionGenerationJobError.invalidMetadata
+            }
+            try Self.validateStrip(stripData, metadata: metadata)
+            if let previewData {
+                guard previewData.count <= Self.maximumPreviewBytes else {
+                    throw ActionGenerationJobError.invalidPreview
+                }
+                try Self.validateRaster(
+                    previewData, filename: Self.previewFilename, allowAnimation: false)
+            }
+            guard checkerData.count <= Self.maximumCheckerBytes else {
+                throw ActionGenerationJobError.invalidChecker
+            }
+            let checkerPassed = try Self.decodeCheckerPassed(checkerData)
+            let jobID = id.uuidString.lowercased()
+            let destination = jobDirectory(jobID)
+            guard !fileManager.fileExists(atPath: destination.path),
+                  Self.isDescendant(destination, of: jobsURL) else {
+                throw ActionGenerationJobError.unsafeAsset
+            }
+            let temporary = jobsURL.appendingPathComponent(
+                ".import-\(jobID)-\(UUID().uuidString)", isDirectory: true)
+            try fileManager.createDirectory(
+                at: temporary, withIntermediateDirectories: false,
+                attributes: [.posixPermissions: 0o700])
+            var cleanup = true
+            defer { if cleanup { try? fileManager.removeItem(at: temporary) } }
+
+            try stripData.write(
+                to: temporary.appendingPathComponent(Self.stripFilename), options: [.atomic])
+            try Self.encodeMetadata(metadata).write(
+                to: temporary.appendingPathComponent(Self.metadataFilename), options: [.atomic])
+            if let previewData {
+                try previewData.write(
+                    to: temporary.appendingPathComponent(Self.previewFilename), options: [.atomic])
+            }
+            try checkerData.write(
+                to: temporary.appendingPathComponent(Self.checkerFilename), options: [.atomic])
+
+            let record = ActionGenerationJobRecord(
+                schemaVersion: ActionGenerationJobRecord.schemaVersion,
+                id: jobID,
+                characterID: characterID,
+                sourceLabel: Self.safeLabel(sourceLabel),
+                createdAt: now,
+                metadata: metadata,
+                stripAsset: Self.stripFilename,
+                previewAsset: previewData == nil ? nil : Self.previewFilename,
+                checkerAsset: Self.checkerFilename,
+                checkerPassed: checkerPassed,
+                installedAt: nil)
+            try Self.encodeRecord(record).write(
+                to: temporary.appendingPathComponent(Self.recordFilename), options: [.atomic])
+            for filename in [
+                Self.stripFilename, Self.metadataFilename, Self.checkerFilename,
+                Self.recordFilename,
+            ] + (previewData == nil ? [] : [Self.previewFilename]) {
+                try? fileManager.setAttributes(
+                    [.posixPermissions: 0o600],
+                    ofItemAtPath: temporary.appendingPathComponent(filename).path)
+            }
+            try fileManager.moveItem(at: temporary, to: destination)
+            cleanup = false
+            return record
+        }
+    }
+
     func jobs(characterID: String? = nil) -> [ActionGenerationJobRecord] {
         (try? synchronized {
             try prepareStorage()

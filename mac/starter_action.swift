@@ -45,6 +45,7 @@ struct StarterActionDefinition: Equatable, Sendable {
     let titleZh: String
     let titleEn: String
     let motionClass: String
+    let poseContract: String
     let batches: [StarterActionBatch]
     let frameDurations: [Double]
     let segments: [StarterActionSegment]
@@ -78,6 +79,9 @@ enum StarterActionCatalog {
                 titleZh: "跟随光标",
                 titleEn: "Follow the cursor",
                 motionClass: "directional",
+                poseContract: "Keep feet and lower body fixed. Eyes lead; head and neck "
+                    + "may follow only enough to make up/down/left/right readable. Never "
+                    + "rotate or redesign the whole sprite.",
                 batches: [
                     StarterActionBatch(
                         poses: [
@@ -106,6 +110,9 @@ enum StarterActionCatalog {
                 titleZh: "睡觉",
                 titleEn: "Sleeping",
                 motionClass: "segmented",
+                poseContract: "Frames 1–3 settle from standing into one stable side-lying "
+                    + "sleep construction. Frames 4–6 keep exactly that construction and "
+                    + "only breathe. Frames 7–9 reverse the same path back to standing.",
                 batches: [
                     StarterActionBatch(
                         poses: [
@@ -145,6 +152,9 @@ enum StarterActionCatalog {
                 titleZh: "打网球",
                 titleEn: "Play tennis",
                 motionClass: "gesture",
+                poseContract: "Perform one readable forehand loop. Keep the same racket "
+                    + "shape, strings, scale, and hand attachment throughout. Draw no "
+                    + "tennis ball: Mimo supplies one deterministic runtime trajectory.",
                 batches: [
                     StarterActionBatch(
                         poses: [
@@ -182,6 +192,9 @@ enum StarterActionCatalog {
                 titleZh: "墙边站着 / 坐着",
                 titleEn: "Stand / sit by the edge",
                 motionClass: "ambient",
+                poseContract: "The first family stands against an invisible screen wall; "
+                    + "the second sits on an invisible edge with legs hanging. Keep the "
+                    + "authored wall or ledge contact fixed and draw no scenery.",
                 batches: [
                     StarterActionBatch(
                         poses: [

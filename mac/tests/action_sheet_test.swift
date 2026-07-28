@@ -440,6 +440,46 @@ struct ActionSheetTests {
         }
     }
 
+    static func testCoherentBatchesShareOneFinalRegistration() throws {
+        let layout = ActionSheetLayout(rows: 1, columns: 3)
+        let first = makeSheet(
+            cell: 128, layout: layout,
+            blobs: [
+                bounds(44, 32, 38, 76),
+                bounds(43, 30, 40, 78),
+                bounds(44, 28, 38, 80),
+            ],
+            matte: (255, 0, 255, 255))
+        let second = makeSheet(
+            cell: 128, layout: layout,
+            blobs: [
+                bounds(42, 18, 42, 90),
+                bounds(43, 22, 40, 86),
+                bounds(42, 20, 42, 88),
+            ],
+            matte: (255, 0, 255, 255))
+
+        let result = try ActionSheetProcessor.processCoherentBatches(
+            pngDatas: [png(first), png(second)], keepCounts: [3, 2])
+        expect(result.frames.count == 5 && result.sourceCells.count == 5,
+               "closure-check cells are discarded before final assembly")
+        expect(Set(result.frames.map(\.anchorY)).count == 1,
+               "every retained batch lands on one final baseline")
+
+        let strip = try CharacterSheetProcessor.decodePNG(result.pngData)
+        let renderedHeights = (0..<5).map { index -> Int in
+            let frame = ActionSheetProcessor.crop(
+                strip, x: index * result.cellSize, y: 0,
+                width: result.cellSize, height: result.cellSize)
+            return CharacterSheetProcessor.alphaBounds(of: frame)!.height
+        }
+        expect(renderedHeights[3] > renderedHeights[0],
+               "one shared scale preserves real cross-batch pose height differences")
+        let ratio = Double(renderedHeights[3]) / Double(renderedHeights[0])
+        expect(ratio > 1.10 && ratio < 1.25,
+               "cross-batch scale remains physically proportional, got \(ratio)")
+    }
+
     static func main() throws {
         try testSlicesEveryCell()
         try testStripGeometryMatchesTheRuntimeContract()
@@ -460,6 +500,7 @@ struct ActionSheetTests {
         try testSparseRepairChangesOnlyRequestedFrames()
         testSparseRepairRejectsDifferentScale()
         try testSparseRepairCanSafelyNormalizeUniformlySmallFrames()
+        try testCoherentBatchesShareOneFinalRegistration()
         print("action sheet: all assertions passed")
     }
 }

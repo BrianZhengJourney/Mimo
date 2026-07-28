@@ -179,6 +179,69 @@ struct ActionGenerationJobTests {
         }
     }
 
+    static func testStudioCanPersistAGeneratedResultWithoutFolderImport() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(
+            "mimo-action-job-generated-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let store = ActionGenerationJobStore(root: root)
+        let metadata = ActionResultBundleMetadata(
+            schemaVersion: 1,
+            action: "gaze",
+            stripFilename: "action-gaze.png",
+            frameCount: 5,
+            cellSize: 512,
+            framesPerSecond: 2,
+            cycleDistanceCellPixels: nil,
+            anchorInCell: [256, 502],
+            qaFilename: "action-gaze.qa.json",
+            automaticInstallAllowed: false)
+        let checker = try JSONSerialization.data(withJSONObject: [
+            "schemaVersion": 1,
+            "hardPass": true,
+            "automaticInstallAllowed": false,
+            "manualReviewRequired": true,
+            "identityReviewRequired": true,
+        ], options: [.prettyPrinted, .sortedKeys])
+        let created = try store.storeGeneratedResult(
+            characterID: characterID,
+            sourceLabel: "Mimo Studio · gaze",
+            metadata: metadata,
+            stripData: makePNG(width: 5 * 512),
+            previewData: makePNG(width: 1536, height: 1024),
+            checkerData: checker,
+            now: Date(timeIntervalSince1970: 1_700_000_100),
+            id: UUID(uuidString: "AA9103AE-3AD8-4FEE-B097-E72A980774CA")!)
+        expect(created.checkerPassed == true && created.isEligibleForManualInstall,
+               "generated output passes the same fail-closed manual-install gate")
+        expect(created.sourceLabel == "Mimo Studio · gaze",
+               "Settings identifies the in-app generator without exposing a path")
+        let reopened = try ActionGenerationJobStore(root: root).record(jobID: created.id)
+        expect(reopened == created,
+               "an in-app generated review result survives restart")
+
+        let unsafeMetadata = ActionResultBundleMetadata(
+            schemaVersion: 1,
+            action: "gaze",
+            stripFilename: "action-gaze.png",
+            frameCount: 5,
+            cellSize: 512,
+            framesPerSecond: 2,
+            cycleDistanceCellPixels: nil,
+            anchorInCell: [256, 502],
+            qaFilename: "action-gaze.qa.json",
+            automaticInstallAllowed: true)
+        expectThrows("Studio cannot authorize automatic installation either") {
+            _ = try store.storeGeneratedResult(
+                characterID: characterID,
+                sourceLabel: "unsafe",
+                metadata: unsafeMetadata,
+                stripData: makePNG(width: 5 * 512),
+                previewData: nil,
+                checkerData: checker)
+        }
+    }
+
     static func testLiveBundleWhenRequested() throws {
         guard let path = ProcessInfo.processInfo.environment["MIMO_ACTION_RESULT_BUNDLE"],
               !path.isEmpty else { return }
@@ -206,6 +269,7 @@ struct ActionGenerationJobTests {
     static func main() throws {
         try testImportPersistsAndServesCanonicalAssets()
         try testFailClosedQAAndBundleBoundary()
+        try testStudioCanPersistAGeneratedResultWithoutFolderImport()
         try testLiveBundleWhenRequested()
         print("action generation job store tests passed")
     }

@@ -1071,6 +1071,70 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         }
     }
 
+    /// One provider call in the approved starter-action dependency graph.
+    /// The App-level orchestrator calls this sequentially and persists each
+    /// completed batch before starting the next one.
+    func generateStarterActionBatch(requestID: String,
+                                    actionID: StarterActionID,
+                                    batchIndex: Int,
+                                    canonicalMasterData: Data,
+                                    previousBatchData: Data? = nil,
+                                    styleBoardData: Data?,
+                                    personalityVisual: String,
+                                    quality: PetFinalGenerationQuality,
+                                    progress: @escaping StagedProgress,
+                                    completion: @escaping StagedCompletion) {
+        begin(requestID)
+        credentialQueue.async { [weak self] in
+            guard let self else { return }
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled))
+                return
+            }
+            guard let key = self.openAIKeyReader() else {
+                self.finishStaged(
+                    completion, result: .failure(PetGenerationError.missingKey("OpenAI")))
+                return
+            }
+            guard let layoutGuide = Self.starterActionLayoutGuideData(),
+                  Self.validReference(canonicalMasterData),
+                  Self.validReference(styleBoardData),
+                  (batchIndex == 0
+                    ? previousBatchData == nil
+                    : previousBatchData.map(Self.validReference) == true) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage))
+                return
+            }
+            let keyedCanonical = Self.starterActionReferenceData(canonicalMasterData)
+                ?? canonicalMasterData
+            self.emitStaged(
+                progress, phase: "connecting", partialImage: nil, partialIndex: nil)
+            let request = Self.starterActionBatchRequest(
+                actionID: actionID,
+                batchIndex: batchIndex,
+                canonicalMasterData: keyedCanonical,
+                previousBatchData: previousBatchData,
+                styleBoardData: styleBoardData,
+                layoutGuideData: layoutGuide,
+                personalityVisual: personalityVisual,
+                quality: quality,
+                apiKey: key,
+                delivery: .streaming(.one))
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled))
+                return
+            }
+            guard let request else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage))
+                return
+            }
+            self.performImageStream(
+                request, provider: "OpenAI", requestID: requestID,
+                artifact: .actionSheet(.radiant), progress: progress,
+                completion: completion)
+        }
+    }
+
     /// Second walk pass: the accepted keyframe sheet is now an appearance and
     /// pose reference. The model draws only the temporal midpoint after each
     /// keyframe; the caller interleaves the two strips into a 32-frame cycle.
@@ -1658,6 +1722,194 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             timeout: quality == .high ? 600 : 420,
             boundary: boundary
         )
+    }
+
+    static func starterActionBatchRequest(
+        actionID: StarterActionID,
+        batchIndex: Int,
+        canonicalMasterData: Data,
+        previousBatchData: Data?,
+        styleBoardData: Data?,
+        layoutGuideData: Data,
+        personalityVisual: String,
+        quality: PetFinalGenerationQuality = .medium,
+        apiKey: String,
+        delivery: PetGenerationDelivery = .blocking,
+        boundary: String = "mimo-starter-action-\(UUID().uuidString)"
+    ) -> URLRequest? {
+        let definition = StarterActionCatalog.definition(actionID)
+        guard definition.batches.indices.contains(batchIndex),
+              (batchIndex == 0 ? previousBatchData == nil : previousBatchData != nil) else {
+            return nil
+        }
+        var references = [
+            PetMultipartImage(filename: "canonical-master.png",
+                              data: canonicalMasterData),
+        ]
+        if let styleBoardData {
+            references.append(PetMultipartImage(filename: "mimo-style-board.png",
+                                                data: styleBoardData))
+        }
+        if let previousBatchData {
+            references.append(PetMultipartImage(filename: "previous-approved-batch.png",
+                                                data: previousBatchData))
+        }
+        references.append(PetMultipartImage(filename: "layout-guide.png",
+                                            data: layoutGuideData))
+        return imageEditRequest(
+            references: references,
+            prompt: starterActionBatchPrompt(
+                actionID: actionID,
+                batchIndex: batchIndex,
+                personalityVisual: personalityVisual,
+                hasStyleBoard: styleBoardData != nil,
+                hasPreviousBatch: previousBatchData != nil),
+            size: .landscape,
+            quality: quality.providerQuality,
+            apiKey: apiKey,
+            delivery: delivery,
+            timeout: quality == .high ? 600 : 420,
+            boundary: boundary)
+    }
+
+    static func starterActionBatchPrompt(
+        actionID: StarterActionID,
+        batchIndex: Int,
+        personalityVisual: String,
+        hasStyleBoard: Bool,
+        hasPreviousBatch: Bool
+    ) -> String {
+        let definition = StarterActionCatalog.definition(actionID)
+        guard definition.batches.indices.contains(batchIndex) else { return "" }
+        let batch = definition.batches[batchIndex]
+        var referenceLines = [
+            "Image 1 is the CANONICAL MASTER and ABSOLUTE IDENTITY LOCK.",
+        ]
+        var nextImage = 2
+        if hasStyleBoard {
+            referenceLines.append(
+                "Image \(nextImage) is Mimo's STYLE BOARD. Use rendering language only.")
+            nextImage += 1
+        }
+        if hasPreviousBatch {
+            referenceLines.append(
+                "Image \(nextImage) is the PREVIOUS APPROVED THREE-FRAME BATCH. "
+                + "Use it only for local motion continuity; Image 1 remains authoritative.")
+            nextImage += 1
+        }
+        referenceLines.append(
+            "Image \(nextImage) is the LAYOUT GUIDE. Use slots, safe margins, and baseline only.")
+        let poses = batch.poses.enumerated().map {
+            "- FRAME \(String(format: "%02d", $0.offset + 1)): \($0.element)"
+        }.joined(separator: "\n")
+
+        let motionRule: String
+        switch definition.motionClass {
+        case "ambient":
+            motionRule = "Keep motion deliberately small and keep the authored wall, ledge, feet, or body root fixed."
+        case "directional":
+            motionRule = "Directions are viewer/screen coordinates. Eyes lead; do not rotate the whole sprite."
+        case "segmented":
+            motionRule = "Match the neighboring accepted segment physically; do not jump ahead or redesign the settled sleep pose."
+        case "gesture":
+            motionRule = "Preserve limb order, racket geometry, and the readable preparation/contact/recovery arc."
+        default:
+            motionRule = "Change only the named physical motion phase."
+        }
+
+        return """
+        Create batch \(batchIndex + 1) of one high-fidelity Mimo starter action: `\(actionID.rawValue)`.
+
+        REFERENCES
+        \(referenceLines.joined(separator: "\n"))
+        Reference priority is canonical master > accepted action family > style board > layout guide.
+
+        IDENTITY AND FIDELITY LOCK
+        Reproduce the exact same individual in every frame. Preserve face geometry, hair silhouette, body
+        proportions, clothing cut, asymmetric markings and accessories, palette, anti-aliasing, outline weight,
+        lighting, shading, materials, and the same rendering detail density as Image 1.
+        Temperament: \(personalityVisual)
+        Only pose and physically necessary secondary motion may change. Never simplify, repixel, flatten, age,
+        genericize, or redesign the character.
+
+        COHERENT FAMILY
+        Draw exactly three consecutive frames together as one coherent generation. Never treat them as unrelated
+        illustrations. Use one camera, scale, baseline, registration, light, renderer, hair mass, face, and body
+        proportions for all three.
+
+        OUTPUT
+        Create exactly three active frames as three vertical panels on one 1536×1024 canvas. Each source panel is
+        512×1024 and will later be registered into one 512×512 runtime cell. Read left to right.
+        Use one perfectly flat opaque #FF00FF chroma-key background. It must have no shadow, gradient, texture,
+        reflection, floor, guide marks, or lighting variation. Never use #FF00FF inside the character.
+        Keep every complete pose inside its panel with at least 48px clear side/top padding and 96px clear
+        background below the baseline. Do not copy guide lines, boxes, labels, or marks.
+
+        POSES
+        \(poses)
+
+        POSE CONSTRUCTION
+        \(definition.poseContract)
+
+        MOTION
+        \(motionRule)
+        Match the preceding approved batch when one exists. Closure-check frames are QA only and will be discarded.
+        No scenery, text, grid, shadow, glow, blur, afterimage, detached effect, cropped limb, or chroma residue.
+        """
+    }
+
+    /// The image model otherwise learns transparent RGB as pale material.
+    /// Flattening only the generation reference onto the same explicit chroma
+    /// key makes the visible subject contour unambiguous; stored canonical art
+    /// remains untouched.
+    static func starterActionReferenceData(_ pngData: Data) -> Data? {
+        guard var image = try? CharacterSheetProcessor.decodePNG(pngData),
+              image.width > 0, image.height > 0 else { return nil }
+        for pixel in stride(from: 0, to: image.pixels.count, by: 4) {
+            let alpha = Int(image.pixels[pixel + 3])
+            let inverse = 255 - alpha
+            image.pixels[pixel] = UInt8(
+                (Int(image.pixels[pixel]) * alpha + 255 * inverse) / 255)
+            image.pixels[pixel + 1] = UInt8(
+                (Int(image.pixels[pixel + 1]) * alpha) / 255)
+            image.pixels[pixel + 2] = UInt8(
+                (Int(image.pixels[pixel + 2]) * alpha + 255 * inverse) / 255)
+            image.pixels[pixel + 3] = 255
+        }
+        return try? CharacterSheetProcessor.encodePNG(image)
+    }
+
+    static func starterActionLayoutGuideData() -> Data? {
+        let width = 1536, height = 1024, cellWidth = 512
+        var image = CharacterSheetRGBAImage(
+            width: width, height: height, fill: (241, 237, 248, 255))
+        func paint(_ x: Int, _ y: Int, _ color: (UInt8, UInt8, UInt8)) {
+            guard (0..<width).contains(x), (0..<height).contains(y) else { return }
+            let offset = (y * width + x) * 4
+            image.pixels[offset] = color.0
+            image.pixels[offset + 1] = color.1
+            image.pixels[offset + 2] = color.2
+            image.pixels[offset + 3] = 255
+        }
+        for column in 0..<3 {
+            let left = column * cellWidth
+            for thickness in 0..<4 {
+                for x in (left + 2)..<(left + cellWidth - 2) {
+                    paint(x, 2 + thickness, (57, 47, 90))
+                    paint(x, height - 3 - thickness, (57, 47, 90))
+                }
+                for y in 2..<(height - 2) {
+                    paint(left + 2 + thickness, y, (57, 47, 90))
+                    paint(left + cellWidth - 3 - thickness, y, (57, 47, 90))
+                }
+            }
+            for x in (left + 48)..<(left + cellWidth - 48) {
+                for thickness in 0..<3 {
+                    paint(x, height - 96 + thickness, (224, 90, 71))
+                }
+            }
+        }
+        return try? CharacterSheetProcessor.encodePNG(image)
     }
 
     static func actionSheetPrompt(stage: PetEvolutionStage,

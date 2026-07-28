@@ -1,4 +1,4 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
+// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
 import Cocoa
 
 func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -76,6 +76,74 @@ struct PetGenerationTests {
                       in: body, "references stay identity → motion → style")
         expect(flat.contains("exactly SIXTEEN panels in a strict 4x4 grid, each panel 512x512"),
                "the 4x4 grid is stated explicitly and divides 2048 evenly")
+    }
+
+    static func testStarterActionBatchUsesTheChainedThreeFrameContract() {
+        let first = requireRequest(PetGenerationCoordinator.starterActionBatchRequest(
+            actionID: .tennis,
+            batchIndex: 0,
+            canonicalMasterData: Data("CANONICAL".utf8),
+            previousBatchData: nil,
+            styleBoardData: Data("STYLE".utf8),
+            layoutGuideData: Data("LAYOUT".utf8),
+            personalityVisual: "Bright and playful",
+            quality: .medium,
+            apiKey: "KEY",
+            boundary: "STARTER-ONE"), "first tennis batch")
+        let firstBody = String(data: first.httpBody ?? Data(), encoding: .utf8) ?? ""
+        let firstFlat = flattened(firstBody)
+        expect(firstBody.contains("name=\"size\"\r\n\r\n1536x1024\r\n"),
+               "one coherent family uses three 512px source columns")
+        expectOrdered(
+            ["canonical-master.png", "mimo-style-board.png", "layout-guide.png"],
+            in: firstBody, "first batch keeps canonical → style → layout priority")
+        expect(!firstBody.contains("previous-approved-batch.png"),
+               "the first family has no invented predecessor")
+        expect(firstFlat.contains("exactly three active frames as three vertical panels"),
+               "the provider sees one explicit three-frame output contract")
+        expect(firstFlat.contains("athletic ready stance holding the racket")
+               && firstFlat.contains("Draw no tennis ball"),
+               "tennis starts at the authored pose and keeps the runtime-ball contract")
+
+        let chained = requireRequest(PetGenerationCoordinator.starterActionBatchRequest(
+            actionID: .tennis,
+            batchIndex: 1,
+            canonicalMasterData: Data("CANONICAL".utf8),
+            previousBatchData: Data("PREVIOUS".utf8),
+            styleBoardData: Data("STYLE".utf8),
+            layoutGuideData: Data("LAYOUT".utf8),
+            personalityVisual: "Bright and playful",
+            quality: .medium,
+            apiKey: "KEY",
+            boundary: "STARTER-TWO"), "chained tennis batch")
+        let chainedBody = String(data: chained.httpBody ?? Data(), encoding: .utf8) ?? ""
+        expectOrdered(
+            ["canonical-master.png", "mimo-style-board.png",
+             "previous-approved-batch.png", "layout-guide.png"],
+            in: chainedBody, "later batches keep canonical authoritative before continuity")
+        expect(chainedBody.contains("PREVIOUS"),
+               "the immediately preceding approved family is attached")
+    }
+
+    static func testEveryStarterBatchBuildsFromTheProductCatalog() {
+        for definition in StarterActionCatalog.all {
+            for batchIndex in definition.batches.indices {
+                let previous = batchIndex == 0 ? nil : Data("PREVIOUS".utf8)
+                let request = PetGenerationCoordinator.starterActionBatchRequest(
+                    actionID: definition.id,
+                    batchIndex: batchIndex,
+                    canonicalMasterData: Data("CANONICAL".utf8),
+                    previousBatchData: previous,
+                    styleBoardData: Data("STYLE".utf8),
+                    layoutGuideData: Data("LAYOUT".utf8),
+                    personalityVisual: "Quiet and curious",
+                    quality: .medium,
+                    apiKey: "KEY",
+                    boundary: "STARTER-\(definition.id.rawValue)-\(batchIndex)")
+                expect(request != nil,
+                       "\(definition.id.rawValue) batch \(batchIndex + 1) builds")
+            }
+        }
     }
 
     /// Poses are described physically rather than labelled. A model follows
@@ -182,6 +250,8 @@ struct PetGenerationTests {
 
     static func main() {
         testWalkSheetRequestIsOneCallForSixteenKeyPoses()
+        testStarterActionBatchUsesTheChainedThreeFrameContract()
+        testEveryStarterBatchBuildsFromTheProductCatalog()
         testActionPosesAreDescribedPhysically()
         testActionSheetPromptDemandsCrossPanelConsistency()
         testWalkInbetweenRequestLocksKeyframesAndMidpointMap()

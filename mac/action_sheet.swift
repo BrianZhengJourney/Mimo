@@ -105,6 +105,64 @@ enum ActionSheetProcessor {
     /// frame color is near-black; the matte and the character are not.
     static let frameBandCoverage = 0.6
 
+    /// Concatenates retained cells from chained three-frame generations before
+    /// any matte cleanup or normalization, then runs one ordinary processing
+    /// pass over the complete family. This is what makes scale and baseline
+    /// genuinely shared across batch boundaries.
+    static func processCoherentBatches(pngDatas: [Data], keepCounts: [Int],
+                                       batchColumns: Int = 3,
+                                       outputCellSize: Int = outputCellSize) throws
+        -> ActionSheetResult {
+        guard !pngDatas.isEmpty, pngDatas.count == keepCounts.count,
+              batchColumns > 0,
+              keepCounts.allSatisfy({ (1...batchColumns).contains($0) }) else {
+            throw ActionSheetError.incompatibleStrips(
+                reason: "coherent batch count and keep plan do not match")
+        }
+        let batches = try pngDatas.map { data -> CharacterSheetRGBAImage in
+            guard data.starts(with: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) else {
+                throw ActionSheetError.notPNG
+            }
+            return try CharacterSheetProcessor.decodePNG(data)
+        }
+        guard let first = batches.first, first.width > 0, first.height > 0,
+              first.width % batchColumns == 0 else {
+            throw ActionSheetError.incompatibleStrips(reason: "invalid coherent batch geometry")
+        }
+        let sourceCellWidth = first.width / batchColumns
+        guard batches.allSatisfy({
+            $0.width == first.width && $0.height == first.height
+                && $0.width / batchColumns == sourceCellWidth
+        }) else {
+            throw ActionSheetError.incompatibleStrips(
+                reason: "coherent batches must use one source geometry")
+        }
+
+        let retainedCount = keepCounts.reduce(0, +)
+        var combined = CharacterSheetRGBAImage(
+            width: sourceCellWidth * retainedCount, height: first.height)
+        var destinationCell = 0
+        for (batchIndex, batch) in batches.enumerated() {
+            for sourceCell in 0..<keepCounts[batchIndex] {
+                for y in 0..<batch.height {
+                    let sourceStart = (y * batch.width + sourceCell * sourceCellWidth) * 4
+                    let destinationStart = (y * combined.width
+                                            + destinationCell * sourceCellWidth) * 4
+                    combined.pixels.replaceSubrange(
+                        destinationStart..<(destinationStart + sourceCellWidth * 4),
+                        with: batch.pixels[sourceStart..<(sourceStart + sourceCellWidth * 4)])
+                }
+                destinationCell += 1
+            }
+        }
+
+        let combinedPNG = try CharacterSheetProcessor.encodePNG(combined)
+        return try process(
+            pngData: combinedPNG,
+            layout: ActionSheetLayout(rows: 1, columns: retainedCount),
+            outputCellSize: outputCellSize)
+    }
+
     /// Interleaves accepted keyframes and generated temporal midpoints without
     /// resampling either strip: K1,M1,K2,M2… This keeps the first-pass art
     /// pixel-for-pixel and avoids the ghosting introduced by local blending.
