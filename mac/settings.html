@@ -611,6 +611,10 @@ function applyLanguage(){
     input.value = tx('我的小伴灵', 'My little familiar');
     petLab.name = input.value;
   }
+  if (!petLab.styleTuningCustomized &&
+      Object.values(STYLE_TUNING_MIMO_V2).includes(petLab.styleTuningNote)) {
+    petLab.styleTuningNote = defaultStyleTuning();
+  }
   syncLanguageChoices();
 }
 function changeLanguage(lang){
@@ -693,14 +697,18 @@ const STYLE_TUNING_SUGGESTIONS=[
   {id:'longer',zh:'拉长比例',en:'longer proportions',phraseZh:'身体和四肢比例更修长',phraseEn:'longer body and limb proportions'},
   {id:'smaller-head',zh:'头小一点',en:'smaller head',phraseZh:'头部稍小，身体比例更自然',phraseEn:'a slightly smaller head with more natural body proportions'}
 ];
-// Everyone starts from "stay close to the source"; the female preset swaps in
-// the full tuned set (elongate a touch, smaller head, mature glam, sassy).
-const STYLE_TUNING_BASE='整体更贴近原图';
-const STYLE_TUNING_FEMALE='整体更贴近原图；身体和四肢比例修长一点点；头部稍小一点点；成熟自信、有御姐气场；性格拽拽的';
+// The default rendering language comes from the approved white-outfit Mimo v2
+// character. Keep it identity-neutral: users inherit the finish, not her hair,
+// skin tone, clothes, or body.
+const STYLE_TUNING_MIMO_V2={
+  zh:'细腻高分辨率像素画；清晰全身轮廓、精细深色描边与适度抗锯齿，暖调克制明暗，小尺寸仍能看清脸和衣物褶皱；保持主参考的脸、肤色、发型、服装与自然修长比例，不要低清粗块、塑料3D或过度Q版。',
+  en:'Refined pixel art, crisp silhouette, dark outline, warm shading. Keep face, skin, hair, outfit and natural proportions; no chunky pixels, 3D or extreme chibi.'
+};
+const defaultStyleTuning=()=>LANG==='zh'?STYLE_TUNING_MIMO_V2.zh:STYLE_TUNING_MIMO_V2.en;
 const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],primaryReferenceID:null,requestID:null,draftID:null,
   candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],candidateAutoStartAt:null,candidateAutoStartToken:null,
   temperamentID:'quiet-curious',quality:'medium',
-  styleTuningNote:STYLE_TUNING_BASE,styleTuningCustomized:false,
+  styleTuningNote:STYLE_TUNING_MIMO_V2.zh,styleTuningCustomized:false,
   sheetQuality:null,stageQualities:[null,null,null],preservedResult:false,
   status:'idle',operation:null,phase:'',phaseMessage:'',error:'',errorKind:'',errorCode:'',outputRetained:false,
   sheet:null,stageImages:[null,null,null],stageBusyIndex:null,providerSeconds:null,localSeconds:null,
@@ -865,16 +873,13 @@ function renderStyleTuning(){
   counter.textContent=`${length} / ${MAX_STYLE_TUNING}`;counter.classList.toggle('near',length>=MAX_STYLE_TUNING-20);
   hint.textContent=tx('可选 · 调整下一次生成','optional · tune the next generation');
   chips.dataset.label=tx('试试','try');
-  const femaleApplied=String(petLab.styleTuningNote||'')===STYLE_TUNING_FEMALE;
-  chips.innerHTML=`<button type="button" class="style-tuning-chip ${femaleApplied?'applied':''}" ${disabled?'disabled':''} onclick="applyFemaleStylePreset()">${femaleApplied?'✓':'♀'} ${esc(tx('女性角色默认','female preset'))}</button>`
+  const mimoV2Applied=String(petLab.styleTuningNote||'')===defaultStyleTuning();
+  chips.innerHTML=`<button type="button" class="style-tuning-chip ${mimoV2Applied?'applied':''}" ${disabled?'disabled':''} onclick="applyMimoV2StylePreset()">${mimoV2Applied?'✓':'✦'} ${esc(tx('白衣伴灵画风（默认）','white-outfit familiar style (default)'))}</button>`
     +STYLE_TUNING_SUGGESTIONS.map(suggestion=>{const applied=styleSuggestionApplied(suggestion);return `<button type="button" class="style-tuning-chip ${applied?'applied':''}" ${disabled?'disabled':''} onclick="appendStyleTuningSuggestion('${suggestion.id}')">${applied?'✓':'＋'} ${esc(LANG==='zh'?suggestion.zh:suggestion.en)}</button>`}).join('');
 }
-// One tap fills the whole female default (贴近原图 + 拉长比例一点点 + 头小一点点
-// + 御姐感 + 拽拽的); tapping again returns to the plain source-faithful base.
-function applyFemaleStylePreset(){
+function applyMimoV2StylePreset(){
   if(studioBusy()||referencesImporting())return;
-  const female=String(petLab.styleTuningNote||'')===STYLE_TUNING_FEMALE;
-  updateStyleTuning(female?STYLE_TUNING_BASE:STYLE_TUNING_FEMALE);
+  updateStyleTuning(defaultStyleTuning());
 }
 function updateStyleTuning(value,customized=true){
   if(studioBusy()||referencesImporting())return;

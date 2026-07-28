@@ -177,19 +177,20 @@ enum PetVisualTuningNote {
         return collapsed
     }
 
-    /// Applied automatically when the references contain a person and the user
-    /// left the note untouched. Tuned for the common case (a female character
-    /// from screenshots): stay close to the source, stretch the proportions a
-    /// touch, shrink the head a touch, mature and a little sassy. The note is
-    /// visible and editable in the studio before anything is generated.
+    /// Compatibility fallback for clients that submit an empty untouched note
+    /// after a person is detected. This is the identity-neutral rendering
+    /// language extracted from the approved white-outfit Mimo v2 character:
+    /// users inherit its finish, not its hair, skin tone, clothes, or body.
+    /// Current Settings clients show and submit this note from the beginning.
     static func detectedPersonDefault(language: String) -> String {
         // Both variants must clear sanitize's 160-scalar ceiling or the
         // default silently disappears.
         let note = language == "en"
-            ? "Match source age, face, build, hair, outfit; longer proportions, smaller head; "
-              + "mature, confident, a little sassy; no childlike roundness."
-            : "贴近主参考的年龄感、脸型、身形、发型和穿搭；身体和四肢比例修长一点点；头部稍小一点点；"
-              + "成熟自信、有御姐气场；性格拽拽的；不要幼态大头、圆胖化或乱加配饰"
+            ? "Refined pixel art, crisp silhouette, dark outline, warm shading. Keep face, skin, hair, "
+              + "outfit and natural proportions; no chunky pixels, 3D or extreme chibi."
+            : "细腻高分辨率像素画；清晰全身轮廓、精细深色描边与适度抗锯齿，暖调克制明暗，"
+              + "小尺寸仍能看清脸和衣物褶皱；保持主参考的脸、肤色、发型、服装与自然修长比例，"
+              + "不要低清粗块、塑料3D或过度Q版。"
         return sanitize(note)
     }
 }

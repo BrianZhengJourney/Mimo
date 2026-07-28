@@ -35,6 +35,12 @@ struct StarterActionUITests {
                "local external import remains available as an advanced seam")
         expect(html.contains("calls · ${starterActionCost(job)}"),
                "every start or retry discloses remaining calls and estimated cost")
+        expect(html.contains("STYLE_TUNING_MIMO_V2") &&
+               html.contains("细腻高分辨率像素画") &&
+               html.contains("白衣伴灵画风（默认）"),
+               "Studio exposes the approved white-outfit Mimo v2 finish as its default tuning note")
+        expect(!html.contains("女性角色默认") && !html.contains("applyFemaleStylePreset"),
+               "the retired female-personality preset cannot override the Mimo v2 style default")
         print("starter action UI contract tests passed")
     }
 }
