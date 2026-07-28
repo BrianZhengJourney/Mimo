@@ -29,6 +29,7 @@ final class Companion {
     private(set) var sprite: CompanionSprite
     var displayHeight: CGFloat
     let layer: CALayer
+    let tennisBallLayer: CAShapeLayer
 
     var anchor: CGPoint
     var state: CompanionMotionState = .airborne
@@ -84,10 +85,21 @@ final class Companion {
         self.displayHeight = displayHeight
         self.anchor = anchor
         layer = CALayer()
+        tennisBallLayer = CAShapeLayer()
         layer.actions = ["position": NSNull(), "bounds": NSNull(),
                          "contents": NSNull(), "transform": NSNull()]
         layer.contents = sprite.frame(0).image
         layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        tennisBallLayer.actions = [
+            "position": NSNull(), "bounds": NSNull(), "path": NSNull(),
+            "hidden": NSNull(), "transform": NSNull(),
+        ]
+        tennisBallLayer.fillColor = NSColor(
+            calibratedRed: 0.82, green: 0.95, blue: 0.16, alpha: 1).cgColor
+        tennisBallLayer.strokeColor = NSColor(
+            calibratedWhite: 0.18, alpha: 0.88).cgColor
+        tennisBallLayer.isHidden = true
+        layer.addSublayer(tennisBallLayer)
     }
 
     /// Drawn walk cycle, when one exists. Frames are picked by distance
@@ -130,13 +142,12 @@ final class Companion {
         return sprite
     }
 
-    var currentFrame: CompanionFrame {
+    var presentedFrameIndex: Int {
         if let previewActionSprite {
-            let index = previewPlaybackSpec.frameIndex(
+            return previewPlaybackSpec.frameIndex(
                 at: previewElapsed, frameCount: previewActionSprite.frameCount)
-            return previewActionSprite.frame(index)
         }
-        if let activeActionSprite { return activeActionSprite.frame(frameIndex) }
+        if activeActionSprite != nil { return frameIndex }
         if walkFramesActive, let walkSprite {
             // The strip is one complete left-plus-right gait period, so one
             // cycle covers both steps and stays anatomically closed.
@@ -144,13 +155,18 @@ final class Companion {
                 displayHeight: displayHeight, cellHeight: walkSprite.cellSize.height)
                 ?? CompanionRuntime.strideLength
             let phase = (travelled / cycle).truncatingRemainder(dividingBy: 1)
-            let index = Int(phase * CGFloat(walkSprite.frameCount)) % walkSprite.frameCount
-            return walkSprite.frame(index)
+            return Int(phase * CGFloat(walkSprite.frameCount)) % walkSprite.frameCount
         }
-        if gazeFramesActive, let gazeSprite, let index = gazeFrameIndex {
-            return gazeSprite.frame(index)
-        }
-        return sprite.frame(frameIndex)
+        if gazeFramesActive, gazeSprite != nil, let index = gazeFrameIndex { return index }
+        return frameIndex
+    }
+
+    var currentFrame: CompanionFrame {
+        activeSprite.frame(presentedFrameIndex)
+    }
+
+    var tennisBallActive: Bool {
+        previewActionName == "tennis" || activeActionStripName == "tennis"
     }
 
     /// Keeps the anchor fixed across an art swap. Cells carry different
@@ -1049,7 +1065,31 @@ final class CompanionRuntime {
         companion.layer.bounds = CGRect(origin: .zero, size: rect.size)
         companion.layer.position = snapped
         companion.layer.transform = presentationTransform(for: companion)
+        updateTennisBall(for: companion, in: rect.size, scale: scale)
         CATransaction.commit()
+    }
+
+    private func updateTennisBall(for companion: Companion, in size: CGSize,
+                                  scale: CGFloat) {
+        guard companion.tennisBallActive,
+              let sample = StarterTennisBallTrajectory.sample(
+                frameIndex: companion.presentedFrameIndex,
+                frameCount: companion.activeSprite.frameCount),
+              sample.visible else {
+            companion.tennisBallLayer.isHidden = true
+            return
+        }
+        let diameter = max(5, min(12, size.height * 0.055))
+        companion.tennisBallLayer.isHidden = false
+        companion.tennisBallLayer.contentsScale = scale
+        companion.tennisBallLayer.bounds = CGRect(
+            x: 0, y: 0, width: diameter, height: diameter)
+        companion.tennisBallLayer.path = CGPath(
+            ellipseIn: companion.tennisBallLayer.bounds, transform: nil)
+        companion.tennisBallLayer.lineWidth = max(1, diameter * 0.12)
+        companion.tennisBallLayer.position = CGPoint(
+            x: CGFloat(sample.x) * size.width,
+            y: CGFloat(sample.y) * size.height)
     }
 
     /// Sway while held, squash on landing. Both are procedural, so a companion

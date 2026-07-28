@@ -25,6 +25,42 @@ enum StarterActionRuntimeEffect: String, Codable, Equatable, Sendable {
     case tennisBall
 }
 
+struct StarterTennisBallSample: Equatable, Sendable {
+    /// Position inside the companion layer, normalized from its bottom-left.
+    /// Values may leave 0...1 so the ball can enter and exit beyond the sprite.
+    let x: Double
+    let y: Double
+    let visible: Bool
+}
+
+/// The generated tennis strip deliberately contains no ball. Keeping its one
+/// trajectory here makes the prop stable across frames, previews, pets, and
+/// app launches instead of asking an image model to redraw a moving circle.
+enum StarterTennisBallTrajectory {
+    private static let nineFrameSamples: [StarterTennisBallSample] = [
+        StarterTennisBallSample(x: 1.18, y: 0.80, visible: false),
+        StarterTennisBallSample(x: 1.14, y: 0.76, visible: true),
+        StarterTennisBallSample(x: 0.98, y: 0.65, visible: true),
+        StarterTennisBallSample(x: 0.80, y: 0.56, visible: true),
+        StarterTennisBallSample(x: 0.60, y: 0.50, visible: true),
+        StarterTennisBallSample(x: 0.38, y: 0.57, visible: true),
+        StarterTennisBallSample(x: 0.12, y: 0.67, visible: true),
+        StarterTennisBallSample(x: -0.16, y: 0.82, visible: true),
+        StarterTennisBallSample(x: -0.24, y: 0.88, visible: false),
+    ]
+
+    static func sample(frameIndex: Int, frameCount: Int)
+        -> StarterTennisBallSample? {
+        guard frameCount > 0 else { return nil }
+        let wrapped = ((frameIndex % frameCount) + frameCount) % frameCount
+        let canonical = min(
+            nineFrameSamples.count - 1,
+            Int(Double(wrapped) / Double(frameCount)
+                * Double(nineFrameSamples.count)))
+        return nineFrameSamples[canonical]
+    }
+}
+
 struct StarterActionBatch: Equatable, Sendable {
     /// Every provider call draws exactly one coherent three-frame family.
     let poses: [String]

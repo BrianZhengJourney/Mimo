@@ -90,6 +90,26 @@ struct StarterActionTests {
                "historical three-frame gaze can still follow horizontally")
     }
 
+    static func testTennisBallOwnsOneDeterministicNineFrameTrajectory() {
+        let samples = (0..<9).map {
+            StarterTennisBallTrajectory.sample(frameIndex: $0, frameCount: 9)!
+        }
+        expect(samples.first?.visible == false && samples.last?.visible == false,
+               "the runtime ball enters after preparation and leaves before the loop seam")
+        let visible = samples.filter(\.visible)
+        expect(visible.count == 7,
+               "exactly one runtime ball is visible across the seven swing frames")
+        expect(zip(visible, visible.dropFirst()).allSatisfy { $0.x > $1.x },
+               "the ball follows one authored horizontal direction through contact")
+        expect(samples[4].y == visible.map(\.y).min(),
+               "the contact frame is the low point of the authored arc")
+        expect(StarterTennisBallTrajectory.sample(frameIndex: 9, frameCount: 9)
+               == samples[0],
+               "the deterministic ball closes exactly at the nine-frame seam")
+        expect(StarterTennisBallTrajectory.sample(frameIndex: 0, frameCount: 0) == nil,
+               "an invalid strip cannot display a stray ball")
+    }
+
     static func testDefaultBehaviorPackUsesOnlyStarterContractFrames() throws {
         let data = try Data(contentsOf: URL(
             fileURLWithPath: "mac/assets/behavior/default.json"))
@@ -126,6 +146,7 @@ struct StarterActionTests {
         testCatalogMatchesTheUserFacingStarterPack()
         testEveryDefinitionIsAValidCoherentFamilyPlan()
         testGazeMappingFollowsTheCursorAcrossSupportedContracts()
+        testTennisBallOwnsOneDeterministicNineFrameTrajectory()
         try testDefaultBehaviorPackUsesOnlyStarterContractFrames()
         print("starter action catalog tests passed")
     }
