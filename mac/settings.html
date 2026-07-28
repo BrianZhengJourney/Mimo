@@ -359,6 +359,28 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 
 .forget{ display:flex; gap:8px; margin-top:8px; }
 .action-review{ display:grid; gap:9px; }
+.starter-actions-intro{ display:flex; align-items:flex-start; gap:10px; color:var(--dim);
+  font-size:11px; line-height:1.45; }
+.starter-actions-intro b{ color:var(--ink); display:block; font-size:12px; margin-bottom:2px; }
+.starter-actions-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.starter-action-card{ display:grid; gap:7px; min-width:0; padding:10px; border-radius:11px;
+  background:#15112d; border:1px solid var(--line); }
+.starter-action-card.running{ border-color:#7667b7; box-shadow:inset 0 0 0 1px #7667b733; }
+.starter-action-card.ready{ border-color:#376f5b; }
+.starter-action-card.failed{ border-color:#8b6737; }
+.starter-action-title{ display:flex; align-items:flex-start; gap:7px; }
+.starter-action-title .glyph{ font-size:18px; line-height:1; }
+.starter-action-title b{ display:block; font-size:11.5px; }
+.starter-action-title small{ display:block; color:var(--dim); font-size:9px; margin-top:2px; }
+.starter-action-state{ min-height:30px; color:var(--dim); font-size:10px; line-height:1.4; }
+.starter-action-state.error{ color:#efc98f; }
+.starter-action-meter{ height:4px; overflow:hidden; background:#0d0a1c; border-radius:5px; }
+.starter-action-meter i{ display:block; height:100%; border-radius:5px;
+  background:linear-gradient(90deg,#7768bd,#67bd9d); }
+.starter-action-card .action-review-actions button{ min-width:72px; padding:5px 7px; font-size:9.5px; }
+.starter-actions-advanced{ border-top:1px dashed var(--line); padding-top:7px; }
+.starter-actions-advanced summary{ color:var(--dim); cursor:pointer; font-size:10.5px; }
+.starter-actions-advanced .note{ margin-top:7px; }
 .action-review-head{ display:flex; align-items:center; gap:8px; }
 .action-review-head b{ flex:1; font-size:12px; }
 .action-review-preview{ width:100%; height:168px; object-fit:contain; border-radius:10px;
@@ -402,7 +424,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 </div>
 
 <div class="sec" id="actionImportSection">
-  <h2><span class="ico">🎞</span><span data-zh="Wan 动作验收" data-en="Wan action review">Wan 动作验收</span> <span class="proto-tag">LOCAL IMPORT</span></h2>
+  <h2><span class="ico">🎞</span><span data-zh="Starter Actions · DIY 动作" data-en="Starter Actions · DIY motion">Starter Actions · DIY 动作</span> <span class="proto-tag">4 ACTIONS</span></h2>
   <div class="action-review" id="actionReview"></div>
 </div>
 
@@ -1503,32 +1525,127 @@ let S = { character: 'lulu' };
 let selectedActionJobID = null;
 let actionJobBusy = false;
 let actionJobNotice = '';
+const starterActionBusy = new Set();
+const starterActionNotices = {};
 
 function activeActionJobs(){
   return (S.actionJobs||[]).filter(job=>job.characterID===S.character);
 }
-function renderActionReview(){
-  const box=document.getElementById('actionReview');if(!box)return;
-  const custom=String(S.character||'').startsWith('custom:');
-  if(!custom){
-    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵，再导入它的 Wan 动作结果。','Select a DIY familiar above before importing its Wan action result.')}</div>`;return;
+function activeStarterActionJobs(){
+  const order={gaze:0,sleep:1,tennis:2,wall:3};
+  return (S.starterActionJobs||[]).filter(job=>job.characterID===S.character)
+    .sort((a,b)=>(order[a.actionID]??99)-(order[b.actionID]??99));
+}
+const STARTER_ACTION_UI={
+  gaze:{glyph:'👀',zh:'跟随光标',en:'Follow cursor'},
+  sleep:{glyph:'💤',zh:'睡觉',en:'Sleeping'},
+  tennis:{glyph:'🎾',zh:'打网球',en:'Play tennis'},
+  wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'}
+};
+function starterActionCost(job){
+  const editable=['planned','failed','cancelled'].includes(job.state);
+  const quality=IMAGE_QUALITIES.find(q=>q.id===(editable?S.imageQuality:job.quality))||IMAGE_QUALITIES[0];
+  const calls=Math.max(0,(+job.estimatedProviderCalls||0)-(+job.completedBatches||0));
+  const each=Number(String(quality.cost||'$0').replace('$',''))||0;
+  return `~$${(calls*each).toFixed(3)}`;
+}
+function starterActionState(job){
+  const done=Math.max(0,+job.completedBatches||0),total=Math.max(1,+job.estimatedProviderCalls||1);
+  const phase=String(job.phase||'').replaceAll('-',' ');
+  switch(job.state){
+    case 'planned':return tx(`准备生成 · ${job.finalFrameCount} 帧`,`Ready · ${job.finalFrameCount} frames`);
+    case 'queued':return tx('已排队；尚未重复提交','Queued; no duplicate submitted');
+    case 'generating':return tx(`正在生成 batch ${Math.min(done+1,total)}/${total} · ${phase}`,`Generating batch ${Math.min(done+1,total)}/${total} · ${phase}`);
+    case 'local_processing':return tx('付费调用已完成 · 正在本机统一比例与基线','Provider calls complete · normalizing scale and baseline locally');
+    case 'awaiting_review':return tx('结果已保存 · 请先桌面预览，再决定安装','Saved · preview on desktop before installing');
+    case 'installed':return tx('已安装到这只伴灵 ✓','Installed on this familiar ✓');
+    case 'failed':return starterActionNotices[job.jobID]||job.errorMessage||tx('已暂停；完成的 batch 仍保留，可从断点重试','Paused; completed batches are retained for retry');
+    case 'cancelled':return tx('已取消；完成的 batch 仍保留','Cancelled; completed batches are retained');
+    default:return phase||job.state;
   }
-  const jobs=activeActionJobs();
-  if(!jobs.some(job=>job.jobID===selectedActionJobID))selectedActionJobID=jobs[0]?.jobID||null;
-  const job=jobs.find(item=>item.jobID===selectedActionJobID)||null;
-  const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择 Wan 结果文件夹…','Choose Wan result folder…')}</button>`;
-  if(!job){
-    box.innerHTML=`<div class="note">${tx('这里只导入本地结果，不会启动 Modal、Wan 或 Python。结果文件夹会复制进 Mimo，关掉设置或重启后仍在。','This only imports a local result; it does not launch Modal, Wan, or Python. The bundle is copied into Mimo and survives closing Settings or restarting.')}</div><div class="action-review-actions">${choose}</div>${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}`;return;
+}
+function starterActionButtons(job,result){
+  const busy=starterActionBusy.has(job.jobID)||actionJobBusy;
+  const remaining=Math.max(0,(+job.estimatedProviderCalls||0)-(+job.completedBatches||0));
+  if(job.canStart){
+    const retry=job.state==='failed'||job.state==='cancelled';
+    return `<button type="button" ${busy?'disabled':''} onclick="startStarterAction('${job.jobID}')">${retry?tx('从断点重试','Resume'):tx('生成','Generate')} · ${remaining} calls · ${starterActionCost(job)}</button>`;
   }
-  const hasCycle=Number.isFinite(+job.cycleDistanceCellPixels);
-  const qaOK=job.installEligible===true;
+  if(job.canCancel){
+    return `<button type="button" ${busy?'disabled':''} onclick="cancelStarterAction('${job.jobID}')">${tx('取消','Cancel')}</button>`;
+  }
+  if((job.state==='awaiting_review'||job.state==='installed')&&result){
+    return `<button type="button" ${busy?'disabled':''} onclick="selectActionResult('${result.jobID}');previewActionJob('${result.jobID}')">${tx('桌面预览','Preview')}</button><button type="button" ${busy||job.state==='installed'||!result.installEligible?'disabled':''} onclick="acceptActionJob('${result.jobID}')">${job.state==='installed'?tx('已安装','Installed'):tx('接受并安装','Accept')}</button>`;
+  }
+  return '';
+}
+function starterActionCards(starterJobs,actionJobs){
+  return starterJobs.map(job=>{
+    const ui=STARTER_ACTION_UI[job.actionID]||{glyph:'✦',zh:job.titleZh,en:job.titleEn};
+    const result=actionJobs.find(item=>item.jobID===job.resultJobID);
+    const done=Math.max(0,+job.completedBatches||0),total=Math.max(1,+job.estimatedProviderCalls||1);
+    const pct=['local_processing','awaiting_review','installed'].includes(job.state)?100:Math.round(done/total*100);
+    const cardClass=['queued','generating','local_processing'].includes(job.state)?'running':['awaiting_review','installed'].includes(job.state)?'ready':['failed','cancelled'].includes(job.state)?'failed':'';
+    const statusClass=['failed','cancelled'].includes(job.state)?'error':'';
+    const quality=['planned','failed','cancelled'].includes(job.state)
+      ?(S.imageQuality||job.quality||'medium'):(job.quality||'medium');
+    return `<article class="starter-action-card ${cardClass}" data-starter-job="${esc(job.jobID)}">
+      <div class="starter-action-title"><span class="glyph">${ui.glyph}</span><div><b>${esc(LANG==='zh'?ui.zh:ui.en)}</b><small>${job.finalFrameCount}f · ${job.estimatedProviderCalls} calls · ${String(quality).toUpperCase()}</small></div></div>
+      <div class="starter-action-state ${statusClass}">${esc(starterActionState(job))}</div>
+      <div class="starter-action-meter" aria-label="${done}/${total} batches"><i style="width:${pct}%"></i></div>
+      <div class="action-review-actions">${starterActionButtons(job,result)}</div>
+    </article>`;
+  }).join('');
+}
+function actionResultReview(job){
+  if(!job)return '';
+  const hasCycle=Number.isFinite(+job.cycleDistanceCellPixels),qaOK=job.installEligible===true;
   const qa=qaOK
     ? `<div class="action-review-qa ok">${tx('硬性 QA 已通过 · 仍需你亲自预览并接受，永不自动安装。','Hard QA passed · manual preview and acceptance are still required; never auto-installed.')}</div>`
     : `<div class="action-review-qa">${tx('QA 未通过，或 walk 缺少 authored cycle distance。可以预览，但安装保持锁定。','QA did not pass, or walk lacks an authored cycle distance. Preview is available; installation stays locked.')}</div>`;
   const preview=job.previewURL||job.stripURL;
   const anchor=(Number.isFinite(+job.anchorX)&&Number.isFinite(+job.anchorY))?`${job.anchorX},${job.anchorY}`:tx('逐帧推断','derived');
-  const history=jobs.length>1?`<div class="action-review-history">${jobs.map((item,index)=>`<button type="button" class="${item.jobID===job.jobID?'sel':''}" onclick="selectedActionJobID='${item.jobID}';actionJobNotice='';renderActionReview()">${esc(item.action)} · ${item.frameCount}f${index===0?' · latest':''}</button>`).join('')}</div>`:'';
-  box.innerHTML=`${history}<div class="action-review-head"><b>${esc(job.sourceLabel||tx('Wan 结果','Wan result'))}</b><span>${job.installed?tx('已安装 ✓','installed ✓'):tx('待验收','review')}</span></div><img class="action-review-preview" src="${esc(preview)}" alt="${esc(tx('动作 contact sheet','action contact sheet'))}"><div class="action-review-meta"><span>${esc(job.action)}</span><span>${job.frameCount} frames</span><span>${job.fps} fps</span><span>cycle ${hasCycle?`${job.cycleDistanceCellPixels}px cell`:'—'}</span><span>anchor ${esc(anchor)}</span></div>${qa}<div class="action-review-actions">${choose}<button type="button" ${actionJobBusy?'disabled':''} onclick="previewActionJob('${job.jobID}')">${tx('在桌面循环预览','Loop on desktop')}</button><button type="button" ${actionJobBusy||!qaOK||job.installed?'disabled':''} onclick="acceptActionJob('${job.jobID}')">${job.installed?tx('已经装进动作库','Installed in action library'):tx('接受并安装','Accept & install')}</button></div>${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}`;
+  return `<div class="action-review-head"><b>${esc(job.sourceLabel||tx('动作结果','Action result'))}</b><span>${job.installed?tx('已安装 ✓','installed ✓'):tx('待验收','review')}</span></div><img class="action-review-preview" src="${esc(preview)}" alt="${esc(tx('动作帧预览','action frame preview'))}"><div class="action-review-meta"><span>${esc(job.action)}</span><span>${job.frameCount} frames</span><span>${Number(job.fps).toFixed(2)} fps</span><span>cycle ${hasCycle?`${job.cycleDistanceCellPixels}px cell`:'—'}</span><span>anchor ${esc(anchor)}</span></div>${qa}<div class="action-review-actions"><button type="button" ${actionJobBusy?'disabled':''} onclick="previewActionJob('${job.jobID}')">${tx('在桌面循环预览','Loop on desktop')}</button><button type="button" ${actionJobBusy||!qaOK||job.installed?'disabled':''} onclick="acceptActionJob('${job.jobID}')">${job.installed?tx('已经装进动作库','Installed in action library'):tx('接受并安装','Accept & install')}</button></div>`;
+}
+function renderActionReview(){
+  const box=document.getElementById('actionReview');if(!box)return;
+  if(!String(S.character||'').startsWith('custom:')){
+    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵；四套动作会属于那只伴灵。','Select a DIY familiar above; the four motion sets belong to that familiar.')}</div>`;return;
+  }
+  const jobs=activeActionJobs(),starterJobs=activeStarterActionJobs();
+  const linked=starterJobs.find(job=>job.resultJobID===selectedActionJobID);
+  if(!linked&&!jobs.some(job=>job.jobID===selectedActionJobID)){
+    selectedActionJobID=starterJobs.find(job=>job.state==='awaiting_review')?.resultJobID
+      ||starterJobs.find(job=>job.state==='installed')?.resultJobID||null;
+  }
+  const job=jobs.find(item=>item.jobID===selectedActionJobID)||null;
+  const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择外部结果文件夹…','Choose external result folder…')}</button>`;
+  const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的四张动作卡…','Preparing the four motion cards…')}</div>`;
+  const history=jobs.length>1?`<div class="action-review-history">${jobs.map(item=>`<button type="button" class="${item.jobID===selectedActionJobID?'sel':''}" onclick="selectActionResult('${item.jobID}')">${esc(item.action)} · ${item.frameCount}f</button>`).join('')}</div>`:'';
+  box.innerHTML=`<div class="starter-actions-intro"><span>✦</span><div><b>${tx('一次生成一套；调用数和进度都可见','Generate one set at a time; calls and progress stay visible')}</b>${tx('Mimo 会自动保持角色一致、保存每个 batch，并在安装前要求你桌面预览。','Mimo locks identity, checkpoints every batch, and requires desktop preview before install.')}</div></div><div class="starter-actions-grid">${cards}</div>${job?`${history}${actionResultReview(job)}`:''}${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}<details class="starter-actions-advanced"><summary>${tx('高级：导入外部动作结果','Advanced: import an external action result')}</summary><div class="note">${tx('只导入本地结果，不会启动 CLI、Modal、Wan 或 Python。','Local import only; this does not launch CLI, Modal, Wan, or Python.')}</div><div class="action-review-actions">${choose}</div></details>`;
+}
+function selectActionResult(jobID){selectedActionJobID=jobID;actionJobNotice='';renderActionReview()}
+function startStarterAction(jobID){
+  if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);starterActionNotices[jobID]='';
+  renderActionReview();send({type:'petStarterActionStart',characterID:S.character,jobID,quality:S.imageQuality||petLab.quality||'medium'});
+}
+function cancelStarterAction(jobID){
+  if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);renderActionReview();
+  send({type:'petStarterActionCancel',characterID:S.character,jobID});
+}
+function starterActionJobUpdated(event){
+  if(!event?.job)return;const job=event.job;starterActionBusy.delete(job.jobID);
+  S.starterActionJobs=(S.starterActionJobs||[]).filter(item=>item.jobID!==job.jobID).concat([job]);
+  if(job.resultJobID&&['awaiting_review','installed'].includes(job.state))selectedActionJobID=job.resultJobID;
+  renderActionReview();
+}
+function starterActionJobProgress(event){
+  const job=(S.starterActionJobs||[]).find(item=>item.jobID===event?.jobID);if(!job)return;
+  job.phase=event.phase||job.phase;renderActionReview();
+}
+function starterActionJobError(event){
+  if(event?.jobID){starterActionBusy.delete(event.jobID);starterActionNotices[event.jobID]=(LANG==='zh'?event.messageZh:event.messageEn)||event.message||''}
+  actionJobNotice=(LANG==='zh'?event?.messageZh:event?.messageEn)||event?.message||tx('动作生成没有完成。','Action generation did not finish.');renderActionReview();
 }
 function requestActionBundle(){send({type:'petActionImport',characterID:S.character})}
 function previewActionJob(jobID){actionJobNotice='';send({type:'petActionPreview',characterID:S.character,jobID})}
@@ -1536,7 +1653,8 @@ function acceptActionJob(jobID){actionJobBusy=true;actionJobNotice='';renderActi
 function actionJobImportStarted(){actionJobBusy=true;actionJobNotice='';renderActionReview()}
 function actionJobImported(event){
   actionJobBusy=false;if(event.job){S.actionJobs=(S.actionJobs||[]).filter(job=>job.jobID!==event.job.jobID).concat([event.job]);selectedActionJobID=event.job.jobID}
-  actionJobNotice=tx('已复制进 Mimo；请先预览，再决定是否安装。','Copied into Mimo. Preview it before deciding whether to install.');renderActionReview();
+  const generated=String(event?.job?.sourceLabel||'').startsWith('Mimo Starter');
+  actionJobNotice=generated?tx('生成结果已安全保存；请先预览，再决定是否安装。','Generated result saved safely. Preview it before installing.'):tx('已复制进 Mimo；请先预览，再决定是否安装。','Copied into Mimo. Preview it before deciding whether to install.');renderActionReview();
 }
 function actionJobPreviewing(event){actionJobNotice=tx('正在桌面上循环预览；这还没有安装。','Looping on the desktop; this is not installed yet.');renderActionReview()}
 function actionJobAccepted(event){
