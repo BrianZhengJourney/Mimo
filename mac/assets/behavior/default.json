@@ -127,12 +127,9 @@
       "requires": "grounded",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 0, "hold": 0.30 },
-          { "strip": "rest", "frame": 1, "hold": 0.24 },
-          { "strip": "rest", "frame": 2, "hold": 0.24 },
-          { "strip": "rest", "frame": 3, "hold": 0.28 },
-          { "strip": "rest", "frame": 4, "hold": 0.32 },
-          { "strip": "rest", "frame": 5, "hold": 0.55 }
+          { "strip": "rest", "frame": 0, "hold": 0.26 },
+          { "strip": "rest", "frame": 1, "hold": 0.30 },
+          { "strip": "rest", "frame": 2, "hold": 0.48 }
         ] }
       ]
     },
@@ -143,38 +140,9 @@
       "duration": "${7 + random() * 8}",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 5,  "hold": 0.85 },
-          { "strip": "rest", "frame": 6,  "hold": 0.85 },
-          { "strip": "rest", "frame": 7,  "hold": 0.85 },
-          { "strip": "rest", "frame": 8,  "hold": 0.85 },
-          { "strip": "rest", "frame": 9,  "hold": 0.85 },
-          { "strip": "rest", "frame": 10, "hold": 0.85 }
-        ] }
-      ]
-    },
-    {
-      "name": "RestDream",
-      "type": "animate",
-      "requires": "grounded",
-      "animations": [
-        { "poses": [
-          { "strip": "rest", "frame": 11, "hold": 0.65 },
-          { "strip": "rest", "frame": 12, "hold": 1.10 },
-          { "strip": "rest", "frame": 11, "hold": 0.65 }
-        ] }
-      ]
-    },
-    {
-      "name": "RestStir",
-      "type": "animate",
-      "requires": "grounded",
-      "animations": [
-        { "poses": [
-          { "strip": "rest", "frame": 13, "hold": 0.30 },
-          { "strip": "rest", "frame": 14, "hold": 0.32 },
-          { "strip": "rest", "frame": 15, "hold": 0.55 },
-          { "strip": "rest", "frame": 14, "hold": 0.30 },
-          { "strip": "rest", "frame": 13, "hold": 0.30 }
+          { "strip": "rest", "frame": 3, "hold": 0.90 },
+          { "strip": "rest", "frame": 4, "hold": 0.75 },
+          { "strip": "rest", "frame": 5, "hold": 1.10 }
         ] }
       ]
     },
@@ -184,15 +152,27 @@
       "requires": "grounded",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 10, "hold": 0.20 },
-          { "strip": "rest", "frame": 8,  "hold": 0.18 },
-          { "strip": "rest", "frame": 6,  "hold": 0.18 },
-          { "strip": "rest", "frame": 5,  "hold": 0.20 },
-          { "strip": "rest", "frame": 4,  "hold": 0.22 },
-          { "strip": "rest", "frame": 3,  "hold": 0.22 },
-          { "strip": "rest", "frame": 2,  "hold": 0.22 },
-          { "strip": "rest", "frame": 1,  "hold": 0.22 },
-          { "strip": "rest", "frame": 0,  "hold": 0.30 }
+          { "strip": "rest", "frame": 6, "hold": 0.24 },
+          { "strip": "rest", "frame": 7, "hold": 0.28 },
+          { "strip": "rest", "frame": 8, "hold": 0.42 }
+        ] }
+      ]
+    },
+    {
+      "name": "PlayTennis",
+      "type": "animate",
+      "requires": "grounded",
+      "animations": [
+        { "poses": [
+          { "strip": "tennis", "frame": 0, "hold": 0.24 },
+          { "strip": "tennis", "frame": 1, "hold": 0.18 },
+          { "strip": "tennis", "frame": 2, "hold": 0.14 },
+          { "strip": "tennis", "frame": 3, "hold": 0.10 },
+          { "strip": "tennis", "frame": 4, "hold": 0.09 },
+          { "strip": "tennis", "frame": 5, "hold": 0.16 },
+          { "strip": "tennis", "frame": 6, "hold": 0.20 },
+          { "strip": "tennis", "frame": 7, "hold": 0.24 },
+          { "strip": "tennis", "frame": 8, "hold": 0.36 }
         ] }
       ]
     },
@@ -203,14 +183,22 @@
       "duration": "${2.5 + random() * 2.5}",
       "animations": [
         { "poses": [
-          { "strip": "wall", "frame": 0, "hold": 0.38 },
-          { "strip": "wall", "frame": 1, "hold": 0.38 },
-          { "strip": "wall", "frame": 2, "hold": 0.38 },
-          { "strip": "wall", "frame": 3, "hold": 0.38 },
-          { "strip": "wall", "frame": 4, "hold": 0.38 },
-          { "strip": "wall", "frame": 5, "hold": 0.38 },
-          { "strip": "wall", "frame": 6, "hold": 0.38 },
-          { "strip": "wall", "frame": 7, "hold": 0.38 }
+          { "strip": "wall", "frame": 0, "hold": 0.70 },
+          { "strip": "wall", "frame": 1, "hold": 0.55 },
+          { "strip": "wall", "frame": 2, "hold": 0.95 }
+        ] }
+      ]
+    },
+    {
+      "name": "SitAtWall",
+      "type": "stay",
+      "requires": "attached",
+      "duration": "${2.5 + random() * 3.5}",
+      "animations": [
+        { "poses": [
+          { "strip": "wall", "frame": 3, "hold": 0.75 },
+          { "strip": "wall", "frame": 4, "hold": 0.55 },
+          { "strip": "wall", "frame": 5, "hold": 0.95 }
         ] }
       ]
     },
@@ -299,32 +287,22 @@
       "frequency": 0,
       "when": "#{self.state == 'grounded'}",
       "next": { "additive": false, "refs": [
-        { "name": "RestSleep", "frequency": 72 },
-        { "name": "RestDream", "frequency": 14 },
-        { "name": "RestStir",  "frequency": 9 },
-        { "name": "RestRise",  "frequency": 5 }
-      ] }
-    },
-    {
-      "name": "RestDream",
-      "frequency": 0,
-      "when": "#{self.state == 'grounded'}",
-      "next": { "additive": false, "refs": [
-        { "name": "RestSleep", "frequency": 100 }
-      ] }
-    },
-    {
-      "name": "RestStir",
-      "frequency": 0,
-      "when": "#{self.state == 'grounded'}",
-      "next": { "additive": false, "refs": [
-        { "name": "RestSleep", "frequency": 100 }
+        { "name": "RestSleep", "frequency": 82 },
+        { "name": "RestRise",  "frequency": 18 }
       ] }
     },
     {
       "name": "RestRise",
       "frequency": 0,
       "when": "#{self.state == 'grounded'}",
+      "next": { "additive": false, "refs": [
+        { "name": "Stand", "frequency": 100 }
+      ] }
+    },
+    {
+      "name": "PlayTennis",
+      "frequency": 12,
+      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
       "next": { "additive": false, "refs": [
         { "name": "Stand", "frequency": 100 }
       ] }
@@ -369,6 +347,12 @@
       "frequency": 100,
       "when": "#{self.state == 'attached' && self.surface == 'wall'}",
       "_comment": "additive:false with no refs = after clinging, select nothing — which the runtime reads as letting go. additive:true would re-draw ClingWall from the pool forever.",
+      "next": { "additive": false, "refs": [] }
+    },
+    {
+      "name": "SitAtWall",
+      "frequency": 60,
+      "when": "#{self.state == 'attached' && self.surface == 'wall'}",
       "next": { "additive": false, "refs": [] }
     }
   ]

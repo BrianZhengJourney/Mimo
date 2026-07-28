@@ -64,9 +64,69 @@ struct StarterActionTests {
         }
     }
 
-    static func main() {
+    static func testGazeMappingFollowsTheCursorAcrossSupportedContracts() {
+        expect(StarterGazeMapper.selection(dx: 0, dy: 200, frameCount: 5)?.frameIndex == 1,
+               "five-direction gaze looks up")
+        expect(StarterGazeMapper.selection(dx: 200, dy: 0, frameCount: 5)?.frameIndex == 2,
+               "five-direction gaze looks right")
+        expect(StarterGazeMapper.selection(dx: 0, dy: -200, frameCount: 5)?.frameIndex == 3,
+               "five-direction gaze looks down")
+        expect(StarterGazeMapper.selection(dx: -200, dy: 0, frameCount: 5)?.frameIndex == 4,
+               "five-direction gaze looks left")
+        expect(StarterGazeMapper.selection(dx: 5, dy: 4, frameCount: 5)?.frameIndex == 0,
+               "a cursor at eye position selects neutral")
+
+        let legacyLeft = StarterGazeMapper.selection(dx: -160, dy: 0, frameCount: 16)
+        let legacyRight = StarterGazeMapper.selection(dx: 160, dy: 0, frameCount: 16)
+        expect(legacyLeft?.frameIndex == legacyRight?.frameIndex,
+               "legacy sweep uses the same authored pose on both sides")
+        expect(legacyLeft?.mirrorHorizontally == false
+               && legacyRight?.mirrorHorizontally == true,
+               "legacy sweep mirrors the authored left side toward the cursor")
+
+        expect(StarterGazeMapper.selection(dx: -100, dy: 0, frameCount: 3)?.frameIndex == 1,
+               "historical three-frame gaze keeps neutral/left/right order")
+        expect(StarterGazeMapper.selection(dx: 100, dy: 0, frameCount: 3)?.frameIndex == 2,
+               "historical three-frame gaze can still follow horizontally")
+    }
+
+    static func testDefaultBehaviorPackUsesOnlyStarterContractFrames() throws {
+        let data = try Data(contentsOf: URL(
+            fileURLWithPath: "mac/assets/behavior/default.json"))
+        let root = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let actions = (root["actions"] as! [[String: Any]]).reduce(into: [String: [String: Any]]()) {
+            $0[$1["name"] as! String] = $1
+        }
+
+        func poses(_ action: String) -> [[String: Any]] {
+            let animations = actions[action]?["animations"] as? [[String: Any]] ?? []
+            return animations.flatMap { $0["poses"] as? [[String: Any]] ?? [] }
+        }
+        func frames(_ action: String, strip: String) -> [Int] {
+            poses(action).compactMap {
+                $0["strip"] as? String == strip ? $0["frame"] as? Int : nil
+            }
+        }
+
+        let restFrames = ["RestSettle", "RestSleep", "RestRise"]
+            .flatMap { frames($0, strip: "rest") }
+        expect(restFrames == Array(0...8),
+               "sleep behavior plays the nine authored frames once in phase order")
+
+        let tennisFrames = frames("PlayTennis", strip: "tennis")
+        expect(tennisFrames == Array(0...8), "tennis plays the complete forehand family")
+
+        expect(frames("ClingWall", strip: "wall") == Array(0...2),
+               "wall stand uses the first coherent family")
+        expect(frames("SitAtWall", strip: "wall") == Array(3...5),
+               "wall sit uses the second coherent family")
+    }
+
+    static func main() throws {
         testCatalogMatchesTheUserFacingStarterPack()
         testEveryDefinitionIsAValidCoherentFamilyPlan()
+        testGazeMappingFollowsTheCursorAcrossSupportedContracts()
+        try testDefaultBehaviorPackUsesOnlyStarterContractFrames()
         print("starter action catalog tests passed")
     }
 }

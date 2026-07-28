@@ -690,13 +690,6 @@ final class CompanionRuntime {
     /// boundary cannot flicker.
     static let gazeEngageDistance: CGFloat = 380
     static let gazeReleaseDistance: CGFloat = 460
-    /// The gaze strip is authored as a sweep down the LEFT side: frames 0…10
-    /// run from looking straight up to looking straight down. The right side
-    /// is the mirror, exactly like the walk. Calibrated by eye against the
-    /// first generated sheet; a future sheet with a different layout changes
-    /// this one constant.
-    static let gazeSweepFrames = 11
-
     /// Picks the gaze frame from the cursor's direction, or clears it.
     ///
     /// Only a grounded, stationary companion watches the cursor: walking
@@ -728,11 +721,15 @@ final class CompanionRuntime {
             return
         }
 
-        // 0 = straight up, π = straight down, regardless of side.
-        let angleFromUp = acos(max(-1, min(1, dy / distance)))
-        let sweep = CGFloat(Self.gazeSweepFrames - 1)
-        companion.gazeFrameIndex = Int((angleFromUp / .pi * sweep).rounded())
-        if abs(dx) > 12 { companion.facingRight = dx > 0 }
+        guard let gazeSprite = companion.gazeSprite,
+              let selection = StarterGazeMapper.selection(
+                dx: Double(dx), dy: Double(dy),
+                frameCount: gazeSprite.frameCount) else {
+            companion.gazeFrameIndex = nil
+            return
+        }
+        companion.gazeFrameIndex = selection.frameIndex
+        companion.facingRight = selection.mirrorHorizontally
     }
 
     /// The world as a behaviour pack is allowed to see it.

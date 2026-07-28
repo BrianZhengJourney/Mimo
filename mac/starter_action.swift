@@ -216,3 +216,55 @@ enum StarterActionCatalog {
         all.first { $0.manifestActionName == manifestActionName }
     }
 }
+
+struct StarterGazeSelection: Equatable, Sendable {
+    let frameIndex: Int
+    let mirrorHorizontally: Bool
+}
+
+/// Pure cursor-direction mapping shared by the native runtime and tests.
+///
+/// Production gaze uses five explicitly authored directions. The three-frame
+/// experiment remains loadable, and legacy 11/16-frame sweeps retain their
+/// old mirrored half-circle behavior so existing pets do not regress.
+enum StarterGazeMapper {
+    static let neutralRadius = 24.0
+
+    static func selection(dx: Double, dy: Double, frameCount: Int)
+        -> StarterGazeSelection? {
+        guard frameCount > 0, dx.isFinite, dy.isFinite else { return nil }
+        let distance = hypot(dx, dy)
+        guard distance.isFinite else { return nil }
+
+        if distance <= neutralRadius || frameCount == 1 {
+            return StarterGazeSelection(frameIndex: 0, mirrorHorizontally: false)
+        }
+
+        if frameCount == 3 {
+            return StarterGazeSelection(
+                frameIndex: dx < 0 ? 1 : 2,
+                mirrorHorizontally: false)
+        }
+
+        if frameCount == 5 {
+            let index: Int
+            if abs(dx) > abs(dy) {
+                index = dx > 0 ? 2 : 4
+            } else {
+                index = dy > 0 ? 1 : 3
+            }
+            return StarterGazeSelection(frameIndex: index, mirrorHorizontally: false)
+        }
+
+        // Historical sheets author only the left half of a vertical sweep.
+        // Reuse that pose on the right by mirroring the complete sprite.
+        let sweepFrames = min(frameCount, 11)
+        let normalizedY = max(-1.0, min(1.0, dy / max(distance, 1)))
+        let angleFromUp = acos(normalizedY)
+        let frame = Int((angleFromUp / Double.pi
+                         * Double(max(0, sweepFrames - 1))).rounded())
+        return StarterGazeSelection(
+            frameIndex: min(max(frame, 0), frameCount - 1),
+            mirrorHorizontally: dx > 12)
+    }
+}
