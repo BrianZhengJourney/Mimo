@@ -302,6 +302,79 @@ struct ActionSheetTests {
         }
     }
 
+    /// Real gpt-image batches sometimes put a thin white presentation frame
+    /// around the requested magenta field. The outermost row is therefore not
+    /// the matte; extraction must find the dominant inset chroma instead.
+    static func testChromaMatteSurvivesAWhitePresentationFrame() throws {
+        let cell = 128
+        let layout = ActionSheetLayout(rows: 1, columns: 3)
+        var sheet = makeSheet(
+            cell: cell, layout: layout,
+            blobs: (0..<3).map { _ in bounds(44, 32, 40, 76) },
+            matte: (255, 0, 255, 255))
+        for y in 0..<sheet.height {
+            for x in 0..<sheet.width
+                where x < 4 || x >= sheet.width - 4 || y < 4 || y >= sheet.height - 4 {
+                sheet.setRGBA(x: x, y: y, (255, 255, 255, 255))
+            }
+        }
+
+        let result = try ActionSheetProcessor.processCoherentBatches(
+            pngDatas: [png(sheet)], keepCounts: [3])
+        let strip = try CharacterSheetProcessor.decodePNG(result.pngData)
+        for frame in 0..<3 {
+            let cellImage = ActionSheetProcessor.crop(
+                strip, x: frame * result.cellSize, y: 0,
+                width: result.cellSize, height: result.cellSize)
+            expect(cellImage.rgba(x: 2, y: 2).3 == 0,
+                   "white-framed chroma must still become transparent in frame \(frame)")
+            expect(CharacterSheetProcessor.alphaBounds(of: cellImage)?.width ?? 0 < 200,
+                   "the magenta rectangle must not survive as the subject")
+        }
+    }
+
+    /// Generated antialiasing often blends the character edge with #FF00FF.
+    /// Preserve that edge alpha and silhouette, but neutralize chroma in RGB
+    /// so compositing on a light card cannot reveal a purple outline.
+    static func testMagentaEdgeSpillIsDesaturatedWithoutAlphaContraction() throws {
+        let cell = 128
+        let layout = ActionSheetLayout(rows: 1, columns: 3)
+        var sheet = CharacterSheetRGBAImage(
+            width: cell * 3, height: cell, fill: (255, 0, 255, 255))
+        for frame in 0..<3 {
+            let origin = frame * cell
+            for y in 30..<110 {
+                for x in 40..<88 {
+                    let edge = x < 43 || x >= 85 || y < 33 || y >= 107
+                    sheet.setRGBA(
+                        x: origin + x, y: y,
+                        edge ? (112, 8, 108, 255) : (92, 58, 42, 255))
+                }
+            }
+        }
+        let result = try ActionSheetProcessor.processCoherentBatches(
+            pngDatas: [png(sheet)], keepCounts: [3])
+        let strip = try CharacterSheetProcessor.decodePNG(result.pngData)
+        let first = ActionSheetProcessor.crop(
+            strip, x: 0, y: 0, width: result.cellSize, height: result.cellSize)
+        guard let rendered = CharacterSheetProcessor.alphaBounds(of: first) else {
+            preconditionFailure("despill must preserve the subject")
+        }
+        expect(rendered.width >= 48,
+               "despill changes RGB only and must not contract the edge alpha")
+        var magentaDominant = 0
+        for y in rendered.y..<rendered.maxY {
+            for x in rendered.x..<rendered.maxX {
+                let pixel = first.rgba(x: x, y: y)
+                if pixel.3 > 0 && Int(min(pixel.0, pixel.2)) - Int(pixel.1) > 24 {
+                    magentaDominant += 1
+                }
+            }
+        }
+        expect(magentaDominant == 0,
+               "no visible edge pixel may retain a magenta-key halo")
+    }
+
     // MARK: - Layout flexibility
 
     static func testNonSquareLayoutsWork() throws {
@@ -493,6 +566,8 @@ struct ActionSheetTests {
         testIndivisibleDimensionsAreRejected()
         testNonPNGIsRejected()
         try testFlatMatteIsRemovedBeforeSlicing()
+        try testChromaMatteSurvivesAWhitePresentationFrame()
+        try testMagentaEdgeSpillIsDesaturatedWithoutAlphaContraction()
         try testNonSquareLayoutsWork()
         try testInterleavePreservesExactFrameOrder()
         testInterleaveRejectsDifferentFrameCounts()

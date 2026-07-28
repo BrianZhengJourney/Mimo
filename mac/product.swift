@@ -1439,6 +1439,26 @@ extension AppDelegate {
                 jobID: jobID, phase: "normalizing-family")
             emitStarterActionJob(local)
             pushSettingsState()
+            processStarterActionLocally(jobID: jobID)
+        } catch {
+            if record.state.isInFlight,
+               let failed = try? starterActionJobStore.markFailed(
+                jobID: jobID, code: "local_setup_failed",
+                message: starterActionDetail(error)) {
+                emitStarterActionJob(failed)
+            }
+            reportStarterActionError(
+                jobID: jobID, error: error, code: "local_setup_failed")
+            pushSettingsState()
+        }
+    }
+
+    private func processStarterActionLocally(jobID: String) {
+        do {
+            let local = try starterActionJobStore.record(jobID: jobID)
+            guard local.state == .localProcessing else {
+                throw StarterActionJobError.invalidTransition
+            }
             let batches = try starterActionJobStore.completedBatchData(jobID: jobID)
             let definition = StarterActionCatalog.definition(local.actionID)
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1511,10 +1531,11 @@ extension AppDelegate {
                 }
             }
         } catch {
-            if record.state.isInFlight,
+            if let record = try? starterActionJobStore.record(jobID: jobID),
+               record.state == .localProcessing,
                let failed = try? starterActionJobStore.markFailed(
-                jobID: jobID, code: "local_setup_failed",
-                message: starterActionDetail(error)) {
+                    jobID: jobID, code: "local_setup_failed",
+                    message: starterActionDetail(error)) {
                 emitStarterActionJob(failed)
             }
             reportStarterActionError(
@@ -2162,6 +2183,30 @@ extension AppDelegate {
                 return
             }
             cancelStarterActionJob(jobID: jobID, characterID: characterID)
+        case "petStarterActionReprocess":
+            guard let characterID = activeCustomCharacterID(
+                    requested: body["characterID"]),
+                  let jobID = body["jobID"] as? String else {
+                reportStarterActionError(
+                    jobID: body["jobID"] as? String,
+                    error: StarterActionJobError.invalidCharacterID,
+                    code: "invalid_character")
+                return
+            }
+            do {
+                let record = try starterActionJobStore.record(jobID: jobID)
+                guard record.characterID == characterID else {
+                    throw StarterActionJobError.invalidCharacterID
+                }
+                let local = try starterActionJobStore.beginLocalReprocess(
+                    jobID: jobID)
+                emitStarterActionJob(local)
+                pushSettingsState()
+                processStarterActionLocally(jobID: jobID)
+            } catch {
+                reportStarterActionError(
+                    jobID: jobID, error: error, code: "local_reprocess_failed")
+            }
         case "petActionImport":
             guard let characterID = activeCustomCharacterID(requested: body["characterID"]) else {
                 reportActionJobError(ActionGenerationJobError.invalidCharacterID,

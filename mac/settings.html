@@ -1557,7 +1557,7 @@ function starterActionState(job){
     case 'planned':return tx(`准备生成 · ${job.finalFrameCount} 帧`,`Ready · ${job.finalFrameCount} frames`);
     case 'queued':return tx('已排队；尚未重复提交','Queued; no duplicate submitted');
     case 'generating':return tx(`正在生成 batch ${Math.min(done+1,total)}/${total} · ${phase}`,`Generating batch ${Math.min(done+1,total)}/${total} · ${phase}`);
-    case 'local_processing':return tx('付费调用已完成 · 正在本机统一比例与基线','Provider calls complete · normalizing scale and baseline locally');
+    case 'local_processing':return tx('无需付费 · 正在本机重新抠图并统一比例 / 基线','No provider call · reprocessing matte, scale, and baseline locally');
     case 'awaiting_review':return tx('结果已保存 · 请先桌面预览，再决定安装','Saved · preview on desktop before installing');
     case 'installed':return tx('已安装到这只伴灵 ✓','Installed on this familiar ✓');
     case 'failed':return starterActionNotices[job.jobID]||job.errorMessage||tx('已暂停；完成的 batch 仍保留，可从断点重试','Paused; completed batches are retained for retry');
@@ -1576,7 +1576,10 @@ function starterActionButtons(job,result){
     return `<button type="button" ${busy?'disabled':''} onclick="cancelStarterAction('${job.jobID}')">${tx('取消','Cancel')}</button>`;
   }
   if((job.state==='awaiting_review'||job.state==='installed')&&result){
-    return `<button type="button" ${busy?'disabled':''} onclick="selectActionResult('${result.jobID}');previewActionJob('${result.jobID}')">${tx('桌面预览','Preview')}</button><button type="button" ${busy||job.state==='installed'||!result.installEligible?'disabled':''} onclick="acceptActionJob('${result.jobID}')">${job.state==='installed'?tx('已安装','Installed'):tx('接受并安装','Accept')}</button>`;
+    return `<button type="button" ${busy?'disabled':''} onclick="selectActionResult('${result.jobID}');previewActionJob('${result.jobID}')">${tx('桌面预览','Preview')}</button>${job.canReprocess?`<button type="button" ${busy?'disabled':''} onclick="reprocessStarterAction('${job.jobID}')">${tx('本机重新抠图','Reprocess matte')}</button>`:''}<button type="button" ${busy||job.state==='installed'||!result.installEligible?'disabled':''} onclick="acceptActionJob('${result.jobID}')">${job.state==='installed'?tx('已安装','Installed'):tx('接受并安装','Accept')}</button>`;
+  }
+  if(job.canReprocess){
+    return `<button type="button" ${busy?'disabled':''} onclick="reprocessStarterAction('${job.jobID}')">${tx('本机重新抠图','Reprocess matte')}</button>`;
   }
   return '';
 }
@@ -1633,6 +1636,10 @@ function startStarterAction(jobID){
 function cancelStarterAction(jobID){
   if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);renderActionReview();
   send({type:'petStarterActionCancel',characterID:S.character,jobID});
+}
+function reprocessStarterAction(jobID){
+  if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);starterActionNotices[jobID]='';
+  renderActionReview();send({type:'petStarterActionReprocess',characterID:S.character,jobID});
 }
 function starterActionJobUpdated(event){
   if(!event?.job)return;const job=event.job;starterActionBusy.delete(job.jobID);

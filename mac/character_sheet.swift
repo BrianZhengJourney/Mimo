@@ -710,8 +710,14 @@ enum CharacterSheetProcessor {
 
     static func removeBorderConnectedMatte(from image: inout CharacterSheetRGBAImage) {
         let matte = estimatedMatte(image)
+        let outerMatte = estimatedOuterMatte(image)
         let threshold = matteThreshold(image, matte: matte)
         let thresholdSquared = threshold * threshold
+        let chromaKeyed = min(matte.0, matte.2) - matte.1 > 80
+            && abs(matte.0 - matte.2) < 80
+        // White/grey presentation frames are antialiased, so their connected
+        // fringe needs more tolerance than the flat chroma itself.
+        let outerThresholdSquared = 96 * 96
         let width = image.width
         let height = image.height
         var background = [UInt8](repeating: 0, count: width * height)
@@ -724,7 +730,13 @@ enum CharacterSheetProcessor {
             let dr = Int(image.pixels[pixel]) - matte.0
             let dg = Int(image.pixels[pixel + 1]) - matte.1
             let db = Int(image.pixels[pixel + 2]) - matte.2
-            return dr * dr + dg * dg + db * db <= thresholdSquared
+            if dr * dr + dg * dg + db * db <= thresholdSquared { return true }
+            guard chromaKeyed else { return false }
+            let outerR = Int(image.pixels[pixel]) - outerMatte.0
+            let outerG = Int(image.pixels[pixel + 1]) - outerMatte.1
+            let outerB = Int(image.pixels[pixel + 2]) - outerMatte.2
+            return outerR * outerR + outerG * outerG + outerB * outerB
+                <= outerThresholdSquared
         }
         func seed(_ index: Int) {
             guard background[index] == 0, isMatte(index) else { return }
@@ -758,20 +770,43 @@ enum CharacterSheetProcessor {
         // anti-aliased edges instead of a hard binary cut. Interior pixels stay
         // fully opaque, which preserves crisp pixel-style art.
         var boundaryBand = [UInt8](repeating: 0, count: width * height)
-        for index in 0..<(width * height) where background[index] == 0 {
-            let x = index % width
-            let y = index / width
-            var nearBackground = false
-            outer: for dy in -2...2 {
-                let ny = y + dy
-                guard ny >= 0, ny < height else { nearBackground = true; break }
-                for dx in -2...2 {
-                    let nx = x + dx
-                    guard nx >= 0, nx < width else { nearBackground = true; break outer }
-                    if background[ny * width + nx] == 1 { nearBackground = true; break outer }
+        // Two linear passes produce the Chebyshev distance to background,
+        // capped at three because only the first two pixels need feather work.
+        // This avoids an allocation-heavy per-edge BFS on large
+        // 1536×1024 provider outputs.
+        var edgeDistance = background.map { $0 == 1 ? UInt8(0) : UInt8(3) }
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = y * width + x
+                guard background[index] == 0 else { continue }
+                if x == 0 || y == 0 || x == width - 1 || y == height - 1 {
+                    edgeDistance[index] = 1
+                    continue
                 }
+                var nearest = Int(edgeDistance[index])
+                nearest = min(nearest, Int(edgeDistance[index - 1]) + 1)
+                nearest = min(nearest, Int(edgeDistance[index - width - 1]) + 1)
+                nearest = min(nearest, Int(edgeDistance[index - width]) + 1)
+                nearest = min(nearest, Int(edgeDistance[index - width + 1]) + 1)
+                edgeDistance[index] = UInt8(min(3, nearest))
             }
-            if nearBackground { boundaryBand[index] = 1 }
+        }
+        for y in stride(from: height - 1, through: 0, by: -1) {
+            for x in stride(from: width - 1, through: 0, by: -1) {
+                let index = y * width + x
+                guard background[index] == 0, x + 1 < width, y + 1 < height else {
+                    continue
+                }
+                var nearest = Int(edgeDistance[index])
+                nearest = min(nearest, Int(edgeDistance[index + 1]) + 1)
+                nearest = min(nearest, Int(edgeDistance[index + width - 1]) + 1)
+                nearest = min(nearest, Int(edgeDistance[index + width]) + 1)
+                nearest = min(nearest, Int(edgeDistance[index + width + 1]) + 1)
+                edgeDistance[index] = UInt8(min(3, nearest))
+            }
+        }
+        for index in 0..<(width * height) where background[index] == 0 {
+            if edgeDistance[index] <= 2 { boundaryBand[index] = 1 }
         }
 
         for index in 0..<(width * height) {
@@ -781,7 +816,24 @@ enum CharacterSheetProcessor {
                 image.pixels[pixel + 1] = 0
                 image.pixels[pixel + 2] = 0
                 image.pixels[pixel + 3] = 0
-            } else if boundaryBand[index] == 1 {
+            } else {
+                // Chroma generation blends #FF00FF into antialiased hair and
+                // clothing edges. Keep the authored alpha/silhouette and
+                // remove only the magenta excess from RGB near the key.
+                if chromaKeyed {
+                    let red = Int(image.pixels[pixel])
+                    let green = Int(image.pixels[pixel + 1])
+                    let blue = Int(image.pixels[pixel + 2])
+                    let spill = max(0, min(red, blue) - green)
+                    if spill > 8 {
+                        image.pixels[pixel] = UInt8(max(green, red - spill))
+                        image.pixels[pixel + 2] = UInt8(max(green, blue - spill))
+                    }
+                }
+                guard boundaryBand[index] == 1 else {
+                    image.pixels[pixel + 3] = 255
+                    continue
+                }
                 let dr = Int(image.pixels[pixel]) - matte.0
                 let dg = Int(image.pixels[pixel + 1]) - matte.1
                 let db = Int(image.pixels[pixel + 2]) - matte.2
@@ -796,61 +848,85 @@ enum CharacterSheetProcessor {
                 image.pixels[pixel + 1] = UInt8(Int(image.pixels[pixel + 1]) * Int(alpha) / 255)
                 image.pixels[pixel + 2] = UInt8(Int(image.pixels[pixel + 2]) * Int(alpha) / 255)
                 image.pixels[pixel + 3] = alpha
-            } else {
-                image.pixels[pixel + 3] = 255
             }
         }
     }
 
     private static func estimatedMatte(_ image: CharacterSheetRGBAImage) -> (Int, Int, Int) {
-        var red: [UInt8] = []
-        var green: [UInt8] = []
-        var blue: [UInt8] = []
-        red.reserveCapacity((image.width + image.height) * 2)
-        green.reserveCapacity(red.capacity)
-        blue.reserveCapacity(red.capacity)
+        let samples = matteBorderSamples(image)
+        guard !samples.isEmpty else { return (0, 0, 0) }
+        var counts: [Int: Int] = [:]
+        for color in samples {
+            let bucket = (color.0 >> 4) << 8 | (color.1 >> 4) << 4 | (color.2 >> 4)
+            counts[bucket, default: 0] += 1
+        }
+        let winningBucket = counts.max {
+            $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value
+        }!.key
+        let winning = samples.filter {
+            (($0.0 >> 4) << 8 | ($0.1 >> 4) << 4 | ($0.2 >> 4)) == winningBucket
+        }
+        let total = winning.reduce(into: (0, 0, 0)) {
+            $0.0 += $1.0; $0.1 += $1.1; $0.2 += $1.2
+        }
+        return (total.0 / winning.count, total.1 / winning.count,
+                total.2 / winning.count)
+    }
 
+    private static func estimatedOuterMatte(_ image: CharacterSheetRGBAImage)
+        -> (Int, Int, Int) {
+        let samples = matteRingSamples(image, inset: 0)
+        guard !samples.isEmpty else { return (0, 0, 0) }
+        let red = samples.map(\.0).sorted()
+        let green = samples.map(\.1).sorted()
+        let blue = samples.map(\.2).sorted()
+        let middle = samples.count / 2
+        return (red[middle], green[middle], blue[middle])
+    }
+
+    private static func matteBorderSamples(_ image: CharacterSheetRGBAImage)
+        -> [(Int, Int, Int)] {
+        let maximumInset = max(0, min(image.width, image.height) / 2 - 1)
+        let insets = Array(Set([0, 4, 8, 12].map { min($0, maximumInset) })).sorted()
+        return insets.flatMap { matteRingSamples(image, inset: $0) }
+    }
+
+    private static func matteRingSamples(_ image: CharacterSheetRGBAImage,
+                                         inset: Int) -> [(Int, Int, Int)] {
+        guard image.width > inset * 2, image.height > inset * 2 else { return [] }
+        var colors: [(Int, Int, Int)] = []
+        colors.reserveCapacity((image.width + image.height) * 2)
         func sample(x: Int, y: Int) {
             let pixel = (y * image.width + x) * 4
             guard image.pixels[pixel + 3] >= 16 else { return }
-            red.append(image.pixels[pixel])
-            green.append(image.pixels[pixel + 1])
-            blue.append(image.pixels[pixel + 2])
+            colors.append((
+                Int(image.pixels[pixel]),
+                Int(image.pixels[pixel + 1]),
+                Int(image.pixels[pixel + 2])))
         }
-        for x in 0..<image.width {
-            sample(x: x, y: 0)
-            sample(x: x, y: image.height - 1)
+        let minX = inset, maxX = image.width - inset - 1
+        let minY = inset, maxY = image.height - inset - 1
+        for x in minX...maxX {
+            sample(x: x, y: minY)
+            if maxY != minY { sample(x: x, y: maxY) }
         }
-        for y in 1..<(image.height - 1) {
-            sample(x: 0, y: y)
-            sample(x: image.width - 1, y: y)
+        if maxY - minY > 1 {
+            for y in (minY + 1)..<maxY {
+                sample(x: minX, y: y)
+                if maxX != minX { sample(x: maxX, y: y) }
+            }
         }
-        guard !red.isEmpty else { return (0, 0, 0) }
-        red.sort(); green.sort(); blue.sort()
-        let middle = red.count / 2
-        return (Int(red[middle]), Int(green[middle]), Int(blue[middle]))
+        return colors
     }
 
     private static func matteThreshold(_ image: CharacterSheetRGBAImage,
                                        matte: (Int, Int, Int)) -> Int {
-        var distances: [Int] = []
-        distances.reserveCapacity((image.width + image.height) * 2)
-        func sample(x: Int, y: Int) {
-            let pixel = (y * image.width + x) * 4
-            guard image.pixels[pixel + 3] >= 16 else { return }
-            let dr = Int(image.pixels[pixel]) - matte.0
-            let dg = Int(image.pixels[pixel + 1]) - matte.1
-            let db = Int(image.pixels[pixel + 2]) - matte.2
-            distances.append(Int(Double(dr * dr + dg * dg + db * db).squareRoot()))
-        }
-        for x in 0..<image.width {
-            sample(x: x, y: 0)
-            sample(x: x, y: image.height - 1)
-        }
-        for y in 1..<(image.height - 1) {
-            sample(x: 0, y: y)
-            sample(x: image.width - 1, y: y)
-        }
+        var distances = matteBorderSamples(image).map { color -> Int in
+            let dr = color.0 - matte.0
+            let dg = color.1 - matte.1
+            let db = color.2 - matte.2
+            return Int(Double(dr * dr + dg * dg + db * db).squareRoot())
+        }.filter { $0 <= 96 }
         guard !distances.isEmpty else { return 24 }
         distances.sort()
         let percentile = distances[min(distances.count - 1, distances.count * 9 / 10)]
@@ -922,11 +998,12 @@ enum CharacterSheetProcessor {
         let components = alphaComponents(in: image)
         guard let largest = components.max(by: { $0.pixels.count < $1.pixels.count }),
               !largest.pixels.isEmpty else { return }
+        let edgeTolerance = max(4, min(image.width, image.height) / 128)
         for component in components where component.pixels.count < largest.pixels.count / 4 {
             let bounds = component.bounds
-            let touchesEdge = bounds.x == 0 || bounds.y == 0
-                || bounds.x + bounds.width >= image.width
-                || bounds.y + bounds.height >= image.height
+            let touchesEdge = bounds.x <= edgeTolerance || bounds.y <= edgeTolerance
+                || bounds.x + bounds.width >= image.width - edgeTolerance
+                || bounds.y + bounds.height >= image.height - edgeTolerance
             guard touchesEdge else { continue }
             for index in component.pixels {
                 let pixel = index * 4

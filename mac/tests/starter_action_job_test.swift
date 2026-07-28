@@ -113,6 +113,12 @@ struct StarterActionJobTests {
             _ = try store.queue(jobID: gaze.id, requestID: UUID().uuidString,
                                 quality: "medium")
         }
+        let reprocessing = try store.beginLocalReprocess(jobID: gaze.id)
+        expect(reprocessing.state == .localProcessing
+               && reprocessing.usedProviderCalls == gaze.estimatedProviderCalls,
+               "an installed result can reuse its retained batches without another paid call")
+        expect(reprocessing.resultJobID == nil,
+               "the repaired artifact must return through manual review as a new result")
     }
 
     static func testRestartFailsClosedWithoutRepeatingPaidWork() throws {

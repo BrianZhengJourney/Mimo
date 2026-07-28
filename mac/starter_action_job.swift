@@ -46,6 +46,12 @@ struct StarterActionJobRecord: Codable, Equatable, Sendable {
 
     var canCancel: Bool { state.isInFlight }
     var canReview: Bool { state == .awaitingReview && resultJobID != nil }
+    var canReprocess: Bool {
+        [.awaitingReview, .installed, .failed].contains(state)
+            && completedBatches == estimatedProviderCalls
+            && estimatedProviderCalls
+                == StarterActionCatalog.definition(actionID).estimatedProviderCalls
+    }
 }
 
 enum StarterActionJobError: LocalizedError {
@@ -300,6 +306,26 @@ final class StarterActionJobStore: @unchecked Sendable {
         }
     }
 
+    /// Re-runs matte removal, despill, registration, and local QA from the
+    /// retained provider batches. No request ID is created and provider-call
+    /// accounting is deliberately unchanged.
+    @discardableResult
+    func beginLocalReprocess(jobID: String, now: Date = Date()) throws
+        -> StarterActionJobRecord {
+        try update(jobID: jobID) { record in
+            guard record.canReprocess else {
+                throw StarterActionJobError.invalidTransition
+            }
+            record.state = .localProcessing
+            record.updatedAt = now
+            record.phase = "reprocessing-local"
+            record.requestID = nil
+            record.resultJobID = nil
+            record.errorCode = nil
+            record.errorMessage = nil
+        }
+    }
+
     @discardableResult
     func markAwaitingReview(jobID: String, resultJobID: String,
                             now: Date = Date()) throws -> StarterActionJobRecord {
@@ -394,6 +420,7 @@ final class StarterActionJobStore: @unchecked Sendable {
             "canStart": record.canStart,
             "canCancel": record.canCancel,
             "canReview": record.canReview,
+            "canReprocess": record.canReprocess,
         ]
         if let phase = record.phase { value["phase"] = phase }
         if let resultJobID = record.resultJobID { value["resultJobID"] = resultJobID }
