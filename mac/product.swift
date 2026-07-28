@@ -2670,6 +2670,29 @@ extension AppDelegate {
             } catch {
                 settingsCall("petDeleteFailed", ["message": error.localizedDescription])
             }
+        case "petRename":
+            guard let characterID = body["characterID"] as? String,
+                  let name = body["name"] as? String else { return }
+            do {
+                let spec = try customPetStore.rename(
+                    characterID: characterID, name: name)
+                if JSONSerialization.isValidJSONObject(spec),
+                   let data = try? JSONSerialization.data(withJSONObject: spec),
+                   let json = String(data: data, encoding: .utf8) {
+                    js("famSetCustomPet(\(json), false)")
+                }
+                if d.string(forKey: "character") == characterID {
+                    refreshNativeCompanion()
+                }
+                settingsCall("petRenamed", ["spec": spec])
+                pushSettingsState()
+            } catch {
+                settingsCall("petRenameFailed", [
+                    "message": voice(
+                        "改名失败：请输入 1–60 个字符。",
+                        "Could not rename: use 1–60 characters."),
+                ])
+            }
         case "grant":
             grantAutomation()
         case "recheck":

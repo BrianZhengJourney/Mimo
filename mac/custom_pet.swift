@@ -556,6 +556,40 @@ final class CustomPetStore: @unchecked Sendable {
         }
     }
 
+    /// Changes only the user-facing name. Identity, UUID, art, expressions,
+    /// actions, temperament, and cache-busting revisions remain untouched.
+    @discardableResult
+    func rename(characterID: String, name: String) throws -> [String: Any] {
+        try synchronized {
+            try ensureStorageReady()
+            let normalizedName = name.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            try validateName(normalizedName)
+            let uuidString = try Self.uuidString(fromCharacterID: characterID)
+            let manifest = try loadManifest(uuidString: uuidString)
+            let updated = CustomPetManifest(
+                schemaVersion: manifest.schemaVersion,
+                kind: manifest.kind,
+                id: manifest.id,
+                name: normalizedName,
+                temperamentID: manifest.temperamentID,
+                accent: manifest.accent,
+                asset: manifest.asset,
+                expressions: manifest.expressions,
+                actions: manifest.actions,
+                actionSpecs: manifest.actionSpecs)
+            let manifestURL = petDirectory(uuidString).appendingPathComponent(
+                Self.manifestFilename, isDirectory: false)
+            guard Self.isDescendant(manifestURL, of: petsURL) else {
+                throw CustomPetStoreError.unsafeAssetPath
+            }
+            try Self.encodeManifest(updated).write(to: manifestURL, options: [.atomic])
+            try? fileManager.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: manifestURL.path)
+            return runtimeSpec(for: updated).dictionary
+        }
+    }
+
     /// Only namespaced IDs returned by this store are accepted. Built-ins,
     /// raw UUIDs, paths, and URL strings cannot reach FileManager deletion.
     func delete(characterID: String) throws {

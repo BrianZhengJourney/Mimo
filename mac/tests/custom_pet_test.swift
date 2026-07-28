@@ -438,6 +438,17 @@ struct CustomPetTests {
         handler.serve(postTask)
         expect(postTask.failure != nil && !postTask.finished, "asset scheme should reject non-read methods")
 
+        let renamed = try store.rename(
+            characterID: "custom:\(canonicalID)", name: "米墨的新名字")
+        expect(renamed["name"] as? String == "米墨的新名字",
+               "rename should return the updated runtime spec")
+        let assetAfterRename = try store.assetData(for: URL(string: assetURLString)!)
+        expect(assetAfterRename == png,
+               "renaming must preserve the familiar's installed assets")
+        expectThrows("rename should reuse install-time name validation") {
+            _ = try store.rename(characterID: "custom:\(canonicalID)", name: "   ")
+        }
+
         let outside = root.appendingPathComponent("outside.png")
         try png.write(to: outside)
         try fileManager.removeItem(at: sheetURL)

@@ -56,7 +56,11 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .card-delete{ position:absolute; z-index:2; right:4px; top:4px; width:28px; height:28px; padding:0;
   display:grid; place-items:center; border-radius:8px; border:1px solid #ffffff16; color:#c9c3dc;
   background:#14102bcf; font-size:11px; opacity:.68; }
+.card-rename{ position:absolute; z-index:2; left:4px; top:4px; width:28px; height:28px; padding:0;
+  display:grid; place-items:center; border-radius:8px; border:1px solid #ffffff16; color:#c9c3dc;
+  background:#14102bcf; font-size:11px; opacity:.68; }
 .card:hover .card-delete,.card-delete:focus{ opacity:1; color:#ffd4df; border-color:#e88fae55; }
+.card:hover .card-rename,.card-rename:focus{ opacity:1; color:#d9fff2; border-color:#7df0cf66; }
 .card .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:600; margin-top:5px; }
 .card .ds{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:var(--dim); margin-top:2px; }
 
@@ -1424,6 +1428,16 @@ function expressionStatusHTML(){
 }
 function removeCustomPet(characterID){send({type:'petDelete',characterID})}
 function petDeleteFailed(event){petLab.error=event.message||tx('无法删除角色','Could not delete familiar');petLab.errorKind='setup';petLab.status='error';renderPetLab()}
+function renameCustomPet(characterID){
+  const pet=(S.customPets||[]).find(item=>item.characterID===characterID);if(!pet)return;
+  const name=window.prompt(tx('给这只伴灵改名','Rename this familiar'),pet.name||'');
+  if(name===null)return;send({type:'petRename',characterID,name});
+}
+function petRenamed(event){
+  if(!event?.spec)return;S.customPets=(S.customPets||[]).filter(
+    item=>item.characterID!==event.spec.characterID).concat([event.spec]);renderCards();
+}
+function petRenameFailed(event){window.alert(event?.message||tx('改名失败','Could not rename'))}
 function decodePetReference(url,sourceName){
   return new Promise((resolve,reject)=>{
     const img=new Image();img.onload=()=>{
@@ -1680,7 +1694,7 @@ function renderCards(){
     const art=legacy?miniSVG(m):custom?`<div class="card-sheet"><img src="${esc(m.assetURL)}" alt=""></div>`:miniSVG(m);
     const temperament=TEMPERAMENTS.find(t=>t.id===m.temperamentID);
     const desc=custom?(legacy?tx('旧版像素 DNA','legacy pixel DNA'):(temperament?(LANG==='zh'?temperament.zh:temperament.en):tx('DIY 伴灵','DIY familiar'))):(LANG==='zh'?m.descZh:m.desc);
-    return `<div class="card ${S.character===characterID?'sel':''}" onclick="pick('${characterID}')">${custom?`<button type="button" class="card-delete" aria-label="${esc(tx(`删除 ${m.name}`,`Delete ${m.name}`))}" onclick="event.preventDefault();event.stopPropagation();removeCustomPet('${characterID}')">⌫</button>`:''}${art}<div class="nm">${esc(m.name)}</div><div class="ds">${esc(desc)}</div></div>`;
+    return `<div class="card ${S.character===characterID?'sel':''}" onclick="pick('${characterID}')">${custom&&!legacy?`<button type="button" class="card-rename" aria-label="${esc(tx(`给 ${m.name} 改名`,`Rename ${m.name}`))}" onclick="event.preventDefault();event.stopPropagation();renameCustomPet('${characterID}')">✎</button>`:''}${custom?`<button type="button" class="card-delete" aria-label="${esc(tx(`删除 ${m.name}`,`Delete ${m.name}`))}" onclick="event.preventDefault();event.stopPropagation();removeCustomPet('${characterID}')">⌫</button>`:''}${art}<div class="nm">${esc(m.name)}</div><div class="ds">${esc(desc)}</div></div>`;
   }).join('');
 }
 function pick(id){ S.character = id; selectedActionJobID=null; actionJobNotice=''; renderCards(); renderActionReview(); send({ type: 'pick', id }); }
