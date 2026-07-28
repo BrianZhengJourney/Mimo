@@ -375,6 +375,34 @@ struct ActionSheetTests {
                "no visible edge pixel may retain a magenta-key halo")
     }
 
+    /// A magenta-blended dark edge is not opaque black artwork. Chroma
+    /// contribution must move into transparency while keeping the edge pixel
+    /// present; subtracting magenta from RGB but leaving alpha at 255 creates
+    /// the hard black fringe reported on light Settings cards.
+    static func testChromaUnmixDoesNotTurnSpillIntoAnOpaqueBlackFringe() {
+        var image = CharacterSheetRGBAImage(
+            width: 64, height: 64, fill: (255, 0, 255, 255))
+        for y in 16..<48 {
+            for x in 16..<48 {
+                let edge = x < 19 || x >= 45 || y < 19 || y >= 45
+                image.setRGBA(
+                    x: x, y: y,
+                    edge ? (112, 8, 108, 255) : (92, 58, 42, 255))
+            }
+        }
+        CharacterSheetProcessor.removeBorderConnectedMatte(from: &image)
+        let edge = image.rgba(x: 17, y: 32)
+        expect(edge.3 > 0 && edge.3 < 255,
+               "chroma-mixed outline keeps coverage but must become partially transparent")
+        let lightComposite = (
+            Int(edge.0) + 245 * (255 - Int(edge.3)) / 255
+            + Int(edge.1) + 242 * (255 - Int(edge.3)) / 255
+            + Int(edge.2) + 236 * (255 - Int(edge.3)) / 255
+        ) / 3
+        expect(lightComposite > 80,
+               "the recovered edge must not composite as an opaque black fringe")
+    }
+
     // MARK: - Layout flexibility
 
     static func testNonSquareLayoutsWork() throws {
@@ -568,6 +596,7 @@ struct ActionSheetTests {
         try testFlatMatteIsRemovedBeforeSlicing()
         try testChromaMatteSurvivesAWhitePresentationFrame()
         try testMagentaEdgeSpillIsDesaturatedWithoutAlphaContraction()
+        testChromaUnmixDoesNotTurnSpillIntoAnOpaqueBlackFringe()
         try testNonSquareLayoutsWork()
         try testInterleavePreservesExactFrameOrder()
         testInterleaveRejectsDifferentFrameCounts()

@@ -817,37 +817,52 @@ enum CharacterSheetProcessor {
                 image.pixels[pixel + 2] = 0
                 image.pixels[pixel + 3] = 0
             } else {
-                // Chroma generation blends #FF00FF into antialiased hair and
-                // clothing edges. Keep the authored alpha/silhouette and
-                // remove only the magenta excess from RGB near the key.
+                let originalRed = Int(image.pixels[pixel])
+                let originalGreen = Int(image.pixels[pixel + 1])
+                let originalBlue = Int(image.pixels[pixel + 2])
+                var alpha = Int(image.pixels[pixel + 3])
+
+                // Legacy chroma generations blend #FF00FF into antialiased
+                // hair and clothing edges. The magenta contribution is also
+                // the missing transparency: subtract it from premultiplied RGB
+                // and alpha together. RGB-only despill turns that contribution
+                // into an opaque black fringe on light cards.
                 if chromaKeyed {
-                    let red = Int(image.pixels[pixel])
-                    let green = Int(image.pixels[pixel + 1])
-                    let blue = Int(image.pixels[pixel + 2])
-                    let spill = max(0, min(red, blue) - green)
+                    let spill = max(0, min(originalRed, originalBlue) - originalGreen)
                     if spill > 8 {
-                        image.pixels[pixel] = UInt8(max(green, red - spill))
-                        image.pixels[pixel + 2] = UInt8(max(green, blue - spill))
+                        image.pixels[pixel] = UInt8(max(0, originalRed - spill))
+                        image.pixels[pixel + 1] = UInt8(originalGreen)
+                        image.pixels[pixel + 2] = UInt8(max(0, originalBlue - spill))
+                        alpha = min(alpha, 255 - spill)
                     }
                 }
                 guard boundaryBand[index] == 1 else {
-                    image.pixels[pixel + 3] = 255
+                    image.pixels[pixel + 3] = UInt8(alpha)
                     continue
                 }
-                let dr = Int(image.pixels[pixel]) - matte.0
-                let dg = Int(image.pixels[pixel + 1]) - matte.1
-                let db = Int(image.pixels[pixel + 2]) - matte.2
+                let dr = originalRed - matte.0
+                let dg = originalGreen - matte.1
+                let db = originalBlue - matte.2
                 let distance = Double(dr * dr + dg * dg + db * db).squareRoot()
                 // Ramp from transparent at the matte threshold up to opaque at
                 // 3× the threshold, smoothstepped for gentle edges.
                 let t = max(0.0, min(1.0, (distance - Double(threshold)) / (2.0 * Double(threshold))))
                 let smooth = t * t * (3.0 - 2.0 * t)
-                let alpha = UInt8(max(0.0, min(255.0, (smooth * 255.0).rounded())))
-                // Buffers are premultiplied; scale color with the new alpha.
-                image.pixels[pixel] = UInt8(Int(image.pixels[pixel]) * Int(alpha) / 255)
-                image.pixels[pixel + 1] = UInt8(Int(image.pixels[pixel + 1]) * Int(alpha) / 255)
-                image.pixels[pixel + 2] = UInt8(Int(image.pixels[pixel + 2]) * Int(alpha) / 255)
-                image.pixels[pixel + 3] = alpha
+                let boundaryAlpha = Int(max(
+                    0.0, min(255.0, (smooth * 255.0).rounded())))
+                let finalAlpha = min(alpha, boundaryAlpha)
+                // Buffers are premultiplied. If spatial feathering lowers the
+                // already-unmixed alpha, scale its recovered RGB by the same
+                // ratio instead of darkening the visible edge.
+                if finalAlpha < alpha, alpha > 0 {
+                    image.pixels[pixel] = UInt8(
+                        Int(image.pixels[pixel]) * finalAlpha / alpha)
+                    image.pixels[pixel + 1] = UInt8(
+                        Int(image.pixels[pixel + 1]) * finalAlpha / alpha)
+                    image.pixels[pixel + 2] = UInt8(
+                        Int(image.pixels[pixel + 2]) * finalAlpha / alpha)
+                }
+                image.pixels[pixel + 3] = UInt8(finalAlpha)
             }
         }
     }

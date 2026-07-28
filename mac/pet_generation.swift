@@ -1840,8 +1840,9 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         OUTPUT
         Create exactly three active frames as three vertical panels on one 1536×1024 canvas. Each source panel is
         512×1024 and will later be registered into one 512×512 runtime cell. Read left to right.
-        Use one perfectly flat opaque #FF00FF chroma-key background. It must have no shadow, gradient, texture,
-        reflection, floor, guide marks, or lighting variation. Never use #FF00FF inside the character.
+        Use one perfectly flat opaque #F1ECE2 warm extraction matte, matching Mimo's original character-sheet
+        pipeline. It must have no shadow, gradient, texture, reflection, floor, guide marks, or lighting variation.
+        The matte is technical extraction space, never scenery and never part of the character.
         Keep every complete pose inside its panel with at least 48px clear side/top padding and 96px clear
         background below the baseline. Do not copy guide lines, boxes, labels, or marks.
 
@@ -1859,21 +1860,23 @@ final class PetGenerationCoordinator: @unchecked Sendable {
     }
 
     /// The image model otherwise learns transparent RGB as pale material.
-    /// Flattening only the generation reference onto the same explicit chroma
-    /// key makes the visible subject contour unambiguous; stored canonical art
-    /// remains untouched.
+    /// Flattening only the generation reference onto Mimo's original warm
+    /// extraction matte makes the contour unambiguous without introducing the
+    /// colored spill seen with chroma keying. Stored canonical art is untouched.
     static func starterActionReferenceData(_ pngData: Data) -> Data? {
         guard var image = try? CharacterSheetProcessor.decodePNG(pngData),
               image.width > 0, image.height > 0 else { return nil }
         for pixel in stride(from: 0, to: image.pixels.count, by: 4) {
             let alpha = Int(image.pixels[pixel + 3])
             let inverse = 255 - alpha
-            image.pixels[pixel] = UInt8(
-                (Int(image.pixels[pixel]) * alpha + 255 * inverse) / 255)
-            image.pixels[pixel + 1] = UInt8(
-                (Int(image.pixels[pixel + 1]) * alpha) / 255)
-            image.pixels[pixel + 2] = UInt8(
-                (Int(image.pixels[pixel + 2]) * alpha + 255 * inverse) / 255)
+            // decodePNG returns premultiplied RGBA, so the visible channel is
+            // already weighted by alpha and must not be multiplied twice.
+            image.pixels[pixel] = UInt8(min(
+                255, Int(image.pixels[pixel]) + 241 * inverse / 255))
+            image.pixels[pixel + 1] = UInt8(min(
+                255, Int(image.pixels[pixel + 1]) + 236 * inverse / 255))
+            image.pixels[pixel + 2] = UInt8(min(
+                255, Int(image.pixels[pixel + 2]) + 226 * inverse / 255))
             image.pixels[pixel + 3] = 255
         }
         return try? CharacterSheetProcessor.encodePNG(image)

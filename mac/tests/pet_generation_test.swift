@@ -101,6 +101,9 @@ struct PetGenerationTests {
                "the first family has no invented predecessor")
         expect(firstFlat.contains("exactly three active frames as three vertical panels"),
                "the provider sees one explicit three-frame output contract")
+        expect(firstFlat.contains("#F1ECE2 warm extraction matte")
+               && !firstFlat.contains("#FF00FF"),
+               "starter actions reuse Mimo's original warm matte instead of chroma keying")
         expect(firstFlat.contains("athletic ready stance holding the racket")
                && firstFlat.contains("Draw no tennis ball"),
                "tennis starts at the authored pose and keeps the runtime-ball contract")
