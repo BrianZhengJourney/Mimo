@@ -49,7 +49,7 @@ The in-app Starter Action pack is the activation contract:
 
 | Action | Final frames | Generation |
 |---|---:|---|
-| Sleep | 9 | lie-down `3` + breathing `3` + rise `3` |
+| Sleep | 6 | prone lie-down `3` + head-on-hands breathing `3`; no rise |
 | Gaze | 8 | up / upper-right / right `3` + lower-right / down / lower-left `3` + left / upper-left `2` |
 | Tennis | 9 | preparation `3` + hit `3` + recovery `3` |
 | Wall | 6 | wall-standing `3` + ledge-sitting `3` |
@@ -98,7 +98,7 @@ cut, handed markings, watch/tattoo/accessory placement, and habitual bearing.
 Classify the action before drawing:
 
 - `ambient`: idle breathing, wall-standing, or ledge-sitting
-- `segmented`: sleep lie-down → breathing loop → rise
+- `segmented`: sleep prone lie-down → persistent breathing loop
 - `directional`: gaze
 - `gesture`: tennis
 
@@ -111,7 +111,7 @@ sequence into transition and loop segments when they need different timing,
 for example:
 
 ```text
-rest-enter (quick one-shot) → sleep-loop (very slow) → rest-rise (quick one-shot)
+rest-enter (one-shot) → sleep-loop (very slow, persistent until interrupted)
 ```
 
 ### 3. Prepare the run
@@ -142,6 +142,12 @@ job in `imagegen-jobs.json`.
 Generate `batch-01` first and approve it. Every later job receives the canonical
 master plus the immediately preceding approved batch. The canonical master
 always outranks chained evidence so errors cannot accumulate.
+
+For sleep, settle into one prone/front-lying construction with the head resting
+sideways on folded hands, peacefully closed eyes, softly rounded cheeks, and a
+tiny relaxed pout. Generate three settle frames, then three breathing frames.
+Never generate a rise or automatic wake-up; preview the settle once and loop
+only the breathing family until interaction interrupts it.
 
 For tennis, keep the racket identical across all batches and draw no ball. The
 runtime owns one deterministic ball trajectory, preventing duplicate or drifting

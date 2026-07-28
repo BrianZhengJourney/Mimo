@@ -15,13 +15,13 @@
 
 当前完成：
 
-1. 四套生产契约：`gaze 8 / sleep(rest) 9 / tennis 9 / wall 6`；
-2. 每次 provider call 固定一个 coherent 3-frame batch，共 `3/3/3/2` calls；
+1. 四套生产契约：`gaze 8 / sleep(rest) 6 / tennis 9 / wall 6`；
+2. 每次 provider call 固定一个 coherent 3-frame batch，共 `3/2/3/2` calls；
 3. 每个成功 batch 立即落盘；重启显示 interrupted，显式重试从断点继续；
 4. Studio 四张卡显示 frames、calls、质量、预计成本、进度、取消、重试与本机重新抠图；
 5. canonical mature frame → chained generation → shared normalize/baseline →
    hard QA → desktop Preview → explicit Accept → manifest install 已全接通；
-6. runtime 已接八方向 gaze、睡觉三段、完整正手、单个确定性 tennis ball 与
+6. runtime 已接八方向 gaze、趴下一次后持续呼吸的 sleep、完整正手、单个确定性 tennis ball 与
    wall stand/sit；历史 `action-walk` 仍可加载，但走路生成已退出 Starter；
 7. 外部 result-folder import 仍保留，但只在 Advanced。
 8. 原 Mimo 暖色 matte 已恢复；legacy chroma 使用 premultiplied RGBA 反混合，

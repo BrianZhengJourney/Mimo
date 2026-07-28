@@ -61,7 +61,7 @@ P1 Starter Action 族：
 | Action | 作用 | 播放契约 |
 |---|---|---|
 | `gaze` | 光标注视 | 8 帧：顺时针八方向；中心显示 canonical base |
-| `rest` | 躺下、睡息、起身 | 9 帧：3 + 3 + 3，慢速 breathing loop |
+| `rest` | 趴下、睡息 | 6 帧：趴下 3 + 头搭手上呼吸 3；不自动起身 |
 | `tennis` | 完整正手挥拍 | 9 帧；图中不画球，runtime 只合成一个确定性球 |
 | `wall` | 墙边站 / 屏幕边坐 | 6 帧：stand 3 + sit 3；attached surface 驱动 |
 
@@ -105,11 +105,11 @@ Settings 已用四张动作卡替换旧的本地导入主入口：
 
 ## 11.5 已完成的实施顺序
 
-1. **冻结 Starter contract**：四套动作共 32 帧、11 个三帧 batch；
+1. **冻结 Starter contract**：四套动作共 29 帧、10 个三帧 batch；
 2. **统一 orchestrator**：canonical-first、前一 batch 只作 continuity reference；
 3. **batch checkpoint**：成功结果先持久化，再开始下一次 provider call；
 4. **Studio 四卡**：预算、状态、取消、断点重试、本机重新抠图、Preview / Accept；
-5. **runtime 语义**：gaze mapping、sleep phases、tennis ball、wall stand/sit；
+5. **runtime 语义**：gaze mapping、sleep 趴下一次后持续呼吸、tennis ball、wall stand/sit；
 6. **安全安装**：沿用同一 `ActionGenerationJobStore` review boundary。
 
 ## 11.6 Release acceptance

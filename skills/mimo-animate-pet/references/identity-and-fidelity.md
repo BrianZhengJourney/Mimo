@@ -112,23 +112,25 @@ Generate exactly three consecutive poses per call. Accept each batch before the
 next call. Every later batch receives the canonical master and the immediately
 preceding approved batch; canonical identity always wins.
 
-For an eight-frame walk, keep `K1–K3`, `K4–K6`, then `K7–K8`. Use the third slot
-of the last batch to recreate `K1` as a loop-seam check and discard it. Do not
-generate all eight keyframes or all midpoints in one sheet.
+For sleep, generate `settle K1–K3`, then `breathing K4–K6`. K3 establishes the
+final prone construction: front/stomach on the ground, head sideways on folded
+hands, eyes closed, rounded cheeks, and a tiny contented pout. K4–K6 must keep
+that construction fixed and loop by breathing only. Never author a rise.
 
 ### Gaze
 
-Keep the head, face outline, body, and hair fixed. Generate one coherent
-three-frame family: neutral eyes, screen-left eyes, screen-right eyes. Move only
-the pupils/irises and, if needed, the eyelids. Head turns create new hair
-silhouettes and are rejected for this action.
+Keep the feet and lower body fixed. Author all eight screen-relative compass
+directions in three coherent batches. Eyes lead; the head may follow only enough
+to make the direction readable. Whole-body rotation or a redesigned hair
+silhouette is rejected.
 
 ### Transparency and hair
 
-Prefer native RGBA output. If a provider requires chroma cleanup:
+Prefer native RGBA output. Otherwise use Mimo's flat `#F1ECE2` warm extraction
+matte. For retained legacy chroma:
 
-- never contract the alpha edge;
-- restrict despill to RGB;
+- retain partial alpha-edge coverage;
+- unmix key contribution from premultiplied RGB and alpha together;
 - preserve the opaque dark outline and connected hair mass;
 - inspect the matte on light, dark, and checkerboard backgrounds.
 
@@ -172,7 +174,7 @@ and splicing it beside a different generation.
 
 - compare every source cell with the same-stage canonical reference
 - use Mimo's calibrated Vision feature-print ranges where view angle is
-  compatible; do not reuse frontal thresholds blindly on side-profile walking
+  compatible; do not reuse frontal thresholds blindly after a large pose change
 - inspect face, hair, asymmetric details, clothes, and palette at 1×
 - reject detail-density collapse even if feature distance passes
 - compare the row both to the canonical master and internally to detect

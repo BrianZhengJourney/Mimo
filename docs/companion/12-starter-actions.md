@@ -29,11 +29,11 @@ hard QA → 桌面 Preview → 用户 Accept
 | 卡片 | Manifest key | 帧 | Calls | Runtime 语义 |
 |---|---|---:|---:|---|
 | 跟随光标 | `gaze` | 8 | 3 | 上起顺时针八方向；近光标时显示 canonical base |
-| 睡觉 | `rest` | 9 | 3 | lie-down 3 → breathe 3 → rise 3 |
+| 睡觉 | `rest` | 6 | 2 | 趴下 3 → 头搭手上呼吸 3；不自动起身 |
 | 打网球 | `tennis` | 9 | 3 | 一次完整正手；球由 runtime 确定性合成 |
 | 墙边站 / 坐 | `wall` | 6 | 2 | wall-stand 3 / ledge-sit 3 |
 
-总计 32 帧、11 个显式 provider calls。四张卡互相独立；任何一张失败都不影响
+总计 29 帧、10 个显式 provider calls。四张卡互相独立；任何一张失败都不影响
 canonical familiar 或已安装动作。
 
 ## 12.2 Durable 状态机
@@ -75,7 +75,7 @@ App checklist：
 4. 生成中关闭再打开 Settings，状态和已完成 batch 仍在；
 5. 结果进入待验收后先点 Desktop Preview，确认没有自动安装；
 6. gaze：上、右上、右、右下、下、左下、左、左上八方向正确；
-7. sleep：躺下、慢呼吸、起身连贯，没有 scale pop / baseline hop；
+7. sleep：趴下时头搭在叠起的手上、闭眼微嘟嘴；过渡只播一次，之后只循环慢呼吸，不自动起身；
 8. tennis：完整正手，画面中始终只有一个球，loop seam 无重复球；
 9. wall：撞左右墙可站靠；ledge-sit 使用后 3 帧；
 10. 对旧 sleep / tennis / wall 点“本机重新抠图”，确认 0 calls、无整块洋红、紫边或黑边；

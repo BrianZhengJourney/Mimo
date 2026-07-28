@@ -97,7 +97,7 @@ canonical master
 | 动作类型 | 生成方式 |
 |---|---|
 | Idle / 呼吸 | 3 帧，一次生成 |
-| Sleep | 躺下 3 + 呼吸 3 + 起身 3 |
+| Sleep | 趴下 3 + 头搭手上呼吸 3；不生成起身 |
 | Gaze | 顺时针八方向，共 8 帧 |
 | 打网球 | 准备 3 + 击球 3 + 恢复 3；球由 runtime 确定性绘制 |
 | 墙边站 / 坐 | stand 3 + ledge-sit 3；墙与屏幕边缘由 runtime 提供 |
@@ -123,7 +123,7 @@ canonical master 与上一批已通过结果，但 canonical 永远具有最高�
 | 动作 | 推荐节奏 |
 |---|---|
 | idle/breathe | 3 帧约 2.1s |
-| sleep | 3 帧躺下 + 3 帧慢呼吸 + 3 帧起身 |
+| sleep | 3 帧趴下只播一次 + 3 帧慢呼吸持续循环 |
 | gaze | 8 个方向；按 cursor angle 取帧 |
 | tennis | 9 帧约 1.7s |
 | wall-standing | 3 帧约 2.2s |
@@ -131,8 +131,7 @@ canonical master 与上一批已通过结果，但 canonical 永远具有最高�
 关键规则：
 
 - calm loop 用 per-frame `hold`，endpoint 多停，transition 少停；
-- `rest-enter → sleep-loop → rest-rise` 分段，不用一个 FPS 同时控制躺下和
-  呼吸；
+- `rest-enter → sleep-loop` 分段；趴下只播一次，之后只循环呼吸，直到交互打断；
 - gaze 根据 cursor angle 取 direction，必要时对 angle 做短 easing，不循环播。
 
 完整 hold 表见

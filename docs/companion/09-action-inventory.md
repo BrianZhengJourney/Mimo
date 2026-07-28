@@ -4,8 +4,8 @@
 
 **状态：长期内容 inventory；P1 Starter Actions 的代码契约已实现（2026-07-28）。**
 本节的 ~190 帧仍是扩展上限，不是首次领养门槛。当前 App 内激活包是
-`gaze 8 + sleep 9 + tennis 9 + wall 6 = 32` 帧，共
-`3 + 3 + 3 + 2 = 11`
+`gaze 8 + sleep 6 + tennis 9 + wall 6 = 29` 帧，共
+`3 + 2 + 3 + 2 = 10`
 次显式 provider calls；视觉帧按每只伴灵由用户逐卡触发生成。
 走路经过多轮 image-sheet / Wan / hybrid 实验仍未达到肉眼验收，已退出
 Starter；以下长期 inventory 保留为历史研究与未来可能性，不是当前产品入口。
@@ -34,7 +34,7 @@ Starter；以下长期 inventory 保留为历史研究与未来可能性，不�
 | 动作 | 最终帧 | coherent batches | runtime |
 |---|---:|---:|---|
 | gaze | 8 | `3 + 3 + 2` | 光标八方向映射 |
-| sleep / `rest` | 9 | `3 + 3 + 3` | 躺下 → 呼吸 → 起身 |
+| sleep / `rest` | 6 | `3 + 3` | 趴下 → 头搭手上持续呼吸；无自动起身 |
 | tennis | 9 | `3 + 3 + 3` | 9 帧正手 + 单个 runtime ball |
 | wall | 6 | `3 + 3` | 墙边站 / 屏幕边坐 |
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 
-CHROMA_KEY = "#FF00FF"
+EXTRACTION_MATTE = "#F1ECE2"
 
 BATCH_LAYOUT = {
     "columns": 3,
@@ -73,63 +73,69 @@ PROFILES = {
     },
     "sleep": {
         "motion_class": "segmented",
-        "final_frames": 9,
-        "holds": [0.26, 0.30, 0.48, 0.90, 0.75, 1.10, 0.24, 0.28, 0.42],
+        "final_frames": 6,
+        "holds": [0.55, 0.65, 0.95, 1.40, 1.20, 1.60],
         "segments": [
             {"name": "lie-down", "start": 0, "count": 3},
             {"name": "breathing-loop", "start": 3, "count": 3},
-            {"name": "rise", "start": 6, "count": 3},
         ],
         "pose_contract": (
-            "Frames 1-3 transition from standing into the supplied cute sleeping "
-            "construction: the low torso and curled legs trail toward screen-left; "
-            "the head is at screen-right with one cheek resting on crossed forearms; "
-            "eyes are closed and the long hair falls beside the face toward "
-            "screen-right. Frames 4-6 keep exactly that construction and only "
-            "breathe. Frames 7-9 reverse the physical path back to the canonical "
-            "stand. Keep limb order, the complete solid hair silhouette, accessory "
-            "sides, and ground contact physically continuous."
+            "Frames 1-3 settle once into a cute stable pose lying prone on the "
+            "front / stomach, with the head resting sideways on folded hands. "
+            "Keep the eyes peacefully closed, cheeks softly rounded, and a tiny "
+            "relaxed pout: cute and content, never sad or angry. After frame 3 "
+            "the character never rises, kneels, wakes, or returns to standing. "
+            "Frames 4-6 preserve the exact head, hands, face, hair, and body "
+            "construction and change only the slow breathing volume."
         ),
         "batches": [
             [
-                "standing, preparing to settle",
-                "body lowers with hands reaching support",
-                "side-lying sleep pose becomes fully established",
+                "sleepy upright pose beginning to lower calmly toward the ground",
+                "body lowers onto the front while both hands fold together as a pillow",
+                "fully lying prone, head resting sideways on folded hands, eyes closed, cheeks softly rounded, tiny relaxed pout",
             ],
             [
-                "same sleep pose at settled exhale",
-                "same sleep pose at slow inhale crest",
-                "same sleep pose returning to settled exhale",
-            ],
-            [
-                "sleep pose wakes and torso rises",
-                "supported crouch transitioning upward",
-                "stable canonical standing pose",
+                "same prone head-on-folded-hands sleep pose at settled exhale",
+                "same pose at one very small slow inhale; only back and shoulders rise slightly",
+                "same settled exhale matching the first breathing frame exactly",
             ],
         ],
     },
     "gaze": {
         "motion_class": "directional",
-        "final_frames": 5,
-        "directions": ["neutral", "up", "right", "down", "left"],
+        "final_frames": 8,
+        "directions": [
+            "up", "upper_right", "right", "lower_right",
+            "down", "lower_left", "left", "upper_left",
+        ],
         "pose_contract": (
-            "Keep feet and lower body fixed. Eyes lead; head/neck and only a "
-            "restrained upper-body follow may move. Never rotate the whole sprite."
+            "Keep feet and lower body fixed. Eyes lead; head and neck may follow "
+            "only enough to make all eight compass directions readable. Never "
+            "rotate or redesign the whole sprite."
         ),
         "batches": [
-            ["neutral gaze", "look up", "look toward screen-right"],
             [
-                "look down",
+                "look straight up",
+                "look toward upper screen-right",
+                "look toward screen-right",
+            ],
+            [
+                "look toward lower screen-right",
+                "look straight down",
+                "look toward lower screen-left",
+            ],
+            [
                 "look toward screen-left",
-                "closure check: recreate neutral gaze; discard this frame",
+                "look toward upper screen-left",
+                "closure check: recreate straight-up gaze; discard this frame",
             ],
         ],
-        "keep_per_batch": [3, 2],
+        "keep_per_batch": [3, 3, 2],
     },
     "tennis": {
         "motion_class": "gesture",
         "final_frames": 9,
-        "holds": [0.24, 0.18, 0.14, 0.10, 0.09, 0.16, 0.20, 0.24, 0.36],
+        "holds": [0.42, 0.32, 0.24, 0.18, 0.16, 0.26, 0.34, 0.42, 0.62],
         "pose_contract": (
             "Perform one readable forehand rally loop. The same tennis racket "
             "must keep identical frame shape, handle, strings, scale, and hand "
@@ -157,7 +163,7 @@ PROFILES = {
     "wall": {
         "motion_class": "ambient",
         "final_frames": 6,
-        "holds": [0.70, 0.55, 0.95, 0.75, 0.55, 0.95],
+        "holds": [0.95, 0.85, 1.25, 1.00, 0.85, 1.25],
         "segments": [
             {"name": "wall-stand", "start": 0, "count": 3},
             {"name": "ledge-sit", "start": 3, "count": 3},
@@ -244,11 +250,11 @@ def copy_reference(source: Path, references: Path, stem: str) -> tuple[str, dict
     }
 
 
-def make_keyed_reference(source: Path, destination: Path) -> dict:
-    """Flatten a transparent identity reference onto the generation key color."""
+def make_matted_reference(source: Path, destination: Path) -> dict:
+    """Flatten a transparent identity reference onto Mimo's warm matte."""
     with Image.open(source) as loaded:
         foreground = loaded.convert("RGBA")
-    canvas = Image.new("RGBA", foreground.size, CHROMA_KEY)
+    canvas = Image.new("RGBA", foreground.size, EXTRACTION_MATTE)
     canvas.alpha_composite(foreground)
     destination.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(destination)
@@ -257,7 +263,7 @@ def make_keyed_reference(source: Path, destination: Path) -> dict:
         "sha256": sha256(destination),
         "source_path": str(source),
         "purpose": (
-            "ImageGen identity reference flattened onto the same chroma key so "
+            "ImageGen identity reference flattened onto the same warm matte so "
             "transparent exterior pixels cannot be learned as opaque white"
         ),
     }
@@ -381,14 +387,13 @@ OUTPUT
 Create exactly three active frames as three vertical panels on one
 1536×1024 canvas. Each source panel is 512×1024 and will later be registered
 into one 512×512 runtime cell. Read left to right.
-Use one perfectly flat, opaque {CHROMA_KEY} chroma-key background over the complete
-canvas for local background removal. The background must have no shadow,
+Use one perfectly flat, opaque {EXTRACTION_MATTE} warm extraction matte over
+the complete canvas for local background removal. It must have no shadow,
 gradient, texture, reflection, floor plane, guide marks, or lighting variation.
-Do not use {CHROMA_KEY} anywhere inside the character. Magenta visible around
-the outside of the canonical subject is BACKGROUND, never white material.
+The matte is technical extraction space, never scenery or character material.
 Preserve only genuine open space outside the authored character contour. The
 hair must remain one continuous solid mass behind and beside the face: never
-create an enclosed magenta window between a front hair lock and the forehead,
+create an enclosed matte-colored window between a front hair lock and the forehead,
 eye, nose, cheek, jaw, neck, or shoulder. Such a window becomes a white-looking
 hole after keying and is a hard failure. Keep the complete pose inside
 each panel with at least 48px clear side/top padding and 96px clear background
@@ -409,7 +414,7 @@ Match the preceding approved batch when one exists. Closure-check frames are QA
 only and will be discarded after comparison with the original first frame.
 
 No scenery, text, grid, shadow, glow, blur, afterimage, detached effect, cropped
-limb, floor, or chroma-key color inside the character.
+limb, floor, or extraction-matte residue inside the character.
 """
 
 
@@ -436,7 +441,7 @@ def main() -> None:
     canonical_rel, canonical_meta = copy_reference(
         canonical, references, "canonical-master")
     canonical_imagegen_rel = "references/canonical-imagegen-reference.png"
-    canonical_imagegen_meta = make_keyed_reference(
+    canonical_imagegen_meta = make_matted_reference(
         canonical, run_dir / canonical_imagegen_rel)
     style_rel = None
     style_meta = None
@@ -472,7 +477,7 @@ def main() -> None:
                 "path": canonical_imagegen_rel,
                 "role": (
                     "canonical identity and fidelity lock on the generation "
-                    "chroma key; exterior magenta is background while the "
+                    "warm extraction matte; exterior matte is background while the "
                     "canonical hair mass must stay solid"
                 ),
             },
@@ -566,7 +571,7 @@ def main() -> None:
             "coherent_generation_unit": "chained three-frame batch",
             "shared_scale_baseline_anchor": True,
             "independent_final_frame_generation_allowed": False,
-            "transparency_pipeline": "built-in-flat-chroma-key-plus-local-soft-matte",
+            "transparency_pipeline": "mimo-warm-matte-plus-local-soft-alpha",
             "direct_transparency_preferred": False,
             "alpha_edge_contract_allowed": False,
         },
