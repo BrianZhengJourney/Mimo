@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 enum StarterActionJobState: String, Codable, CaseIterable, Sendable {
     case planned
@@ -83,6 +84,7 @@ final class StarterActionJobStore: @unchecked Sendable {
     static let folderName = "StarterActionJobs"
     static let recordFilename = "job.json"
     static let maximumRecordBytes = 64 * 1024
+    static let maximumBatchBytes = 20 * 1024 * 1024
 
     private let fileManager: FileManager
     private let jobsURL: URL
@@ -171,8 +173,6 @@ final class StarterActionJobStore: @unchecked Sendable {
                 requestID, error: .invalidRequestID)
             record.quality = quality
             record.phase = "queued"
-            record.completedBatches = 0
-            record.usedProviderCalls = 0
             record.resultJobID = nil
             record.errorCode = nil
             record.errorMessage = nil
@@ -185,9 +185,8 @@ final class StarterActionJobStore: @unchecked Sendable {
                         now: Date = Date()) throws -> StarterActionJobRecord {
         try update(jobID: jobID) { record in
             guard record.state == .queued || record.state == .generating,
-                  (0...record.estimatedProviderCalls).contains(completedBatches),
-                  (0...record.estimatedProviderCalls).contains(usedProviderCalls),
-                  usedProviderCalls >= record.usedProviderCalls else {
+                  completedBatches == record.completedBatches,
+                  usedProviderCalls == record.usedProviderCalls else {
                 throw StarterActionJobError.invalidTransition
             }
             record.state = .generating
@@ -195,6 +194,77 @@ final class StarterActionJobStore: @unchecked Sendable {
             record.phase = Self.safeText(phase)
             record.completedBatches = completedBatches
             record.usedProviderCalls = usedProviderCalls
+        }
+    }
+
+    /// Checkpoints one paid provider result immediately. Batches are strictly
+    /// sequential, so a restart can resume from `completedBatches` without
+    /// silently regenerating anything already returned.
+    @discardableResult
+    func storeCompletedBatch(jobID: String, batchIndex: Int,
+                             pngData: Data, usedProviderCalls: Int,
+                             now: Date = Date()) throws -> StarterActionJobRecord {
+        try synchronized {
+            try prepareStorage()
+            let id = try Self.canonicalUUID(jobID, error: .invalidJobID)
+            var record = try loadRecord(id)
+            guard record.state == .generating,
+                  batchIndex == record.completedBatches,
+                  (0..<record.estimatedProviderCalls).contains(batchIndex),
+                  usedProviderCalls == record.usedProviderCalls + 1,
+                  usedProviderCalls <= record.estimatedProviderCalls * record.maximumAttempts,
+                  Self.isValidBatchPNG(pngData) else {
+                throw StarterActionJobError.invalidTransition
+            }
+            let filename = Self.batchFilename(batchIndex)
+            let url = jobsURL.appendingPathComponent(id, isDirectory: true)
+                .appendingPathComponent(filename)
+            guard Self.isDescendant(url, of: jobsURL),
+                  !fileManager.fileExists(atPath: url.path) else {
+                throw StarterActionJobError.corruptStore
+            }
+            try pngData.write(to: url, options: [.atomic])
+            var committed = false
+            defer { if !committed { try? fileManager.removeItem(at: url) } }
+            try? fileManager.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: url.path)
+            record.updatedAt = now
+            record.phase = "batch-\(batchIndex + 1)-complete"
+            record.completedBatches = batchIndex + 1
+            record.usedProviderCalls = usedProviderCalls
+            try persist(record)
+            committed = true
+            return record
+        }
+    }
+
+    func batchData(jobID: String, batchIndex: Int) throws -> Data {
+        try synchronized {
+            try prepareStorage()
+            let id = try Self.canonicalUUID(jobID, error: .invalidJobID)
+            let record = try loadRecord(id)
+            guard (0..<record.completedBatches).contains(batchIndex) else {
+                throw StarterActionJobError.missingJob
+            }
+            let url = jobsURL.appendingPathComponent(id, isDirectory: true)
+                .appendingPathComponent(Self.batchFilename(batchIndex))
+            guard Self.isDescendant(url, of: jobsURL),
+                  let values = try? url.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true,
+                  (values.fileSize ?? Int.max) <= Self.maximumBatchBytes,
+                  let data = try? Data(contentsOf: url),
+                  Self.isValidBatchPNG(data) else {
+                throw StarterActionJobError.corruptStore
+            }
+            return data
+        }
+    }
+
+    func completedBatchData(jobID: String) throws -> [Data] {
+        let record = try record(jobID: jobID)
+        return try (0..<record.completedBatches).map {
+            try batchData(jobID: record.id, batchIndex: $0)
         }
     }
 
@@ -253,7 +323,8 @@ final class StarterActionJobStore: @unchecked Sendable {
                 throw StarterActionJobError.invalidTransition
             }
             if let usedProviderCalls {
-                guard (record.usedProviderCalls...record.estimatedProviderCalls)
+                guard (record.usedProviderCalls...(record.estimatedProviderCalls
+                       * record.maximumAttempts))
                     .contains(usedProviderCalls) else {
                     throw StarterActionJobError.invalidTransition
                 }
@@ -385,7 +456,8 @@ final class StarterActionJobStore: @unchecked Sendable {
               record.characterID == (try? Self.canonicalCharacterID(record.characterID)),
               (0...record.maximumAttempts).contains(record.attempt),
               (0...record.estimatedProviderCalls).contains(record.completedBatches),
-              (0...record.estimatedProviderCalls).contains(record.usedProviderCalls) else {
+              (0...(record.estimatedProviderCalls * record.maximumAttempts))
+                .contains(record.usedProviderCalls) else {
             throw StarterActionJobError.corruptStore
         }
         let directory = jobsURL.appendingPathComponent(record.id, isDirectory: true)
@@ -423,6 +495,24 @@ final class StarterActionJobStore: @unchecked Sendable {
 
     private static func safeText(_ value: String) -> String {
         String(value.replacingOccurrences(of: "\0", with: "").prefix(512))
+    }
+
+    private static func batchFilename(_ index: Int) -> String {
+        String(format: "batch-%02d.png", index + 1)
+    }
+
+    private static func isValidBatchPNG(_ data: Data) -> Bool {
+        guard data.count <= maximumBatchBytes,
+              data.starts(with: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) == 1,
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+              let height = properties[kCGImagePropertyPixelHeight] as? NSNumber else {
+            return false
+        }
+        return width.intValue == 1536 && height.intValue == 1024
     }
 
     private static func productOrdered(_ records: [StarterActionJobRecord])

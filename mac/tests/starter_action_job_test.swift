@@ -1,5 +1,8 @@
 // sources: starter_action.swift starter_action_job.swift
 import Foundation
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
 
 private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() {
@@ -16,6 +19,26 @@ private func expectThrows(_ message: String, _ body: () throws -> Void) {
     } catch {
         // Expected.
     }
+}
+
+private func makeBatchPNG() -> Data {
+    let width = 1536, height = 1024
+    let info = CGImageAlphaInfo.premultipliedLast.rawValue
+        | CGBitmapInfo.byteOrder32Big.rawValue
+    let context = CGContext(
+        data: nil, width: width, height: height,
+        bitsPerComponent: 8, bytesPerRow: width * 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info)!
+    context.setFillColor(CGColor(red: 1, green: 0, blue: 1, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    context.setFillColor(CGColor(red: 0.3, green: 0.5, blue: 0.8, alpha: 1))
+    context.fill(CGRect(x: 128, y: 128, width: 256, height: 700))
+    let output = NSMutableData()
+    let destination = CGImageDestinationCreateWithData(
+        output, UTType.png.identifier as CFString, 1, nil)!
+    CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+    precondition(CGImageDestinationFinalize(destination))
+    return output as Data
 }
 
 @main
@@ -57,12 +80,19 @@ struct StarterActionJobTests {
                "the job discloses its complete chained-call estimate")
 
         let generating = try store.markGenerating(
-            jobID: gaze.id, phase: "batch-2-of-2",
-            completedBatches: 1, usedProviderCalls: 2)
-        expect(generating.state == .generating && generating.completedBatches == 1,
+            jobID: gaze.id, phase: "batch-1-of-2",
+            completedBatches: 0, usedProviderCalls: 0)
+        expect(generating.state == .generating && generating.completedBatches == 0,
                "provider progress is durable")
-        expect(generating.usedProviderCalls == 2,
-               "actual paid calls remain visible")
+        _ = try store.storeCompletedBatch(
+            jobID: gaze.id, batchIndex: 0,
+            pngData: makeBatchPNG(), usedProviderCalls: 1)
+        _ = try store.storeCompletedBatch(
+            jobID: gaze.id, batchIndex: 1,
+            pngData: makeBatchPNG(), usedProviderCalls: 2)
+        let completedGaze = try store.record(jobID: gaze.id)
+        expect(completedGaze.usedProviderCalls == 2,
+               "every completed paid call remains visible")
 
         let local = try store.markLocalProcessing(jobID: gaze.id, phase: "registering")
         expect(local.state == .localProcessing, "provider completion becomes local processing")
@@ -91,19 +121,33 @@ struct StarterActionJobTests {
                              quality: "medium")
         _ = try store!.markGenerating(
             jobID: sleep.id, phase: "batch-2-of-3",
-            completedBatches: 1, usedProviderCalls: 1)
+            completedBatches: 0, usedProviderCalls: 0)
+        let completed = try store!.storeCompletedBatch(
+            jobID: sleep.id, batchIndex: 0,
+            pngData: makeBatchPNG(), usedProviderCalls: 1)
+        expect(completed.completedBatches == 1 && completed.usedProviderCalls == 1,
+               "each paid completed batch is durably checkpointed")
         store = nil
 
-        let recovered = StarterActionJobStore(root: root)
-            .jobs(characterID: characterID).first { $0.actionID == .sleep }!
+        let reopened = StarterActionJobStore(root: root)
+        let recovered = reopened.jobs(characterID: characterID)
+            .first { $0.actionID == .sleep }!
         expect(recovered.state == .failed && recovered.errorCode == "interrupted",
                "an in-flight restart becomes an honest retryable failure")
         expect(recovered.usedProviderCalls == 1 && recovered.attempt == 1,
                "recovery preserves spend and attempt history")
+        let retainedBatch = try reopened.batchData(jobID: sleep.id, batchIndex: 0)
+        expect(retainedBatch == makeBatchPNG(),
+               "recovery preserves the completed provider artifact")
         expect(recovered.requestID == nil,
                "no stale request ID can resume or duplicate a provider call")
         expect(recovered.canStart,
                "the user can explicitly retry after seeing the interruption")
+
+        let resumed = try reopened.queue(
+            jobID: sleep.id, requestID: UUID().uuidString, quality: "medium")
+        expect(resumed.completedBatches == 1 && resumed.usedProviderCalls == 1,
+               "explicit retry resumes at the first unfinished batch without hidden spend")
     }
 
     static func main() throws {
