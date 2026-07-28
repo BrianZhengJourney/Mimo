@@ -1,6 +1,6 @@
 ---
 name: mimo-animate-pet
-description: Design, generate, repair, validate, and package the approved high-fidelity Mimo companion actions—idle breathing, walking, sleep transitions and breathing, eye-only gaze, tennis, and wall-standing—with chained three-frame generation, shared 512px geometry, canonical identity references, conservative transparency, authored timing, and deterministic QA. Use when creating or fixing one of these Mimo DIY animation assets or diagnosing identity drift, hair-matte loss, size popping, baseline jitter, or motion timing.
+description: Design, generate, repair, validate, and package the approved high-fidelity Mimo companion actions—idle breathing, walking, sleep transitions and breathing, five-direction gaze, tennis, and wall stand/sit—with chained three-frame generation, shared 512px geometry, canonical identity references, conservative transparency, authored timing, and deterministic QA. Use when creating or fixing one of these Mimo DIY animation assets or diagnosing identity drift, hair-matte loss, size popping, baseline jitter, or motion timing.
 ---
 
 # Mimo Animate Pet
@@ -43,16 +43,21 @@ lock, coherent-family generation, deterministic registration, and QA gates.
 
 ## Production action roster
 
-Only prepare these product actions:
+The in-app Starter Action pack is the activation contract:
+
+| Action | Final frames | Generation |
+|---|---:|---|
+| Sleep | 9 | lie-down `3` + breathing `3` + rise `3` |
+| Gaze | 5 | neutral / up / right `3` + down / left `2` |
+| Tennis | 9 | preparation `3` + hit `3` + recovery `3` |
+| Wall | 6 | wall-standing `3` + ledge-sitting `3` |
+
+The extended production tooling may also prepare:
 
 | Action | Final frames | Generation |
 |---|---:|---|
 | Idle / breathing | 3 | one batch |
 | Walk | 8 | `3 + 3 + 2`; mirror for the other direction |
-| Sleep | 9 | lie-down `3` + breathing `3` + rise `3` |
-| Gaze | 3 | fixed head/hair; eyes neutral / screen-left / screen-right |
-| Tennis | 9 | preparation `3` + hit `3` + recovery `3` |
-| Wall-standing | 3 | one subtle breathing/weight-shift batch |
 
 Do not add wave, run, jump, sit, work, wait, review, failure, celebration, or
 other actions unless the user explicitly revises this roster. Historical outputs
@@ -91,7 +96,7 @@ cut, handed markings, watch/tattoo/accessory placement, and habitual bearing.
 
 Classify the action before drawing:
 
-- `ambient`: idle breathing or wall-standing
+- `ambient`: idle breathing, wall-standing, or ledge-sitting
 - `segmented`: sleep lie-down → breathing loop → rise
 - `locomotion`: walk
 - `directional`: gaze

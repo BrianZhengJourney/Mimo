@@ -2,7 +2,7 @@
 
 # 11. 完整 Custom Pet Generation
 
-**状态：下一实施里程碑（2026-07-27）。**
+**状态：P1 Starter Actions 已实现（2026-07-28）；等待用户在 App 内触发付费生成并做视觉验收。**
 
 目标不是再做一条独立生成 demo，而是把已经验证过的 canonical character、
 action production、hard QA、preview 与 manifest 安装接成一个用户可恢复的
@@ -10,21 +10,24 @@ Mimo Studio 流程。
 
 ## 11.0 当前接缝
 
-已经存在：
+已经接通：
 
 - `reference_preprocessor.swift`：在本机整理与确认身份证据；
 - `PetGenerationCoordinator`：生成 canonical master / expression assets；
-- `action_sheet.swift` 与 `skills/mimo-animate-pet/`：动作生产与确定性后处理；
-- `ActionGenerationJobStore`：安全导入、持久化、preview、QA、显式接受；
-- `CustomPetStore` manifest v2：按动作名安装 strip 与播放元数据；
-- `CompanionRuntime`：加载多 action strip，由行为包按名字播放。
+- `StarterActionCatalog`：四套生产动作、三帧 coherent batches、最终帧数与 timing；
+- `StarterActionJobStore`：独立 job、调用记录、取消、重试上限与 batch 断点；
+- `PetGenerationCoordinator`：从已采用角色的 mature canonical 逐 batch 生成；
+- `ActionSheetProcessor`：跨 batch 一次性共享 scale / baseline / anchor；
+- `ActionGenerationJobStore`：持久化、hard QA、desktop preview、显式接受；
+- `CustomPetStore` manifest v4：按动作名原子安装 strip 与播放元数据；
+- `CompanionRuntime`：五方向 gaze、分段 sleep、tennis runtime ball、wall stand/sit；
+- Settings：四张 durable action cards，显示 frames / calls / cost / progress / retry。
 
-尚未接通：
+仍待真实用户验收：
 
-- Studio 在 canonical master 后仍显示 `Action frames` placeholder；
-- action job 只能从本地 result folder 导入，不能由 Studio 发起；
-- 多动作生成没有统一的进度、预算、重试与重启恢复视图；
-- 完成定义仍分散在 image-sheet、Wan 和 hybrid 实验中。
+- 用户在自己的 API 账户上点击生成四套视觉资产；
+- 逐条检查 identity、动作语义、循环 seam，再 Preview → Accept；
+- 基于首批真实结果调整 prompt/视觉 QA，但不能静默重掷或放宽安装边界。
 
 ## 11.1 目标流程
 
@@ -43,7 +46,7 @@ deterministic normalize / register / alpha / motion QA
       ↓
 desktop preview + explicit user acceptance
       ↓
-atomic manifest v2 install
+atomic manifest v4 install
       ↓
 behavior pack drives the native companion
 ```
@@ -53,17 +56,17 @@ master 与已经通过的动作；不得因为一格或一条失败而重做整�
 
 ## 11.2 v1 完成范围
 
-必需动作族：
+P1 Starter Action 族：
 
 | Action | 作用 | 播放契约 |
 |---|---|---|
-| `walk` | 基础移动 | 按距离驱动；必须有 authored cycle distance |
-| `gaze` | 光标注视 | 慢速 authored holds；左右可安全镜像 |
-| `rest` | 躺下、睡息、起身 | 起手/循环/收尾可链式播放 |
-| `wall` | 左右墙倚靠 | attached surface 驱动；右墙镜像 |
+| `gaze` | 光标注视 | 5 帧：neutral / up / right / down / left |
+| `rest` | 躺下、睡息、起身 | 9 帧：3 + 3 + 3，慢速 breathing loop |
+| `tennis` | 完整正手挥拍 | 9 帧；图中不画球，runtime 只合成一个确定性球 |
+| `wall` | 墙边站 / 屏幕边坐 | 6 帧：stand 3 + sit 3；attached surface 驱动 |
 
-签名动作（如 tennis / tea / book）作为生成完成后的增量包，不阻塞首次领养。
-完整约 190 帧的 inventory 仍是内容上限，不是 v1 activation 门槛。
+Walk 保留为已安装/扩展动作，不是本轮四卡 activation pack。完整约 190 帧的
+inventory 仍是长期内容上限，不是首次领养门槛。
 
 ## 11.3 Artifact contract
 
@@ -88,27 +91,25 @@ metadata，复制进 app-owned storage 后，仍要求用户先 preview 再 acce
 
 ## 11.4 Studio UX
 
-把当前 `Action frames` placeholder 替换为动作卡片：
+Settings 已用四张动作卡替换旧的本地导入主入口：
 
 - `等待生成 / 生成中 / 本机处理 / 待验收 / 已安装 / 失败`；
 - 每条动作显示预计成本、已产生费用、重试次数与 provider；
 - canonical master 完成后即可领养，动作在后台逐条补齐；
 - 关闭 Settings 或重启 Mimo 后继续显示真实状态；
-- 失败只提供“本机重处理”或“重新付费生成”两个明确动作，不混淆；
+- 成功返回的每个付费 batch 立刻落盘；重启后明确显示 interrupted；
+- 失败/取消后的重试从第一个未完成 batch 开始，不重复已保存的调用；
 - preview 永远不等于 install；accept 后原子更新 manifest revision。
+- 旧 result-folder 导入保留在 Advanced，不再是普通用户主流程。
 
-## 11.5 实施顺序
+## 11.5 已完成的实施顺序
 
-1. **冻结 contract**：选一份通过 QA 的 fixture，确保 image-sheet / hybrid /
-   video 后端都输出同一 bundle。
-2. **统一 orchestrator**：以 canonical master、temperament、body plan 生成
-   action plan；每条 action job 独立入 ledger 与 draft store。
-3. **接 Studio**：从 canonical result 直接创建动作 jobs，替换本地文件夹导入
-   作为主入口；开发者导入保留在 debug/advanced。
-4. **恢复与花费**：接入现有 reservation、timeout、cancel、retry ceiling，
-   重启后从持久化状态恢复，不重复付费。
-5. **安装事务**：逐动作验收，写临时 manifest，完整校验后 rename 覆盖；
-   已安装 revision 在任何失败路径下都保持可用。
+1. **冻结 Starter contract**：四套动作共 29 帧、10 个三帧 batch；
+2. **统一 orchestrator**：canonical-first、前一 batch 只作 continuity reference；
+3. **batch checkpoint**：成功结果先持久化，再开始下一次 provider call；
+4. **Studio 四卡**：预算、状态、取消、断点重试、Preview / Accept；
+5. **runtime 语义**：gaze mapping、sleep phases、tennis ball、wall stand/sit；
+6. **安全安装**：沿用同一 `ActionGenerationJobStore` review boundary。
 
 ## 11.6 Release acceptance
 
@@ -116,7 +117,7 @@ metadata，复制进 app-owned storage 后，仍要求用户先 preview 再 acce
 
 1. 添加参考图并确认 identity board；
 2. 生成并领养 canonical familiar；
-3. 后台生成四个必需动作族；
+3. 逐张点击生成四个 Starter Action；每张开始前都能看到 calls 与成本；
 4. 每条动作都能在桌面 preview，失败结果无法安装；
 5. 接受通过项后，退出重开仍能加载相同 revision；
 6. 中途取消、网络失败、本机处理失败都不会丢 canonical master 或重复扣费；
@@ -129,3 +130,4 @@ metadata，复制进 app-owned storage 后，仍要求用户先 preview 再 acce
 - 多实例、Marketplace、Windows；
 - 用通用聊天替代 companion behavior；
 - 为达到固定帧数而静默重掷或降低 QA 阈值。
+- 自动替用户触发付费生成；P1 始终要求用户在卡片上明确点击。

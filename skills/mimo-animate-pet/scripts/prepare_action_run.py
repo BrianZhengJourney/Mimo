@@ -154,20 +154,31 @@ PROFILES = {
             ],
         ],
     },
-    "wall-stand": {
+    "wall": {
         "motion_class": "ambient",
-        "final_frames": 3,
-        "holds": [0.70, 0.55, 0.95],
+        "final_frames": 6,
+        "holds": [0.70, 0.55, 0.95, 0.75, 0.55, 0.95],
+        "segments": [
+            {"name": "wall-stand", "start": 0, "count": 3},
+            {"name": "ledge-sit", "start": 3, "count": 3},
+        ],
         "pose_contract": (
-            "Stand casually leaning against a vertical wall at screen-right. "
-            "The runtime supplies the wall, so draw no wall or scenery. Keep the "
-            "wall-side shoulder/hip contact, planted feet, and edge anchor fixed."
+            "The first family stands against an invisible screen wall; the second "
+            "sits on an invisible edge with legs hanging. Keep the authored wall "
+            "or ledge contact fixed and draw no scenery."
         ),
-        "batches": [[
-            "relaxed wall-standing pose at settled exhale",
-            "same wall contact with a small inhale and weight shift",
-            "same relaxed wall-standing pose, closing the seam",
-        ]],
+        "batches": [
+            [
+                "relaxed wall-standing pose at settled exhale",
+                "same wall contact with a small inhale and weight shift",
+                "same relaxed wall-standing pose, closing the seam",
+            ],
+            [
+                "sitting on an invisible screen-edge ledge, legs hanging",
+                "same ledge contact with one gentle alternating leg swing",
+                "same settled ledge-sit pose, closing the seam",
+            ],
+        ],
     },
 }
 

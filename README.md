@@ -8,10 +8,11 @@ for turning a person, pet, or original character into a custom companion.
 
 ## Status
 
-**v0.2 Alpha · complete working baseline (2026-07-27).**
+**v0.2 Alpha · complete working baseline + Starter Actions (2026-07-28).**
 
-The current native app is complete and directly usable. The next milestone
-extends this working version; it is not a prerequisite for running Mimo today.
+The current native app is complete and directly usable. Starter Actions now
+extend this working version without making motion generation a prerequisite
+for adopting or using a DIY familiar.
 
 The repository has moved beyond the original browser concept:
 
@@ -21,10 +22,12 @@ The repository has moved beyond the original browser concept:
   daily journal, week view, and Markdown/HTML export.
 - Mimo Studio reference preprocessing, canonical character generation,
   expression assets, provider abstraction, generation ledger, and recovery.
-- Generated action strips can be safely imported, previewed on the desktop,
-  hard-QA checked, and explicitly installed into a custom pet manifest.
-- The finalized action-production workflow currently runs outside Mimo Studio.
-  Bringing its orchestration into the Studio is the next product milestone.
+- Mimo Studio creates four durable, independent Starter Action jobs after
+  adoption: cursor gaze, sleep, tennis, and wall stand/sit.
+- Each card discloses calls and estimated cost, checkpoints every completed
+  three-frame batch, survives restart, and resumes only after an explicit click.
+- Generated strips pass through local shared-scale/baseline processing, desktop
+  preview, hard-QA checking, and explicit Accept before manifest installation.
 
 See the [custom pet integration plan](docs/companion/11-custom-pet-integration.md)
 and [current handoff](docs/companion/SESSION-HANDOFF.md).
@@ -64,8 +67,9 @@ references → identity board → canonical master → action families
            → local normalization/QA → user preview → atomic install
 ```
 
-The first three stages and the final import/install seam exist. The next
-milestone connects them into one resumable Studio workflow.
+This resumable Studio workflow is now implemented for the four-action starter
+pack. Paid visual generation remains user-triggered; the app never silently
+spends, retries, or installs.
 
 ### Exports
 

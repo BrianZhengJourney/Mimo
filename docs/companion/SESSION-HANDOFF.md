@@ -1,6 +1,6 @@
 > 伴灵模式计划 · 会话交接 — [索引](README.md)
 
-# 会话交接(2026-07-27)
+# 会话交接(2026-07-28)
 
 给下一个会话看的。**先读这份,再读 [README](README.md)。**
 
@@ -8,47 +8,43 @@
 
 ## 0. 下一个 session 从这里开始 ← 最新
 
-### Release baseline 已完成；下一里程碑
+### P1 Starter Actions 已完成；下一步是真实生成验收
 
-**v0.2 Alpha working baseline 已完成、可直接运行使用，并已 push 到
-`codex/walk-rig-prototype`（Draft PR #2）。**当前工作从“继续探索动作生成方法”
-切换为下一阶段集成：
+**v0.2 Alpha working baseline + P1 已实现并持续 push 到
+`codex/walk-rig-prototype`（Draft PR #2）。**
 
-1. **已完成 release baseline**：生产代码、测试、生成工具、动作契约、
-   motion guide 与精选 preview 已进入 Git；`output/`、Wan run、大型实验 GIF、
-   构建物与原始个人参考图保持本地并由 `.gitignore` 排除。
-2. **下一步：完整 custom pet generation**：把已定稿的动作生产接入 Mimo Studio，
-   形成 `references → canonical master → action families → local QA →
-   user preview → atomic install` 的可恢复流程。详见
-   [11-custom-pet-integration.md](11-custom-pet-integration.md)。
+当前完成：
 
-当前 app 已有安全的最后一段：`ActionGenerationJobStore` 能导入外部 result
-bundle、复制到 app-owned storage、在桌面循环预览、检查 hard QA，并在用户
-明确接受后写入 custom pet manifest。**尚缺的是 Studio 内部发起/编排动作生成**；
-设置页仍显示 `Action frames` placeholder，本地文件夹导入仍是开发者入口。
+1. 四套生产契约：`gaze 5 / sleep(rest) 9 / tennis 9 / wall 6`；
+2. 每次 provider call 固定一个 coherent 3-frame batch，共 `2/3/3/2` calls；
+3. 每个成功 batch 立即落盘；重启显示 interrupted，显式重试从断点继续；
+4. Studio 四张卡显示 frames、calls、质量、预计成本、进度、取消与重试；
+5. canonical mature frame → chained generation → shared normalize/baseline →
+   hard QA → desktop Preview → explicit Accept → manifest install 已全接通；
+6. runtime 已接五方向 gaze、睡觉三段、完整正手、单个确定性 tennis ball、
+   wall stand/sit；
+7. 外部 result-folder import 仍保留，但只在 Advanced。
 
-**当前伴灵(custom:e3851869…)四套动作条带已全部接线**:walk / gaze / rest / wall。
-`manifest.json` 的任意 `actionURLs` 都会加载进 `[String: CompanionSprite]`;
-行为包 schema v2 的 pose 可写 `"strip": "rest", "frame": 5`,v1 继续兼容。
+本轮**没有替用户触发任何付费生成，也没有自动启动 App**。代码与离线测试能证明
+编排/安全边界，不能替代真实视觉验收。下一步由用户从
+`mac/build/Mimo.app` 打开 Settings，选择一只 DIY 伴灵，逐卡生成并
+Preview → Accept。完整步骤见 [12-starter-actions.md](12-starter-actions.md)。
 
-**用户重启即可见:**
-- **walk**:当前已安装的仍是旧 16 帧条带;按移动距离播,但原始生成图的步态阶段
-  大量重复,所以肉眼仍不自然。2026-07-22 的 24 格尝试也失败:角色很稳,
-  但模型把 24 格画成几组重复宽跨步,已废弃该方案;
-- **gaze**:站立不动 + 光标进入 380px 内跟随,离开 460px 恢复;
-- **rest**:低概率触发“趴下 → 睡息 → 梦泡/翻身 → 起身”。起身复用入睡帧的
-  反向序列,避免从趴着直接啪切站立;
-- **wall**:空中碰左右屏幕墙后播 1–8 帧倚墙循环,右墙自动镜像,并把角色不透明
-  边缘重新配准到屏幕边,避免切分器居中后半身出屏。9–16 帧坐边缘晃腿仍未接线。
+P1 关键 commits：
 
-**兼容保护:**行为引用的条带若未安装,对应行为会直接从加权瓮排除,旧伴灵不会
-出现“行为上睡着、画面却站着几十秒”的假动作。
+```text
+ea70d87 feat(actions): define the starter motion pack
+64d85a6 feat(actions): play the starter motion contracts
+fd6cc9b feat(actions): persist starter generation jobs
+e22fa01 feat(actions): generate coherent starter families
+14fd7be feat(actions): checkpoint paid starter batches
+9599097 feat(actions): orchestrate starter generation in Mimo
+2808ee7 feat(studio): add starter action cards
+ac353ea feat(runtime): animate the starter tennis ball
+```
 
-**验收不用等随机了:**右键伴灵 → `验收动作 / Preview Action` → 自动行为 /
-走路循环 /注视循环 /休息整条 /墙边整条。选自动行为或拖拽即停止强制预览。
-
-**下一步:**用户退出并从 `mac/build/Mimo.app` 重开,通过菜单验收四条动作。
-要验证新 16 关键相位步态需再做一次付费 OpenAI 生成,必须先得到用户明确确认。
+验收通过后的扩展方向：更多 optional action packs、creator template、可分享的
+pet package、用户发布/下载渠道；个人参考图与 credential 永不进入 package。
 
 ---
 

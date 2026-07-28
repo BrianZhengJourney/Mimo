@@ -32,7 +32,8 @@ These are starting values, not universal laws. Holds are seconds.
 | sleep: rise | 3 | `.24, .28, .42` | quick transition |
 | gaze | 5 directions | cursor angle | neutral / up / right / down / left |
 | tennis | 9 | `.24, .18, .14, .10, .09, .16, .20, .24, .36` | forehand loop |
-| wall-standing | 3 | `.70, .55, .95` | ~2.2s relaxed loop |
+| wall: stand | 3 | `.70, .55, .95` | ~2.2s relaxed loop |
+| wall: ledge-sit | 3 | `.75, .55, .95` | ~2.25s gentle leg-swing loop |
 
 Do not put a quick settling transition and a five-second sleep breath into one
 constant-FPS action. Author separate behavior segments over one strip or
