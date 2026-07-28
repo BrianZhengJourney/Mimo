@@ -159,6 +159,24 @@ struct CompanionSpriteTests {
                "invalid duration metadata should fall back to constant FPS")
     }
 
+    static func testPreviewPlaysSleepSettleOnceThenLoopsOnlyBreathing() {
+        let playback = CompanionActionPlaybackSpec(
+            framesPerSecond: 20,
+            cycleDistanceInCellPixels: nil,
+            frameDurationsSeconds: [0.5, 0.6, 0.9, 1.4, 1.2, 1.6],
+            loopStartFrame: 3)
+        expect(playback.frameIndex(at: 0.2, frameCount: 6) == 0,
+               "sleep preview begins with the one-shot settle")
+        expect(playback.frameIndex(at: 1.2, frameCount: 6) == 2,
+               "sleep preview completes the prone transition once")
+        expect(playback.frameIndex(at: 2.1, frameCount: 6) == 3,
+               "sleep preview enters the breathing loop")
+        expect(playback.frameIndex(at: 6.25, frameCount: 6) == 3,
+               "sleep preview loops to the first breath, never back to standing")
+        expect(playback.frameIndex(at: 7.7, frameCount: 6) == 4,
+               "the loop retains authored slow breathing holds")
+    }
+
     // MARK: - Anchoring on screen
 
     /// The feet must land exactly on the anchor at any render size, or a
@@ -239,6 +257,7 @@ struct CompanionSpriteTests {
         testFrameIndexIsClamped()
         testCycleDistanceScalesFromCellPixelsToScreenPixels()
         testAuthoredFrameDurationsPreserveSlowHolds()
+        testPreviewPlaysSleepSettleOnceThenLoopsOnlyBreathing()
         testRectPutsFeetOnTheAnchor()
         testHitMaskFollowsTheArtwork()
         testHitMaskRejectsEmptySpaceInsideTheRect()

@@ -127,9 +127,9 @@
       "requires": "grounded",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 0, "hold": 0.42 },
-          { "strip": "rest", "frame": 1, "hold": 0.48 },
-          { "strip": "rest", "frame": 2, "hold": 0.72 }
+          { "strip": "rest", "frame": 0, "hold": 0.55 },
+          { "strip": "rest", "frame": 1, "hold": 0.65 },
+          { "strip": "rest", "frame": 2, "hold": 0.95 }
         ] }
       ]
     },
@@ -137,24 +137,11 @@
       "name": "RestSleep",
       "type": "stay",
       "requires": "grounded",
-      "duration": "${7 + random() * 8}",
       "animations": [
         { "poses": [
           { "strip": "rest", "frame": 3, "hold": 1.40 },
           { "strip": "rest", "frame": 4, "hold": 1.20 },
           { "strip": "rest", "frame": 5, "hold": 1.60 }
-        ] }
-      ]
-    },
-    {
-      "name": "RestRise",
-      "type": "animate",
-      "requires": "grounded",
-      "animations": [
-        { "poses": [
-          { "strip": "rest", "frame": 6, "hold": 0.40 },
-          { "strip": "rest", "frame": 7, "hold": 0.46 },
-          { "strip": "rest", "frame": 8, "hold": 0.66 }
         ] }
       ]
     },
@@ -287,16 +274,7 @@
       "frequency": 0,
       "when": "#{self.state == 'grounded'}",
       "next": { "additive": false, "refs": [
-        { "name": "RestSleep", "frequency": 82 },
-        { "name": "RestRise",  "frequency": 18 }
-      ] }
-    },
-    {
-      "name": "RestRise",
-      "frequency": 0,
-      "when": "#{self.state == 'grounded'}",
-      "next": { "additive": false, "refs": [
-        { "name": "Stand", "frequency": 100 }
+        { "name": "RestSleep", "frequency": 100 }
       ] }
     },
     {

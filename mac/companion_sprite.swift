@@ -57,12 +57,18 @@ struct CompanionActionPlaybackSpec: Equatable {
     /// their per-pose `hold`; this preserves that same rhythm when a bundled
     /// strip is reviewed outside the behavior pack.
     let frameDurationsSeconds: [CGFloat]?
+    /// Optional one-shot prefix for previews. After this frame boundary, only
+    /// the suffix loops. Production sleep uses settle 0...2 once, then breath
+    /// 3...5 until an interaction interrupts it.
+    let loopStartFrame: Int?
 
     init(framesPerSecond: CGFloat, cycleDistanceInCellPixels: CGFloat?,
-         frameDurationsSeconds: [CGFloat]? = nil) {
+         frameDurationsSeconds: [CGFloat]? = nil,
+         loopStartFrame: Int? = nil) {
         self.framesPerSecond = framesPerSecond
         self.cycleDistanceInCellPixels = cycleDistanceInCellPixels
         self.frameDurationsSeconds = frameDurationsSeconds
+        self.loopStartFrame = loopStartFrame
     }
 
     func cycleDistanceOnScreen(displayHeight: CGFloat,
@@ -79,9 +85,29 @@ struct CompanionActionPlaybackSpec: Equatable {
         if let durations = frameDurationsSeconds,
            durations.count == frameCount,
            durations.allSatisfy({ $0.isFinite && $0 > 0 }) {
-            let total = durations.reduce(0, +)
-            var cursor = max(0, elapsed).truncatingRemainder(dividingBy: total)
-            for (index, duration) in durations.enumerated() {
+            let loopStart = loopStartFrame.flatMap {
+                (1..<frameCount).contains($0) ? $0 : nil
+            }
+            let firstIndex: Int
+            var cursor: CGFloat
+            if let loopStart {
+                let introDuration = durations[..<loopStart].reduce(0, +)
+                if max(0, elapsed) < introDuration {
+                    firstIndex = 0
+                    cursor = max(0, elapsed)
+                } else {
+                    firstIndex = loopStart
+                    let loopDuration = durations[loopStart...].reduce(0, +)
+                    cursor = (max(0, elapsed) - introDuration)
+                        .truncatingRemainder(dividingBy: loopDuration)
+                }
+            } else {
+                firstIndex = 0
+                let total = durations.reduce(0, +)
+                cursor = max(0, elapsed).truncatingRemainder(dividingBy: total)
+            }
+            for index in firstIndex..<frameCount {
+                let duration = durations[index]
                 if cursor < duration { return index }
                 cursor -= duration
             }
@@ -89,6 +115,15 @@ struct CompanionActionPlaybackSpec: Equatable {
         }
         let fps = framesPerSecond.isFinite && framesPerSecond > 0
             ? framesPerSecond : 12
+        if let loopStart = loopStartFrame,
+           (1..<frameCount).contains(loopStart) {
+            let introDuration = CGFloat(loopStart) / fps
+            if max(0, elapsed) < introDuration {
+                return min(loopStart - 1, Int(max(0, elapsed) * fps))
+            }
+            return loopStart + Int((max(0, elapsed) - introDuration) * fps)
+                % (frameCount - loopStart)
+        }
         return Int(max(0, elapsed) * fps) % frameCount
     }
 }

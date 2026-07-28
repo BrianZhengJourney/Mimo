@@ -131,7 +131,7 @@ struct StarterActionJobTests {
         _ = try store!.queue(jobID: sleep.id, requestID: UUID().uuidString,
                              quality: "medium")
         _ = try store!.markGenerating(
-            jobID: sleep.id, phase: "batch-2-of-3",
+            jobID: sleep.id, phase: "batch-1-of-\(sleep.estimatedProviderCalls)",
             completedBatches: 0, usedProviderCalls: 0)
         let completed = try store!.storeCompletedBatch(
             jobID: sleep.id, batchIndex: 0,
@@ -161,10 +161,70 @@ struct StarterActionJobTests {
                "explicit retry resumes at the first unfinished batch without hidden spend")
     }
 
+    static func testRevisedSleepKeepsPaidLegacyAndCreatesANewCurrentCard() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "mimo-starter-contract-migration-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let legacyID = UUID().uuidString.lowercased()
+        let legacyResultID = UUID().uuidString.lowercased()
+        let directory = root.appendingPathComponent(
+            StarterActionJobStore.folderName, isDirectory: true)
+            .appendingPathComponent(legacyID, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        let legacy = StarterActionJobRecord(
+            schemaVersion: StarterActionJobRecord.schemaVersion,
+            id: legacyID,
+            characterID: characterID,
+            actionID: .sleep,
+            contractRevision: nil,
+            state: .awaitingReview,
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            updatedAt: Date(timeIntervalSinceReferenceDate: 200),
+            attempt: 1,
+            maximumAttempts: StarterActionJobRecord.maximumAttempts,
+            requestID: nil,
+            quality: "medium",
+            phase: "awaiting-review",
+            completedBatches: 3,
+            estimatedProviderCalls: 3,
+            usedProviderCalls: 3,
+            resultJobID: legacyResultID,
+            errorCode: nil,
+            errorMessage: nil)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(legacy).write(
+            to: directory.appendingPathComponent(
+                StarterActionJobStore.recordFilename),
+            options: [.atomic])
+
+        let store = StarterActionJobStore(root: root)
+        let current = try store.ensureJobs(characterID: characterID)
+        let sleep = current.first { $0.actionID == .sleep }!
+        expect(current.count == 4 && sleep.id != legacyID,
+               "a changed paid sleep contract receives one fresh current card")
+        expect(sleep.contractRevision == 2
+               && sleep.estimatedProviderCalls == 2
+               && sleep.completedBatches == 0,
+               "the replacement card uses the two-batch prone sleep contract")
+        let preserved = try store.record(jobID: legacyID)
+        expect(preserved.state == .awaitingReview
+               && preserved.usedProviderCalls == 3
+               && preserved.resultJobID == legacyResultID,
+               "the old paid result remains intact as historical evidence")
+        expect(store.jobs(characterID: characterID).filter {
+            $0.actionID == .sleep
+        }.count == 1,
+               "Studio exposes only the current sleep contract")
+    }
+
     static func main() throws {
         try testEnsureCreatesOneDurableCardPerStarterAction()
         try testJobMovesThroughPaidAndLocalPhasesIntoReview()
         try testRestartFailsClosedWithoutRepeatingPaidWork()
+        try testRevisedSleepKeepsPaidLegacyAndCreatesANewCurrentCard()
         print("starter action job tests passed")
     }
 }

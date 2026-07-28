@@ -828,7 +828,8 @@ final class CompanionRuntime {
         companion.previewActionName = name
         companion.previewElapsed = 0
         companion.previewPlaybackSpec = companion.actionPlaybackSpecs[name]
-            ?? Self.defaultPreviewPlaybackSpec(for: name)
+            ?? Self.defaultPreviewPlaybackSpec(
+                for: name, frameCount: companion.actionSprites[name]!.frameCount)
         companion.facingRight = false
         companion.director?.reset()
         return true
@@ -851,7 +852,7 @@ final class CompanionRuntime {
         return true
     }
 
-    private static func defaultPreviewPlaybackSpec(for name: String)
+    private static func defaultPreviewPlaybackSpec(for name: String, frameCount: Int)
         -> CompanionActionPlaybackSpec {
         let fps: CGFloat
         switch name {
@@ -861,8 +862,13 @@ final class CompanionRuntime {
         case "wall": fps = 2
         default: fps = 4
         }
+        let sleep = name == "rest" && frameCount == 6
         return CompanionActionPlaybackSpec(
-            framesPerSecond: fps, cycleDistanceInCellPixels: nil)
+            framesPerSecond: fps,
+            cycleDistanceInCellPixels: nil,
+            frameDurationsSeconds: sleep
+                ? [0.55, 0.65, 0.95, 1.40, 1.20, 1.60] : nil,
+            loopStartFrame: sleep ? 3 : nil)
     }
 
     /// Reports what the companion is doing, when it changes.

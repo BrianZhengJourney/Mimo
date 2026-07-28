@@ -26,9 +26,19 @@ struct StarterActionTests {
         let sleep = StarterActionCatalog.definition(.sleep)
         expect(sleep.manifestActionName == "rest",
                "sleep remains compatible with the existing rest behavior key")
-        expect(sleep.finalFrameCount == 9, "sleep is lie-down 3 + breathe 3 + rise 3")
-        expect(sleep.segments.map(\.name) == ["lie-down", "breathing-loop", "rise"],
-               "sleep exposes its three authored timing segments")
+        expect(sleep.finalFrameCount == 6, "sleep is lie-down 3 + breathe 3")
+        expect(sleep.estimatedProviderCalls == 2,
+               "sleep no longer spends a third call drawing an unwanted rise")
+        expect(sleep.segments.map(\.name) == ["lie-down", "breathing-loop"],
+               "sleep settles once and then exposes only its breathing loop")
+        expect(sleep.contractRevision == 2,
+               "the prone no-rise sleep contract can migrate durable jobs")
+        let sleepPoses = sleep.batches.flatMap(\.poses).joined(separator: " ")
+        expect(sleepPoses.contains("head resting sideways on folded hands")
+               && sleepPoses.contains("tiny relaxed pout"),
+               "sleep keeps the cute prone head-on-hands construction")
+        expect(!sleepPoses.contains("rises") && !sleepPoses.contains("standing pose"),
+               "sleep never authors a wake-up or standing phase")
 
         let tennis = StarterActionCatalog.definition(.tennis)
         expect(tennis.finalFrameCount == 9, "tennis is prepare 3 + hit 3 + recover 3")
@@ -41,10 +51,10 @@ struct StarterActionTests {
         expect(wall.segments.map(\.name) == ["wall-stand", "ledge-sit"],
                "wall exposes both user-requested edge poses")
 
-        expect(StarterActionCatalog.all.reduce(0) { $0 + $1.finalFrameCount } == 32,
-               "the four accepted actions author 32 retained frames")
-        expect(StarterActionCatalog.all.reduce(0) { $0 + $1.estimatedProviderCalls } == 11,
-               "the four accepted actions disclose 11 provider calls")
+        expect(StarterActionCatalog.all.reduce(0) { $0 + $1.finalFrameCount } == 29,
+               "the four accepted actions author 29 retained frames")
+        expect(StarterActionCatalog.all.reduce(0) { $0 + $1.estimatedProviderCalls } == 10,
+               "the four accepted actions disclose 10 provider calls")
     }
 
     static func testEveryDefinitionIsAValidCoherentFamilyPlan() {
@@ -154,10 +164,14 @@ struct StarterActionTests {
             }
         }
 
-        let restFrames = ["RestSettle", "RestSleep", "RestRise"]
+        let restFrames = ["RestSettle", "RestSleep"]
             .flatMap { frames($0, strip: "rest") }
-        expect(restFrames == Array(0...8),
-               "sleep behavior plays the nine authored frames once in phase order")
+        expect(restFrames == Array(0...5),
+               "sleep plays the settle once and keeps only the breathing family")
+        expect(actions["RestRise"] == nil,
+               "the shipped action pack contains no automatic sleep rise")
+        expect(actions["RestSleep"]?["duration"] == nil,
+               "the breathing loop has no autonomous wake-up deadline")
 
         let tennisFrames = frames("PlayTennis", strip: "tennis")
         expect(tennisFrames == Array(0...8), "tennis plays the complete forehand family")
@@ -172,6 +186,17 @@ struct StarterActionTests {
         }
         expect(holds("RestSettle").allSatisfy { $0 >= 0.40 },
                "sleep settles at a calm readable tempo")
+
+        let behaviors = (root["behaviors"] as! [[String: Any]]).reduce(
+            into: [String: [String: Any]]()) {
+                $0[$1["name"] as! String] = $1
+            }
+        let sleepNextBlock = behaviors["RestSleep"]?["next"] as? [String: Any]
+        let sleepNext = sleepNextBlock?["refs"] as? [[String: Any]] ?? []
+        expect(sleepNext.count == 1
+               && sleepNext[0]["name"] as? String == "RestSleep"
+               && sleepNext[0]["frequency"] as? Int == 100,
+               "sleep breathes indefinitely until an external interaction interrupts it")
         expect(holds("PlayTennis").min() ?? 0 >= 0.16,
                "the fastest tennis beat is still slow enough to read")
         expect(holds("ClingWall").min() ?? 0 >= 0.80,

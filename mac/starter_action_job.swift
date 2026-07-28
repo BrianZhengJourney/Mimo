@@ -24,6 +24,10 @@ struct StarterActionJobRecord: Codable, Equatable, Sendable {
     let id: String
     let characterID: String
     let actionID: StarterActionID
+    /// Nil decodes records created before contract revisions existed and means
+    /// revision 1. Paid legacy records stay immutable when a motion contract
+    /// changes; Studio creates a fresh current card beside the hidden history.
+    var contractRevision: Int?
     var state: StarterActionJobState
     let createdAt: Date
     var updatedAt: Date
@@ -51,7 +55,11 @@ struct StarterActionJobRecord: Codable, Equatable, Sendable {
             && completedBatches == estimatedProviderCalls
             && estimatedProviderCalls
                 == StarterActionCatalog.definition(actionID).estimatedProviderCalls
+            && effectiveContractRevision
+                == StarterActionCatalog.definition(actionID).contractRevision
     }
+
+    var effectiveContractRevision: Int { contractRevision ?? 1 }
 }
 
 enum StarterActionJobError: LocalizedError {
@@ -114,24 +122,27 @@ final class StarterActionJobStore: @unchecked Sendable {
             var existing = try loadAll().filter { $0.characterID == characterID }
             for index in existing.indices {
                 let definition = StarterActionCatalog.definition(existing[index].actionID)
-                guard existing[index].estimatedProviderCalls
-                        != definition.estimatedProviderCalls,
+                guard existing[index].effectiveContractRevision
+                        != definition.contractRevision,
                       [.planned, .failed, .cancelled].contains(existing[index].state),
                       existing[index].completedBatches == 0,
                       existing[index].usedProviderCalls == 0,
                       existing[index].resultJobID == nil else { continue }
+                existing[index].contractRevision = definition.contractRevision
                 existing[index].estimatedProviderCalls = definition.estimatedProviderCalls
                 existing[index].updatedAt = now
                 try persist(existing[index])
             }
+            var current = existing.filter(Self.isCurrentContract)
             for actionID in StarterActionID.allCases
-                where !existing.contains(where: { $0.actionID == actionID }) {
+                where !current.contains(where: { $0.actionID == actionID }) {
                 let definition = StarterActionCatalog.definition(actionID)
                 let record = StarterActionJobRecord(
                     schemaVersion: StarterActionJobRecord.schemaVersion,
                     id: UUID().uuidString.lowercased(),
                     characterID: characterID,
                     actionID: actionID,
+                    contractRevision: definition.contractRevision,
                     state: .planned,
                     createdAt: now,
                     updatedAt: now,
@@ -148,8 +159,9 @@ final class StarterActionJobStore: @unchecked Sendable {
                     errorMessage: nil)
                 try persist(record)
                 existing.append(record)
+                current.append(record)
             }
-            return Self.productOrdered(existing)
+            return Self.productOrdered(current)
         }
     }
 
@@ -159,7 +171,7 @@ final class StarterActionJobStore: @unchecked Sendable {
             let canonical = try characterID.map(Self.canonicalCharacterID)
             let records = try loadAll().filter {
                 canonical == nil || $0.characterID == canonical
-            }
+            }.filter(Self.isCurrentContract)
             return Self.productOrdered(records)
         }) ?? []
     }
@@ -503,6 +515,7 @@ final class StarterActionJobStore: @unchecked Sendable {
         guard record.schemaVersion == StarterActionJobRecord.schemaVersion,
               record.id == (try? Self.canonicalUUID(record.id, error: .invalidJobID)),
               record.characterID == (try? Self.canonicalCharacterID(record.characterID)),
+              record.contractRevision.map({ (1...100).contains($0) }) ?? true,
               (0...record.maximumAttempts).contains(record.attempt),
               (0...record.estimatedProviderCalls).contains(record.completedBatches),
               (0...(record.estimatedProviderCalls * record.maximumAttempts))
@@ -572,6 +585,11 @@ final class StarterActionJobStore: @unchecked Sendable {
             if $0.characterID != $1.characterID { return $0.characterID < $1.characterID }
             return (order[$0.actionID] ?? Int.max) < (order[$1.actionID] ?? Int.max)
         }
+    }
+
+    private static func isCurrentContract(_ record: StarterActionJobRecord) -> Bool {
+        record.effectiveContractRevision
+            == StarterActionCatalog.definition(record.actionID).contractRevision
     }
 
     private static func isDescendant(_ url: URL, of root: URL) -> Bool {

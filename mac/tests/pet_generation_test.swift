@@ -149,6 +149,28 @@ struct PetGenerationTests {
         }
     }
 
+    static func testSleepPromptKeepsTheCuteProneNoRiseContract() {
+        let settle = flattened(PetGenerationCoordinator.starterActionBatchPrompt(
+            actionID: .sleep,
+            batchIndex: 0,
+            personalityVisual: "Soft and cozy",
+            hasStyleBoard: true,
+            hasPreviousBatch: false))
+        let breathe = flattened(PetGenerationCoordinator.starterActionBatchPrompt(
+            actionID: .sleep,
+            batchIndex: 1,
+            personalityVisual: "Soft and cozy",
+            hasStyleBoard: true,
+            hasPreviousBatch: true))
+        expect(settle.contains("lying prone on the front / stomach")
+               && settle.contains("head resting sideways on folded hands")
+               && settle.contains("tiny relaxed pout"),
+               "sleep visibly settles into the requested cute head-on-hands pose")
+        expect(breathe.contains("After FRAME 03 the character never rises")
+               && !breathe.contains("back to standing"),
+               "the final sleep family remains prone and only breathes")
+    }
+
     /// Poses are described physically rather than labelled. A model follows
     /// "weight over the front foot" far better than "walk frame 2".
     static func testActionPosesAreDescribedPhysically() {
@@ -255,6 +277,7 @@ struct PetGenerationTests {
         testWalkSheetRequestIsOneCallForSixteenKeyPoses()
         testStarterActionBatchUsesTheChainedThreeFrameContract()
         testEveryStarterBatchBuildsFromTheProductCatalog()
+        testSleepPromptKeepsTheCuteProneNoRiseContract()
         testActionPosesAreDescribedPhysically()
         testActionSheetPromptDemandsCrossPanelConsistency()
         testWalkInbetweenRequestLocksKeyframesAndMidpointMap()

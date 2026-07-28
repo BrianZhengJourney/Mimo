@@ -100,6 +100,12 @@ struct StarterActionDefinition: Equatable, Sendable {
     /// user starts generation; chained batches must never become hidden spend.
     var estimatedProviderCalls: Int { batches.count }
 
+    /// Durable generation contract revision. Increment only when retained
+    /// provider batches are no longer semantically reusable.
+    var contractRevision: Int {
+        id == .sleep ? 2 : 1
+    }
+
     /// Constant-FPS fallback for contact-sheet preview only. Runtime behavior
     /// uses authored holds, and gaze maps direction rather than playing a loop.
     var previewFramesPerSecond: Double {
@@ -160,37 +166,33 @@ enum StarterActionCatalog {
                 titleZh: "睡觉",
                 titleEn: "Sleeping",
                 motionClass: "segmented",
-                poseContract: "Frames 1–3 settle from standing into one stable side-lying "
-                    + "sleep construction. Frames 4–6 keep exactly that construction and "
-                    + "only breathe. Frames 7–9 reverse the same path back to standing.",
+                poseContract: "Frames 1–3 settle once into a cute, stable pose lying "
+                    + "prone on the front / stomach, with the head resting sideways on "
+                    + "folded hands. Keep the eyes peacefully closed, cheeks softly rounded, "
+                    + "and a tiny relaxed pout: cute and content, never sad or angry. "
+                    + "After FRAME 03 the character never rises, kneels, wakes, or returns "
+                    + "to standing. Frames 4–6 preserve the exact head, hands, face, hair, "
+                    + "and body construction and change only the slow breathing volume.",
                 batches: [
                     StarterActionBatch(
                         poses: [
-                            "standing, preparing to settle",
-                            "body lowers with hands reaching support",
-                            "side-lying sleep pose becomes fully established",
+                            "sleepy upright pose beginning to lower calmly toward the ground",
+                            "body lowers onto the front while both hands fold together as a pillow",
+                            "fully lying prone on the front / stomach, head resting sideways on folded hands, eyes closed, cheeks softly rounded, with a tiny relaxed pout",
                         ],
                         keepCount: 3),
                     StarterActionBatch(
                         poses: [
-                            "same sleep pose at settled exhale",
-                            "same sleep pose at slow inhale crest",
-                            "same sleep pose returning to settled exhale",
-                        ],
-                        keepCount: 3),
-                    StarterActionBatch(
-                        poses: [
-                            "sleep pose wakes and torso rises",
-                            "supported crouch transitioning upward",
-                            "stable canonical standing pose",
+                            "same prone head-on-folded-hands sleep pose at settled exhale",
+                            "same pose at one very small slow inhale; only back and shoulders rise slightly",
+                            "same settled exhale matching FRAME 01 of this batch exactly for a seamless breathing loop",
                         ],
                         keepCount: 3),
                 ],
-                frameDurations: [0.42, 0.48, 0.72, 1.40, 1.20, 1.60, 0.40, 0.46, 0.66],
+                frameDurations: [0.55, 0.65, 0.95, 1.40, 1.20, 1.60],
                 segments: [
                     StarterActionSegment(name: "lie-down", frameRange: 0..<3, loops: false),
                     StarterActionSegment(name: "breathing-loop", frameRange: 3..<6, loops: true),
-                    StarterActionSegment(name: "rise", frameRange: 6..<9, loops: false),
                 ],
                 directions: [],
                 runtimeEffect: .none)

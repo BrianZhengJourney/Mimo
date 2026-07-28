@@ -884,8 +884,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             actionSprites[name] = actionSprite
             if let fps = finiteNumber(metadata["fps"]), fps > 0 {
                 let cycle = finiteNumber(metadata["cycleDistance"]).flatMap { $0 > 0 ? $0 : nil }
+                let isCurrentSleep = name == "rest" && actionSprite.frameCount == 6
                 playbackSpecs[name] = CompanionActionPlaybackSpec(
-                    framesPerSecond: fps, cycleDistanceInCellPixels: cycle)
+                    framesPerSecond: fps,
+                    cycleDistanceInCellPixels: cycle,
+                    frameDurationsSeconds: isCurrentSleep
+                        ? StarterActionCatalog.definition(.sleep)
+                            .frameDurations.map { CGFloat($0) }
+                        : nil,
+                    loopStartFrame: isCurrentSleep ? 3 : nil)
             }
             recordCompanionStatus("\(name) strip loaded, \(actionSprite.frameCount) frames")
         }

@@ -2267,7 +2267,14 @@ extension AppDelegate {
                     framesPerSecond: CGFloat(record.metadata.framesPerSecond),
                     cycleDistanceInCellPixels: record.metadata.cycleDistanceCellPixels.map {
                         CGFloat($0)
-                    })
+                    },
+                    frameDurationsSeconds: record.metadata.action == "rest"
+                        && sprite.frameCount == 6
+                        ? StarterActionCatalog.definition(.sleep)
+                            .frameDurations.map { CGFloat($0) }
+                        : nil,
+                    loopStartFrame: record.metadata.action == "rest"
+                        && sprite.frameCount == 6 ? 3 : nil)
                 guard companionRuntime.previewExternalAction(
                     named: record.metadata.action, sprite: sprite,
                     playbackSpec: playback) else {
