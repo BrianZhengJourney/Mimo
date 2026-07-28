@@ -15,15 +15,16 @@
 
 当前完成：
 
-1. 四套生产契约：`gaze 5 / sleep(rest) 9 / tennis 9 / wall 6`；
-2. 每次 provider call 固定一个 coherent 3-frame batch，共 `2/3/3/2` calls；
+1. 五套生产契约：`gaze 8 / sleep(rest) 9 / tennis 9 / wall 6 / walk 8`；
+2. 每次 provider call 固定一个 coherent 3-frame batch，共 `3/3/3/2/3` calls；
 3. 每个成功 batch 立即落盘；重启显示 interrupted，显式重试从断点继续；
-4. Studio 四张卡显示 frames、calls、质量、预计成本、进度、取消与重试；
+4. Studio 五张卡显示 frames、calls、质量、预计成本、进度、取消、重试与本机重新抠图；
 5. canonical mature frame → chained generation → shared normalize/baseline →
    hard QA → desktop Preview → explicit Accept → manifest install 已全接通；
-6. runtime 已接五方向 gaze、睡觉三段、完整正手、单个确定性 tennis ball、
-   wall stand/sit；
+6. runtime 已接八方向 gaze、睡觉三段、完整正手、单个确定性 tennis ball、
+   wall stand/sit 与 distance-driven walk；
 7. 外部 result-folder import 仍保留，但只在 Advanced。
+8. white-frame chroma、全局 RGB despill 与 DIY 宠物改名已接通。
 
 本轮**没有替用户触发任何付费生成，也没有自动启动 App**。代码与离线测试能证明
 编排/安全边界，不能替代真实视觉验收。下一步由用户从
@@ -41,6 +42,9 @@ e22fa01 feat(actions): generate coherent starter families
 9599097 feat(actions): orchestrate starter generation in Mimo
 2808ee7 feat(studio): add starter action cards
 ac353ea feat(runtime): animate the starter tennis ball
+aed2ad6 Add calm eight-direction starter motion
+92e665c Repair starter action matte extraction
+bd72061 Let users rename custom familiars
 ```
 
 验收通过后的扩展方向：更多 optional action packs、creator template、可分享的

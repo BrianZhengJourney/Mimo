@@ -24,7 +24,7 @@ row extraction + immediate QA
       ↓
 approved standard contact sheet
       ↓
-4 cardinal gaze anchors
+8 compass-direction gaze anchors
       ↓
 look row 9
       ↓

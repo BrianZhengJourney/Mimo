@@ -280,8 +280,10 @@ struct CompanionBehaviorTests {
         expect(loaded.behavior(named: "RestSettle") != nil, "the rest theater is shipped")
         expect(loaded.action(named: "ClingWall")?.animations[0].poses[0].strip == "wall",
                "wall contact selects the wall strip")
-        expect(abs(loaded.action(named: "WalkRight")?.animations[0].poses[0].velocity.dx ?? 0) >= 80,
-               "the complete two-step cycle advances briskly instead of dragging")
+        let walkSpeed = abs(
+            loaded.action(named: "WalkRight")?.animations[0].poses[0].velocity.dx ?? 0)
+        expect((55...68).contains(walkSpeed),
+               "the distance-driven two-step cycle advances at the calmer approved pace")
         expect(loaded.reactions["click"] == "Poked", "the click reaction is shipped")
     }
 

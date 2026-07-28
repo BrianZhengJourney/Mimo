@@ -27,13 +27,13 @@ These are starting values, not universal laws. Holds are seconds.
 |---|---:|---|---|
 | idle / breathe | 3 | `.70, .55, .85` | ~2.1s readable calm loop |
 | walk | 8 key | distance phase; ~1.4–1.8s preview cycle | leisurely locomotion |
-| sleep: lie-down | 3 | `.26, .30, .48` | quick transition |
-| sleep: breathing | 3 | `.90, .75, 1.10` | ~2.75s slow loop |
-| sleep: rise | 3 | `.24, .28, .42` | quick transition |
-| gaze | 5 directions | cursor angle | neutral / up / right / down / left |
-| tennis | 9 | `.24, .18, .14, .10, .09, .16, .20, .24, .36` | forehand loop |
-| wall: stand | 3 | `.70, .55, .95` | ~2.2s relaxed loop |
-| wall: ledge-sit | 3 | `.75, .55, .95` | ~2.25s gentle leg-swing loop |
+| sleep: lie-down | 3 | `.42, .48, .72` | calm readable transition |
+| sleep: breathing | 3 | `1.40, 1.20, 1.60` | ~4.2s slow loop |
+| sleep: rise | 3 | `.40, .46, .66` | calm readable transition |
+| gaze | 8 directions | cursor angle | eight compass directions; base art inside neutral radius |
+| tennis | 9 | `.42, .32, .24, .18, .16, .26, .34, .42, .62` | readable forehand loop |
+| wall: stand | 3 | `.95, .85, 1.25` | ~3.05s relaxed loop |
+| wall: ledge-sit | 3 | `1.00, .85, 1.25` | ~3.1s gentle leg-swing loop |
 
 Do not put a quick settling transition and a five-second sleep breath into one
 constant-FPS action. Author separate behavior segments over one strip or
@@ -60,7 +60,7 @@ by lowering FPS independently of movement speed.
 
 ### Gaze
 
-Map cursor angle to the nearest of five authored direction cells. If smoothing
+Map cursor angle to the nearest of eight authored direction cells. If smoothing
 is added, ease the angle or apply a short 120–260ms transition; do not loop gaze.
 
 ## 4. Preview rules
