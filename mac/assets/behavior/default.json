@@ -54,8 +54,8 @@
       "duration": "${3 + random() * 5}",
       "animations": [
         { "poses": [
-          { "frame": 0, "hold": 0.18, "velocity": [-88, 0] },
-          { "frame": 0, "hold": 0.18, "velocity": [-88, 0] }
+          { "frame": 0, "hold": 0.24, "velocity": [-64, 0] },
+          { "frame": 0, "hold": 0.24, "velocity": [-64, 0] }
         ] }
       ]
     },
@@ -67,8 +67,8 @@
       "duration": "${3 + random() * 5}",
       "animations": [
         { "poses": [
-          { "frame": 0, "hold": 0.18, "velocity": [88, 0] },
-          { "frame": 0, "hold": 0.18, "velocity": [88, 0] }
+          { "frame": 0, "hold": 0.24, "velocity": [64, 0] },
+          { "frame": 0, "hold": 0.24, "velocity": [64, 0] }
         ] }
       ]
     },
@@ -79,7 +79,7 @@
       "targetX": "${world.display.workArea.left + 60 + random() * (world.display.workArea.right - world.display.workArea.left - 120)}",
       "duration": "${4 + random() * 6}",
       "animations": [
-        { "poses": [ { "frame": 0, "hold": 0.2, "velocity": [72, 0] } ] }
+        { "poses": [ { "frame": 0, "hold": 0.26, "velocity": [58, 0] } ] }
       ]
     },
 
@@ -127,9 +127,9 @@
       "requires": "grounded",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 0, "hold": 0.26 },
-          { "strip": "rest", "frame": 1, "hold": 0.30 },
-          { "strip": "rest", "frame": 2, "hold": 0.48 }
+          { "strip": "rest", "frame": 0, "hold": 0.42 },
+          { "strip": "rest", "frame": 1, "hold": 0.48 },
+          { "strip": "rest", "frame": 2, "hold": 0.72 }
         ] }
       ]
     },
@@ -140,9 +140,9 @@
       "duration": "${7 + random() * 8}",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 3, "hold": 0.90 },
-          { "strip": "rest", "frame": 4, "hold": 0.75 },
-          { "strip": "rest", "frame": 5, "hold": 1.10 }
+          { "strip": "rest", "frame": 3, "hold": 1.40 },
+          { "strip": "rest", "frame": 4, "hold": 1.20 },
+          { "strip": "rest", "frame": 5, "hold": 1.60 }
         ] }
       ]
     },
@@ -152,9 +152,9 @@
       "requires": "grounded",
       "animations": [
         { "poses": [
-          { "strip": "rest", "frame": 6, "hold": 0.24 },
-          { "strip": "rest", "frame": 7, "hold": 0.28 },
-          { "strip": "rest", "frame": 8, "hold": 0.42 }
+          { "strip": "rest", "frame": 6, "hold": 0.40 },
+          { "strip": "rest", "frame": 7, "hold": 0.46 },
+          { "strip": "rest", "frame": 8, "hold": 0.66 }
         ] }
       ]
     },
@@ -164,15 +164,15 @@
       "requires": "grounded",
       "animations": [
         { "poses": [
-          { "strip": "tennis", "frame": 0, "hold": 0.24 },
-          { "strip": "tennis", "frame": 1, "hold": 0.18 },
-          { "strip": "tennis", "frame": 2, "hold": 0.14 },
-          { "strip": "tennis", "frame": 3, "hold": 0.10 },
-          { "strip": "tennis", "frame": 4, "hold": 0.09 },
-          { "strip": "tennis", "frame": 5, "hold": 0.16 },
-          { "strip": "tennis", "frame": 6, "hold": 0.20 },
-          { "strip": "tennis", "frame": 7, "hold": 0.24 },
-          { "strip": "tennis", "frame": 8, "hold": 0.36 }
+          { "strip": "tennis", "frame": 0, "hold": 0.42 },
+          { "strip": "tennis", "frame": 1, "hold": 0.32 },
+          { "strip": "tennis", "frame": 2, "hold": 0.24 },
+          { "strip": "tennis", "frame": 3, "hold": 0.18 },
+          { "strip": "tennis", "frame": 4, "hold": 0.16 },
+          { "strip": "tennis", "frame": 5, "hold": 0.26 },
+          { "strip": "tennis", "frame": 6, "hold": 0.34 },
+          { "strip": "tennis", "frame": 7, "hold": 0.42 },
+          { "strip": "tennis", "frame": 8, "hold": 0.62 }
         ] }
       ]
     },
@@ -183,9 +183,9 @@
       "duration": "${2.5 + random() * 2.5}",
       "animations": [
         { "poses": [
-          { "strip": "wall", "frame": 0, "hold": 0.70 },
-          { "strip": "wall", "frame": 1, "hold": 0.55 },
-          { "strip": "wall", "frame": 2, "hold": 0.95 }
+          { "strip": "wall", "frame": 0, "hold": 0.95 },
+          { "strip": "wall", "frame": 1, "hold": 0.85 },
+          { "strip": "wall", "frame": 2, "hold": 1.25 }
         ] }
       ]
     },
@@ -196,9 +196,9 @@
       "duration": "${2.5 + random() * 3.5}",
       "animations": [
         { "poses": [
-          { "strip": "wall", "frame": 3, "hold": 0.75 },
-          { "strip": "wall", "frame": 4, "hold": 0.55 },
-          { "strip": "wall", "frame": 5, "hold": 0.95 }
+          { "strip": "wall", "frame": 3, "hold": 1.00 },
+          { "strip": "wall", "frame": 4, "hold": 0.85 },
+          { "strip": "wall", "frame": 5, "hold": 1.25 }
         ] }
       ]
     },

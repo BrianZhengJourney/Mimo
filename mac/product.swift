@@ -1465,7 +1465,7 @@ extension AppDelegate {
                             frameCount: definition.finalFrameCount,
                             cellSize: ActionSheetProcessor.outputCellSize,
                             framesPerSecond: definition.previewFramesPerSecond,
-                            cycleDistanceCellPixels: nil,
+                            cycleDistanceCellPixels: definition.cycleDistanceCellPixels,
                             anchorInCell: [
                                 Double(anchor.anchorX), Double(anchor.anchorY),
                             ],

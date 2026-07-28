@@ -855,11 +855,11 @@ final class CompanionRuntime {
         -> CompanionActionPlaybackSpec {
         let fps: CGFloat
         switch name {
-        case "walk": fps = 10
-        case "gaze": fps = 6
-        case "rest": fps = 4
-        case "wall": fps = 3.5
-        default: fps = 6
+        case "walk": fps = 7
+        case "gaze": fps = 4
+        case "rest": fps = 2.5
+        case "wall": fps = 2
+        default: fps = 4
         }
         return CompanionActionPlaybackSpec(
             framesPerSecond: fps, cycleDistanceInCellPixels: nil)

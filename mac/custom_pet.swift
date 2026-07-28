@@ -264,11 +264,11 @@ final class CustomPetStore: @unchecked Sendable {
     }
     static func defaultActionFPS(_ name: String) -> Double {
         switch name {
-        case "walk": 10
-        case "gaze": 6
-        case "rest": 4
-        case "wall": 3.5
-        default: 6
+        case "walk": 7
+        case "gaze": 4
+        case "rest": 2.5
+        case "wall": 2
+        default: 4
         }
     }
 

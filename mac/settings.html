@@ -1532,7 +1532,7 @@ function activeActionJobs(){
   return (S.actionJobs||[]).filter(job=>job.characterID===S.character);
 }
 function activeStarterActionJobs(){
-  const order={gaze:0,sleep:1,tennis:2,wall:3};
+  const order={gaze:0,sleep:1,tennis:2,wall:3,walk:4};
   return (S.starterActionJobs||[]).filter(job=>job.characterID===S.character)
     .sort((a,b)=>(order[a.actionID]??99)-(order[b.actionID]??99));
 }
@@ -1540,7 +1540,8 @@ const STARTER_ACTION_UI={
   gaze:{glyph:'👀',zh:'跟随光标',en:'Follow cursor'},
   sleep:{glyph:'💤',zh:'睡觉',en:'Sleeping'},
   tennis:{glyph:'🎾',zh:'打网球',en:'Play tennis'},
-  wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'}
+  wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'},
+  walk:{glyph:'🚶',zh:'走路',en:'Walking'}
 };
 function starterActionCost(job){
   const editable=['planned','failed','cancelled'].includes(job.state);
@@ -1610,7 +1611,7 @@ function actionResultReview(job){
 function renderActionReview(){
   const box=document.getElementById('actionReview');if(!box)return;
   if(!String(S.character||'').startsWith('custom:')){
-    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵；四套动作会属于那只伴灵。','Select a DIY familiar above; the four motion sets belong to that familiar.')}</div>`;return;
+    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵；五套动作会属于那只伴灵。','Select a DIY familiar above; the five motion sets belong to that familiar.')}</div>`;return;
   }
   const jobs=activeActionJobs(),starterJobs=activeStarterActionJobs();
   const linked=starterJobs.find(job=>job.resultJobID===selectedActionJobID);
@@ -1620,7 +1621,7 @@ function renderActionReview(){
   }
   const job=jobs.find(item=>item.jobID===selectedActionJobID)||null;
   const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择外部结果文件夹…','Choose external result folder…')}</button>`;
-  const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的四张动作卡…','Preparing the four motion cards…')}</div>`;
+  const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的五张动作卡…','Preparing the five motion cards…')}</div>`;
   const history=jobs.length>1?`<div class="action-review-history">${jobs.map(item=>`<button type="button" class="${item.jobID===selectedActionJobID?'sel':''}" onclick="selectActionResult('${item.jobID}')">${esc(item.action)} · ${item.frameCount}f</button>`).join('')}</div>`:'';
   box.innerHTML=`<div class="starter-actions-intro"><span>✦</span><div><b>${tx('一次生成一套；调用数和进度都可见','Generate one set at a time; calls and progress stay visible')}</b>${tx('Mimo 会自动保持角色一致、保存每个 batch，并在安装前要求你桌面预览。','Mimo locks identity, checkpoints every batch, and requires desktop preview before install.')}</div></div><div class="starter-actions-grid">${cards}</div>${job?`${history}${actionResultReview(job)}`:''}${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}<details class="starter-actions-advanced"><summary>${tx('高级：导入外部动作结果','Advanced: import an external action result')}</summary><div class="note">${tx('只导入本地结果，不会启动 CLI、Modal、Wan 或 Python。','Local import only; this does not launch CLI, Modal, Wan, or Python.')}</div><div class="action-review-actions">${choose}</div></details>`;
 }

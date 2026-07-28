@@ -8,14 +8,19 @@ enum StarterActionID: String, Codable, CaseIterable, Sendable {
     case sleep
     case tennis
     case wall
+    case walk
 }
 
 enum StarterActionDirection: String, Codable, Equatable, Sendable {
     case neutral
     case up
+    case upperRight = "upper_right"
     case right
+    case lowerRight = "lower_right"
     case down
+    case lowerLeft = "lower_left"
     case left
+    case upperLeft = "upper_left"
 }
 
 enum StarterActionRuntimeEffect: String, Codable, Equatable, Sendable {
@@ -103,6 +108,13 @@ struct StarterActionDefinition: Equatable, Sendable {
         guard duration > 0 else { return 2 }
         return Double(finalFrameCount) / duration
     }
+
+    /// Locomotion is keyed to travelled distance, not wall-clock frequency.
+    /// 384 source-cell pixels becomes roughly one calm 110pt two-step cycle at
+    /// the normal desktop display size.
+    var cycleDistanceCellPixels: Double? {
+        id == .walk ? 384 : nil
+    }
 }
 
 enum StarterActionCatalog {
@@ -116,27 +128,37 @@ enum StarterActionCatalog {
                 titleEn: "Follow the cursor",
                 motionClass: "directional",
                 poseContract: "Keep feet and lower body fixed. Eyes lead; head and neck "
-                    + "may follow only enough to make up/down/left/right readable. Never "
+                    + "may follow only enough to make all eight compass directions readable. Never "
                     + "rotate or redesign the whole sprite.",
                 batches: [
                     StarterActionBatch(
                         poses: [
-                            "neutral gaze",
-                            "look up",
+                            "look straight up",
+                            "look toward upper screen-right",
                             "look toward screen-right",
                         ],
                         keepCount: 3),
                     StarterActionBatch(
                         poses: [
-                            "look down",
+                            "look toward lower screen-right",
+                            "look straight down",
+                            "look toward lower screen-left",
+                        ],
+                        keepCount: 3),
+                    StarterActionBatch(
+                        poses: [
                             "look toward screen-left",
-                            "closure check: recreate neutral gaze; discard this frame",
+                            "look toward upper screen-left",
+                            "closure check: recreate straight-up gaze; discard this frame",
                         ],
                         keepCount: 2),
                 ],
                 frameDurations: [],
                 segments: [],
-                directions: [.neutral, .up, .right, .down, .left],
+                directions: [
+                    .up, .upperRight, .right, .lowerRight,
+                    .down, .lowerLeft, .left, .upperLeft,
+                ],
                 runtimeEffect: .none)
 
         case .sleep:
@@ -172,7 +194,7 @@ enum StarterActionCatalog {
                         ],
                         keepCount: 3),
                 ],
-                frameDurations: [0.26, 0.30, 0.48, 0.90, 0.75, 1.10, 0.24, 0.28, 0.42],
+                frameDurations: [0.42, 0.48, 0.72, 1.40, 1.20, 1.60, 0.40, 0.46, 0.66],
                 segments: [
                     StarterActionSegment(name: "lie-down", frameRange: 0..<3, loops: false),
                     StarterActionSegment(name: "breathing-loop", frameRange: 3..<6, loops: true),
@@ -214,7 +236,7 @@ enum StarterActionCatalog {
                         ],
                         keepCount: 3),
                 ],
-                frameDurations: [0.24, 0.18, 0.14, 0.10, 0.09, 0.16, 0.20, 0.24, 0.36],
+                frameDurations: [0.42, 0.32, 0.24, 0.18, 0.16, 0.26, 0.34, 0.42, 0.62],
                 segments: [
                     StarterActionSegment(name: "forehand-loop", frameRange: 0..<9, loops: true),
                 ],
@@ -247,10 +269,50 @@ enum StarterActionCatalog {
                         ],
                         keepCount: 3),
                 ],
-                frameDurations: [0.70, 0.55, 0.95, 0.75, 0.55, 0.95],
+                frameDurations: [0.95, 0.85, 1.25, 1.00, 0.85, 1.25],
                 segments: [
                     StarterActionSegment(name: "wall-stand", frameRange: 0..<3, loops: true),
                     StarterActionSegment(name: "ledge-sit", frameRange: 3..<6, loops: true),
+                ],
+                directions: [],
+                runtimeEffect: .none)
+
+        case .walk:
+            return StarterActionDefinition(
+                id: .walk,
+                manifestActionName: "walk",
+                titleZh: "走路",
+                titleEn: "Walking",
+                motionClass: "locomotion",
+                poseContract: "Author one calm side-view two-step walk cycle. Keep identity, "
+                    + "scale, baseline, facing direction, and limb count fixed. The first "
+                    + "and final retained phases must close without a visible jump.",
+                batches: [
+                    StarterActionBatch(
+                        poses: [
+                            "left-foot contact, right leg trailing",
+                            "left-foot recoil and body passing over support",
+                            "left-foot high point with right leg swinging forward",
+                        ],
+                        keepCount: 3),
+                    StarterActionBatch(
+                        poses: [
+                            "right-foot contact, left leg trailing",
+                            "right-foot recoil and body passing over support",
+                            "right-foot high point with left leg swinging forward",
+                        ],
+                        keepCount: 3),
+                    StarterActionBatch(
+                        poses: [
+                            "return toward left-foot contact",
+                            "closed left-foot contact matching frame one",
+                            "closure check: recreate right-foot contact; discard this frame",
+                        ],
+                        keepCount: 2),
+                ],
+                frameDurations: Array(repeating: 0.28, count: 8),
+                segments: [
+                    StarterActionSegment(name: "two-step-cycle", frameRange: 0..<8, loops: true),
                 ],
                 directions: [],
                 runtimeEffect: .none)
@@ -273,9 +335,9 @@ struct StarterGazeSelection: Equatable, Sendable {
 
 /// Pure cursor-direction mapping shared by the native runtime and tests.
 ///
-/// Production gaze uses five explicitly authored directions. The three-frame
-/// experiment remains loadable, and legacy 11/16-frame sweeps retain their
-/// old mirrored half-circle behavior so existing pets do not regress.
+/// Production gaze uses eight explicitly authored compass directions. The
+/// three- and five-frame experiments remain loadable, and legacy 11/16-frame
+/// sweeps retain their old mirrored half-circle behavior.
 enum StarterGazeMapper {
     static let neutralRadius = 24.0
 
@@ -285,8 +347,20 @@ enum StarterGazeMapper {
         let distance = hypot(dx, dy)
         guard distance.isFinite else { return nil }
 
-        if distance <= neutralRadius || frameCount == 1 {
+        if distance <= neutralRadius {
+            if frameCount == 8 { return nil }
             return StarterGazeSelection(frameIndex: 0, mirrorHorizontally: false)
+        }
+        if frameCount == 1 {
+            return StarterGazeSelection(frameIndex: 0, mirrorHorizontally: false)
+        }
+
+        if frameCount == 8 {
+            var clockwiseFromUp = atan2(dx, dy)
+            if clockwiseFromUp < 0 { clockwiseFromUp += 2 * Double.pi }
+            let octant = Int((clockwiseFromUp / (Double.pi / 4)).rounded()) % 8
+            return StarterGazeSelection(
+                frameIndex: octant, mirrorHorizontally: false)
         }
 
         if frameCount == 3 {

@@ -11,15 +11,17 @@ private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
 @main
 struct StarterActionTests {
     static func testCatalogMatchesTheUserFacingStarterPack() {
-        expect(StarterActionID.allCases == [.gaze, .sleep, .tennis, .wall],
-               "the starter pack has exactly gaze, sleep, tennis, and wall")
+        expect(StarterActionID.allCases == [.gaze, .sleep, .tennis, .wall, .walk],
+               "the starter pack has gaze, sleep, tennis, wall, and walk")
 
         let gaze = StarterActionCatalog.definition(.gaze)
         expect(gaze.manifestActionName == "gaze", "gaze installs under the runtime gaze key")
-        expect(gaze.finalFrameCount == 5,
-               "cursor gaze needs neutral/up/right/down/left direction cells")
-        expect(gaze.directions == [.neutral, .up, .right, .down, .left],
-               "gaze directions have a stable runtime order")
+        expect(gaze.finalFrameCount == 8,
+               "cursor gaze authors the eight compass directions")
+        expect(gaze.directions == [
+            .up, .upperRight, .right, .lowerRight,
+            .down, .lowerLeft, .left, .upperLeft,
+        ], "gaze directions have a stable clockwise runtime order")
 
         let sleep = StarterActionCatalog.definition(.sleep)
         expect(sleep.manifestActionName == "rest",
@@ -38,6 +40,12 @@ struct StarterActionTests {
         expect(wall.finalFrameCount == 6, "wall contains a 3-frame stand and 3-frame sit")
         expect(wall.segments.map(\.name) == ["wall-stand", "ledge-sit"],
                "wall exposes both user-requested edge poses")
+
+        let walk = StarterActionCatalog.definition(.walk)
+        expect(walk.manifestActionName == "walk", "walk installs under the locomotion key")
+        expect(walk.finalFrameCount == 8, "walk authors one closed two-step gait")
+        expect(walk.cycleDistanceCellPixels == 384,
+               "walk advances by authored distance instead of timer frequency")
     }
 
     static func testEveryDefinitionIsAValidCoherentFamilyPlan() {
@@ -65,8 +73,27 @@ struct StarterActionTests {
     }
 
     static func testGazeMappingFollowsTheCursorAcrossSupportedContracts() {
+        expect(StarterGazeMapper.selection(dx: 0, dy: 200, frameCount: 8)?.frameIndex == 0,
+               "eight-direction gaze looks straight up")
+        expect(StarterGazeMapper.selection(dx: 200, dy: 200, frameCount: 8)?.frameIndex == 1,
+               "eight-direction gaze looks upper-right")
+        expect(StarterGazeMapper.selection(dx: 200, dy: 0, frameCount: 8)?.frameIndex == 2,
+               "eight-direction gaze looks right")
+        expect(StarterGazeMapper.selection(dx: 200, dy: -200, frameCount: 8)?.frameIndex == 3,
+               "eight-direction gaze looks lower-right")
+        expect(StarterGazeMapper.selection(dx: 0, dy: -200, frameCount: 8)?.frameIndex == 4,
+               "eight-direction gaze looks straight down")
+        expect(StarterGazeMapper.selection(dx: -200, dy: -200, frameCount: 8)?.frameIndex == 5,
+               "eight-direction gaze looks lower-left")
+        expect(StarterGazeMapper.selection(dx: -200, dy: 0, frameCount: 8)?.frameIndex == 6,
+               "eight-direction gaze looks left")
+        expect(StarterGazeMapper.selection(dx: -200, dy: 200, frameCount: 8)?.frameIndex == 7,
+               "eight-direction gaze looks upper-left")
+        expect(StarterGazeMapper.selection(dx: 5, dy: 4, frameCount: 8) == nil,
+               "the base sprite remains visible while the cursor is near the eyes")
+
         expect(StarterGazeMapper.selection(dx: 0, dy: 200, frameCount: 5)?.frameIndex == 1,
-               "five-direction gaze looks up")
+               "legacy five-direction gaze still looks up")
         expect(StarterGazeMapper.selection(dx: 200, dy: 0, frameCount: 5)?.frameIndex == 2,
                "five-direction gaze looks right")
         expect(StarterGazeMapper.selection(dx: 0, dy: -200, frameCount: 5)?.frameIndex == 3,
@@ -140,6 +167,19 @@ struct StarterActionTests {
                "wall stand uses the first coherent family")
         expect(frames("SitAtWall", strip: "wall") == Array(3...5),
                "wall sit uses the second coherent family")
+
+        func holds(_ action: String) -> [Double] {
+            poses(action).compactMap { $0["hold"] as? Double }
+        }
+        expect(holds("RestSettle").allSatisfy { $0 >= 0.40 },
+               "sleep settles at a calm readable tempo")
+        expect(holds("PlayTennis").min() ?? 0 >= 0.16,
+               "the fastest tennis beat is still slow enough to read")
+        expect(holds("ClingWall").min() ?? 0 >= 0.80,
+               "wall ambience changes gently instead of flickering")
+        let walkLeftVelocity = poses("WalkLeft").first?["velocity"] as? [Int] ?? []
+        expect(abs(walkLeftVelocity.first ?? 1000) <= 68,
+               "walk advances calmly, which also slows its distance-driven gait")
     }
 
     static func main() throws {

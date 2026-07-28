@@ -33,7 +33,7 @@ struct StarterActionJobRecord: Codable, Equatable, Sendable {
     var quality: String
     var phase: String?
     var completedBatches: Int
-    let estimatedProviderCalls: Int
+    var estimatedProviderCalls: Int
     var usedProviderCalls: Int
     var resultJobID: String?
     var errorCode: String?
@@ -106,6 +106,18 @@ final class StarterActionJobStore: @unchecked Sendable {
             try prepareStorage()
             let characterID = try Self.canonicalCharacterID(characterID)
             var existing = try loadAll().filter { $0.characterID == characterID }
+            for index in existing.indices {
+                let definition = StarterActionCatalog.definition(existing[index].actionID)
+                guard existing[index].estimatedProviderCalls
+                        != definition.estimatedProviderCalls,
+                      [.planned, .failed, .cancelled].contains(existing[index].state),
+                      existing[index].completedBatches == 0,
+                      existing[index].usedProviderCalls == 0,
+                      existing[index].resultJobID == nil else { continue }
+                existing[index].estimatedProviderCalls = definition.estimatedProviderCalls
+                existing[index].updatedAt = now
+                try persist(existing[index])
+            }
             for actionID in StarterActionID.allCases
                 where !existing.contains(where: { $0.actionID == actionID }) {
                 let definition = StarterActionCatalog.definition(actionID)
@@ -361,6 +373,9 @@ final class StarterActionJobStore: @unchecked Sendable {
 
     func runtimeDictionary(for record: StarterActionJobRecord) -> [String: Any] {
         let definition = StarterActionCatalog.definition(record.actionID)
+        let finalFrameCount = record.actionID == .gaze
+            && record.estimatedProviderCalls == 2
+            ? 5 : definition.finalFrameCount
         var value: [String: Any] = [
             "jobID": record.id,
             "characterID": record.characterID,
@@ -374,7 +389,7 @@ final class StarterActionJobStore: @unchecked Sendable {
             "estimatedProviderCalls": record.estimatedProviderCalls,
             "usedProviderCalls": record.usedProviderCalls,
             "completedBatches": record.completedBatches,
-            "finalFrameCount": definition.finalFrameCount,
+            "finalFrameCount": finalFrameCount,
             "quality": record.quality,
             "canStart": record.canStart,
             "canCancel": record.canCancel,
@@ -448,8 +463,10 @@ final class StarterActionJobStore: @unchecked Sendable {
               let record = try? JSONDecoder().decode(StarterActionJobRecord.self, from: data),
               record.schemaVersion == StarterActionJobRecord.schemaVersion,
               record.id == id,
-              StarterActionCatalog.definition(record.actionID).estimatedProviderCalls
-                == record.estimatedProviderCalls else {
+              (1...12).contains(record.estimatedProviderCalls),
+              (0...record.estimatedProviderCalls).contains(record.completedBatches),
+              (0...(record.estimatedProviderCalls * record.maximumAttempts))
+                .contains(record.usedProviderCalls) else {
             throw StarterActionJobError.missingJob
         }
         return record

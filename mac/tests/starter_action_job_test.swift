@@ -56,7 +56,7 @@ struct StarterActionJobTests {
 
         expect(first.map(\.actionID) == StarterActionID.allCases,
                "Studio receives starter jobs in product order")
-        expect(Set(first.map(\.id)).count == 4, "every action has its own durable job")
+        expect(Set(first.map(\.id)).count == 5, "every action has its own durable job")
         expect(first == second, "ensuring a plan is idempotent")
         expect(first.allSatisfy { $0.state == .planned && $0.attempt == 0 },
                "new cards have not spent or started anything")
@@ -79,26 +79,24 @@ struct StarterActionJobTests {
                == StarterActionCatalog.definition(.gaze).estimatedProviderCalls,
                "the job discloses its complete chained-call estimate")
 
-        let generating = try store.markGenerating(
-            jobID: gaze.id, phase: "batch-1-of-2",
-            completedBatches: 0, usedProviderCalls: 0)
-        expect(generating.state == .generating && generating.completedBatches == 0,
-               "provider progress is durable")
-        _ = try store.storeCompletedBatch(
-            jobID: gaze.id, batchIndex: 0,
-            pngData: makeBatchPNG(), usedProviderCalls: 1)
-        let secondRequestID = UUID().uuidString
-        let secondBatch = try store.markGenerating(
-            jobID: gaze.id, phase: "batch-2-of-2",
-            completedBatches: 1, usedProviderCalls: 1,
-            requestID: secondRequestID)
-        expect(secondBatch.requestID == secondRequestID.lowercased(),
-               "every provider batch receives its own cancellable idempotency key")
-        _ = try store.storeCompletedBatch(
-            jobID: gaze.id, batchIndex: 1,
-            pngData: makeBatchPNG(), usedProviderCalls: 2)
+        for batchIndex in 0..<gaze.estimatedProviderCalls {
+            let batchRequestID = UUID().uuidString
+            let generating = try store.markGenerating(
+                jobID: gaze.id,
+                phase: "batch-\(batchIndex + 1)-of-\(gaze.estimatedProviderCalls)",
+                completedBatches: batchIndex, usedProviderCalls: batchIndex,
+                requestID: batchRequestID)
+            expect(generating.state == .generating
+                   && generating.completedBatches == batchIndex,
+                   "provider progress is durable")
+            expect(generating.requestID == batchRequestID.lowercased(),
+                   "every provider batch receives its own cancellable idempotency key")
+            _ = try store.storeCompletedBatch(
+                jobID: gaze.id, batchIndex: batchIndex,
+                pngData: makeBatchPNG(), usedProviderCalls: batchIndex + 1)
+        }
         let completedGaze = try store.record(jobID: gaze.id)
-        expect(completedGaze.usedProviderCalls == 2,
+        expect(completedGaze.usedProviderCalls == gaze.estimatedProviderCalls,
                "every completed paid call remains visible")
 
         let local = try store.markLocalProcessing(jobID: gaze.id, phase: "registering")

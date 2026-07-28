@@ -91,14 +91,14 @@ struct CustomPetTests {
     }
 
     private static func testDefaultActionTempo() {
-        expect(CustomPetStore.defaultActionFPS("rest") == 4,
+        expect(CustomPetStore.defaultActionFPS("rest") == 2.5,
                "ambient rest preview should use the slower authored default")
-        expect(CustomPetStore.defaultActionFPS("wall") == 3.5,
+        expect(CustomPetStore.defaultActionFPS("wall") == 2,
                "wall idle should feel slower than an active gesture")
-        expect(CustomPetStore.defaultActionFPS("walk") == 10,
-               "large locomotion should remain visibly energetic")
-        expect(CustomPetStore.defaultActionFPS("unknown") == 6,
-               "unclassified actions should not inherit the old busy 12fps default")
+        expect(CustomPetStore.defaultActionFPS("walk") == 7,
+               "walk preview should stay readable instead of racing")
+        expect(CustomPetStore.defaultActionFPS("unknown") == 4,
+               "unclassified actions should use a calm default")
     }
 
     private static func testActionStrips() throws {
