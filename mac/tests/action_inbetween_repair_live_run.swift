@@ -1,4 +1,4 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
+// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
 // compile-only: one paid OpenAI M13...M16 repair generation; opt-in only
 // Run:
 //   action_inbetween_repair_live_run --confirm-paid OUTPUT_DIR PET_SHEET KEYFRAME_RAW OLD_MIDPOINT_STRIP KEYFRAME_STRIP

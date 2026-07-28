@@ -182,6 +182,7 @@ final class StarterActionJobStore: @unchecked Sendable {
     @discardableResult
     func markGenerating(jobID: String, phase: String,
                         completedBatches: Int, usedProviderCalls: Int,
+                        requestID: String? = nil,
                         now: Date = Date()) throws -> StarterActionJobRecord {
         try update(jobID: jobID) { record in
             guard record.state == .queued || record.state == .generating,
@@ -194,6 +195,10 @@ final class StarterActionJobStore: @unchecked Sendable {
             record.phase = Self.safeText(phase)
             record.completedBatches = completedBatches
             record.usedProviderCalls = usedProviderCalls
+            if let requestID {
+                record.requestID = try Self.canonicalUUID(
+                    requestID, error: .invalidRequestID)
+            }
         }
     }
 

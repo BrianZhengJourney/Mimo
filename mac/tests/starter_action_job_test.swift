@@ -87,6 +87,13 @@ struct StarterActionJobTests {
         _ = try store.storeCompletedBatch(
             jobID: gaze.id, batchIndex: 0,
             pngData: makeBatchPNG(), usedProviderCalls: 1)
+        let secondRequestID = UUID().uuidString
+        let secondBatch = try store.markGenerating(
+            jobID: gaze.id, phase: "batch-2-of-2",
+            completedBatches: 1, usedProviderCalls: 1,
+            requestID: secondRequestID)
+        expect(secondBatch.requestID == secondRequestID.lowercased(),
+               "every provider batch receives its own cancellable idempotency key")
         _ = try store.storeCompletedBatch(
             jobID: gaze.id, batchIndex: 1,
             pngData: makeBatchPNG(), usedProviderCalls: 2)

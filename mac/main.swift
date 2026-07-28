@@ -412,6 +412,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     let petGenerator = PetGenerationCoordinator()
     let customPetStore = CustomPetStore(root: logDir)
     let actionGenerationJobStore = ActionGenerationJobStore(root: logDir)
+    let starterActionJobStore = StarterActionJobStore(root: logDir)
     let companionRuntime = CompanionRuntime()
     var companionSpriteCache: [String: CompanionSprite] = [:]
     var bundledPreviewAssets: [String: CompanionPreviewAsset] = [:]
@@ -419,6 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     let generationDraftStore = FamiliarGenerationDraftStore(root: logDir)
     var studioGenerationLedger = StudioGenerationLedger()
     var studioCleanupTimer: Timer?
+    var starterActionWatchdogs: [String: DispatchWorkItem] = [:]
     var activeStageParents: [String: String] = [:]
     var backgroundStudioRequests: Set<String> = []
     var visibleEvolutionDraftID: String?

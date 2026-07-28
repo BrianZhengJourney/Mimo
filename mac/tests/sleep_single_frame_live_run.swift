@@ -1,4 +1,4 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift consistency_metric.swift action_sheet_run.swift style_reference.swift pet_generation.swift
+// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift consistency_metric.swift action_sheet_run.swift style_reference.swift pet_generation.swift
 // compile-only: paid 16-call single-frame sleep experiment; never run unattended
 //
 // One immutable identity image + one identity-free pose silhouette are sent for

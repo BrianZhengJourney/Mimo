@@ -512,8 +512,13 @@ extension AppDelegate {
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
         ]
         if let customPet = storedCustomPetSpec() { state["customPet"] = customPet }
-        state["customPets"] = (try? customPetStore.listRuntimeSpecs()) ?? []
+        let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
+        state["customPets"] = customPets
+        for characterID in customPets.compactMap({ $0["characterID"] as? String }) {
+            _ = try? starterActionJobStore.ensureJobs(characterID: characterID)
+        }
         state["actionJobs"] = actionGenerationJobStore.runtimeDictionaries()
+        state["starterActionJobs"] = starterActionJobStore.runtimeDictionaries()
         guard let data = try? JSONSerialization.data(withJSONObject: state),
               let json = String(data: data, encoding: .utf8) else { return }
         settingsWeb?.evaluateJavaScript("initSettings(\(json))", completionHandler: nil)
@@ -535,8 +540,8 @@ extension AppDelegate {
     private func reportActionJobError(_ error: Error, code: String) {
         settingsCall("actionJobError", [
             "code": code,
-            "messageZh": "无法处理这份 Wan 动作结果：\(error.localizedDescription)",
-            "messageEn": "Could not process this Wan action result: \(error.localizedDescription)",
+            "messageZh": "无法处理这个动作：\(error.localizedDescription)",
+            "messageEn": "Could not process this action: \(error.localizedDescription)",
         ])
     }
 
@@ -1142,6 +1147,402 @@ extension AppDelegate {
         }
     }
 
+    // MARK: - Starter actions (post-adoption gaze/sleep/tennis/wall)
+
+    private func starterActionDetail(_ error: Error) -> String {
+        if let actionError = error as? ActionSheetError {
+            return actionError.description
+        }
+        return error.localizedDescription
+    }
+
+    private func emitStarterActionJob(_ record: StarterActionJobRecord) {
+        settingsCall("starterActionJobUpdated", [
+            "job": starterActionJobStore.runtimeDictionary(for: record),
+        ])
+    }
+
+    private func reportStarterActionError(jobID: String?, error: Error,
+                                          code: String) {
+        var payload: [String: Any] = [
+            "code": code,
+            "messageZh": "动作生成没有完成：\(starterActionDetail(error))",
+            "messageEn": "The action was not completed: \(starterActionDetail(error))",
+        ]
+        if let jobID { payload["jobID"] = jobID }
+        settingsCall("starterActionJobError", payload)
+    }
+
+    private func reserveStarterActionProvider(requestID: String,
+                                              jobID: String) -> Bool {
+        switch studioGenerationLedger.reserve(requestID: requestID) {
+        case .accepted:
+            return true
+        case .duplicateActive:
+            reportStarterActionError(
+                jobID: jobID,
+                error: PetGenerationError.provider(
+                    "This exact batch is already generating; no duplicate was submitted."),
+                code: "duplicate_active")
+        case .anotherRequestActive:
+            reportStarterActionError(
+                jobID: jobID,
+                error: PetGenerationError.provider(
+                    "Another image generation is running; no second paid request was submitted."),
+                code: "generation_in_progress")
+        case .requestIDReused:
+            reportStarterActionError(
+                jobID: jobID,
+                error: PetGenerationError.provider(
+                    "This batch request ID was already used; no replay was submitted."),
+                code: "request_id_reused")
+        }
+        return false
+    }
+
+    private func disarmStarterActionWatchdog(_ requestID: String) {
+        starterActionWatchdogs.removeValue(forKey: requestID)?.cancel()
+    }
+
+    private func armStarterActionWatchdog(jobID: String, requestID: String) {
+        disarmStarterActionWatchdog(requestID)
+        let watchdog = DispatchWorkItem { [weak self] in
+            guard let self,
+                  let record = try? self.starterActionJobStore.record(jobID: jobID),
+                  record.state == .generating,
+                  record.requestID == requestID else { return }
+            self.petGenerator.cancel(requestID)
+            self.releaseStudioGeneration(requestID)
+            self.disarmStarterActionWatchdog(requestID)
+            let spent = min(
+                record.usedProviderCalls + 1,
+                record.estimatedProviderCalls * record.maximumAttempts)
+            if let failed = try? self.starterActionJobStore.markFailed(
+                jobID: jobID, code: "timed_out",
+                message: "The provider callback timed out; completed batches remain saved.",
+                usedProviderCalls: spent) {
+                self.emitStarterActionJob(failed)
+            }
+            self.reportStarterActionError(
+                jobID: jobID, error: PetGenerationError.timedOut,
+                code: "timed_out")
+            self.pushSettingsState()
+        }
+        starterActionWatchdogs[requestID] = watchdog
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + StudioGenerationLedger.reservationLifetime,
+            execute: watchdog)
+    }
+
+    private func starterActionCanonicalContext(characterID: String) throws
+        -> (master: Data, personality: String) {
+        let spec = try customPetStore.runtimeSpec(characterID: characterID)
+        guard let assetURLString = spec["assetURL"] as? String,
+              let assetURL = URL(string: assetURLString),
+              let temperamentID = spec["temperamentID"] as? String else {
+            throw CustomPetStoreError.corruptManifest
+        }
+        let sheet = try customPetStore.assetData(for: assetURL)
+        let master = try CharacterSheetProcessor.extractNormalizedStage(
+            fromNormalizedSheet: sheet, stageIndex: 2)
+        let profile = CustomPetTemperaments.profile(for: temperamentID)
+        return (master, profile.promptFragment)
+    }
+
+    private func starterActionFailureMayHaveSpent(_ error: Error) -> Bool {
+        guard let generation = error as? PetGenerationError else { return true }
+        switch generation {
+        case .missingKey, .invalidImage, .cancelled:
+            return false
+        case .invalidResponse, .provider, .timedOut:
+            return true
+        }
+    }
+
+    func startStarterActionJob(jobID: String, characterID: String,
+                               quality: PetFinalGenerationQuality) {
+        do {
+            guard MimoSecret.openAI.isConfigured else {
+                throw PetGenerationError.missingKey("OpenAI")
+            }
+            let original = try starterActionJobStore.record(jobID: jobID)
+            guard original.characterID == characterID, original.canStart else {
+                throw StarterActionJobError.invalidTransition
+            }
+            let context = try starterActionCanonicalContext(characterID: characterID)
+            let firstRequestID = UUID().uuidString.lowercased()
+            let needsProvider = original.completedBatches < original.estimatedProviderCalls
+            if needsProvider,
+               !reserveStarterActionProvider(requestID: firstRequestID, jobID: jobID) {
+                return
+            }
+            do {
+                let queued = try starterActionJobStore.queue(
+                    jobID: jobID, requestID: firstRequestID,
+                    quality: quality.rawValue)
+                emitStarterActionJob(queued)
+                if needsProvider {
+                    runStarterActionBatch(
+                        jobID: jobID, canonicalMaster: context.master,
+                        personality: context.personality,
+                        quality: quality, requestID: firstRequestID)
+                } else {
+                    let generating = try starterActionJobStore.markGenerating(
+                        jobID: jobID, phase: "all-batches-checkpointed",
+                        completedBatches: queued.completedBatches,
+                        usedProviderCalls: queued.usedProviderCalls)
+                    finishStarterActionLocally(
+                        jobID: jobID, from: generating)
+                }
+            } catch {
+                if needsProvider { releaseStudioGeneration(firstRequestID) }
+                throw error
+            }
+        } catch {
+            reportStarterActionError(
+                jobID: jobID, error: error, code: "start_failed")
+        }
+    }
+
+    private func runStarterActionBatch(jobID: String,
+                                       canonicalMaster: Data,
+                                       personality: String,
+                                       quality: PetFinalGenerationQuality,
+                                       requestID: String) {
+        do {
+            let record = try starterActionJobStore.record(jobID: jobID)
+            guard record.state == .queued || record.state == .generating,
+                  record.completedBatches < record.estimatedProviderCalls else {
+                releaseStudioGeneration(requestID)
+                throw StarterActionJobError.invalidTransition
+            }
+            let batchIndex = record.completedBatches
+            let previous = batchIndex > 0
+                ? try starterActionJobStore.batchData(
+                    jobID: jobID, batchIndex: batchIndex - 1)
+                : nil
+            let generating = try starterActionJobStore.markGenerating(
+                jobID: jobID,
+                phase: "batch-\(batchIndex + 1)-of-\(record.estimatedProviderCalls)",
+                completedBatches: record.completedBatches,
+                usedProviderCalls: record.usedProviderCalls,
+                requestID: requestID)
+            emitStarterActionJob(generating)
+            pushSettingsState()
+            armStarterActionWatchdog(jobID: jobID, requestID: requestID)
+            petGenerator.generateStarterActionBatch(
+                requestID: requestID,
+                actionID: generating.actionID,
+                batchIndex: batchIndex,
+                canonicalMasterData: canonicalMaster,
+                previousBatchData: previous,
+                styleBoardData: MimoStyleReference.requestData(),
+                personalityVisual: personality,
+                quality: quality,
+                progress: { [weak self] phase, _, _ in
+                    guard let self,
+                          let current = try? self.starterActionJobStore.record(jobID: jobID),
+                          current.state == .generating,
+                          current.requestID == requestID else { return }
+                    self.settingsCall("starterActionJobProgress", [
+                        "jobID": jobID,
+                        "phase": phase,
+                        "completedBatches": current.completedBatches,
+                        "estimatedProviderCalls": current.estimatedProviderCalls,
+                    ])
+                },
+                completion: { [weak self] result in
+                    guard let self else { return }
+                    self.disarmStarterActionWatchdog(requestID)
+                    self.releaseStudioGeneration(requestID)
+                    guard let current = try? self.starterActionJobStore.record(jobID: jobID),
+                          current.state == .generating,
+                          current.requestID == requestID else { return }
+                    switch result {
+                    case .failure(let error):
+                        if let generation = error as? PetGenerationError,
+                           generation.isCancellation {
+                            return
+                        }
+                        let spent = current.usedProviderCalls
+                            + (self.starterActionFailureMayHaveSpent(error) ? 1 : 0)
+                        let failed = try? self.starterActionJobStore.markFailed(
+                            jobID: jobID, code: "provider_failed",
+                            message: self.starterActionDetail(error),
+                            usedProviderCalls: min(
+                                spent,
+                                current.estimatedProviderCalls * current.maximumAttempts))
+                        if let failed { self.emitStarterActionJob(failed) }
+                        self.reportStarterActionError(
+                            jobID: jobID, error: error, code: "provider_failed")
+                        self.pushSettingsState()
+                    case .success(let output):
+                        do {
+                            let completed = try self.starterActionJobStore.storeCompletedBatch(
+                                jobID: jobID, batchIndex: batchIndex,
+                                pngData: output.data,
+                                usedProviderCalls: current.usedProviderCalls + 1)
+                            self.emitStarterActionJob(completed)
+                            self.pushSettingsState()
+                            if completed.completedBatches
+                                == completed.estimatedProviderCalls {
+                                self.finishStarterActionLocally(
+                                    jobID: jobID, from: completed)
+                                return
+                            }
+                            let nextRequestID = UUID().uuidString.lowercased()
+                            guard self.reserveStarterActionProvider(
+                                requestID: nextRequestID, jobID: jobID) else {
+                                let failed = try? self.starterActionJobStore.markFailed(
+                                    jobID: jobID, code: "generation_in_progress",
+                                    message: "The next saved batch is ready to resume; no extra request was sent.")
+                                if let failed { self.emitStarterActionJob(failed) }
+                                self.pushSettingsState()
+                                return
+                            }
+                            self.runStarterActionBatch(
+                                jobID: jobID, canonicalMaster: canonicalMaster,
+                                personality: personality, quality: quality,
+                                requestID: nextRequestID)
+                        } catch {
+                            let failed = try? self.starterActionJobStore.markFailed(
+                                jobID: jobID, code: "checkpoint_failed",
+                                message: self.starterActionDetail(error))
+                            if let failed { self.emitStarterActionJob(failed) }
+                            self.reportStarterActionError(
+                                jobID: jobID, error: error,
+                                code: "checkpoint_failed")
+                            self.pushSettingsState()
+                        }
+                    }
+                })
+        } catch {
+            disarmStarterActionWatchdog(requestID)
+            releaseStudioGeneration(requestID)
+            if let record = try? starterActionJobStore.record(jobID: jobID),
+               record.state.isInFlight,
+               let failed = try? starterActionJobStore.markFailed(
+                jobID: jobID, code: "setup_failed",
+                message: starterActionDetail(error)) {
+                emitStarterActionJob(failed)
+            }
+            reportStarterActionError(
+                jobID: jobID, error: error, code: "setup_failed")
+            pushSettingsState()
+        }
+    }
+
+    private func finishStarterActionLocally(jobID: String,
+                                            from record: StarterActionJobRecord) {
+        do {
+            let local = try starterActionJobStore.markLocalProcessing(
+                jobID: jobID, phase: "normalizing-family")
+            emitStarterActionJob(local)
+            pushSettingsState()
+            let batches = try starterActionJobStore.completedBatchData(jobID: jobID)
+            let definition = StarterActionCatalog.definition(local.actionID)
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let processed = Result {
+                    try ActionSheetProcessor.processCoherentBatches(
+                        pngDatas: batches,
+                        keepCounts: definition.batches.map(\.keepCount))
+                }
+                DispatchQueue.main.async {
+                    guard let self,
+                          let current = try? self.starterActionJobStore.record(jobID: jobID),
+                          current.state == .localProcessing else { return }
+                    do {
+                        let sheet = try processed.get()
+                        guard sheet.frames.count == definition.finalFrameCount,
+                              let anchor = sheet.frames.first else {
+                            throw ActionGenerationJobError.invalidStrip
+                        }
+                        let action = definition.manifestActionName
+                        let metadata = ActionResultBundleMetadata(
+                            schemaVersion: ActionResultBundleMetadata.schemaVersion,
+                            action: action,
+                            stripFilename: "action-\(action).png",
+                            frameCount: definition.finalFrameCount,
+                            cellSize: ActionSheetProcessor.outputCellSize,
+                            framesPerSecond: definition.previewFramesPerSecond,
+                            cycleDistanceCellPixels: nil,
+                            anchorInCell: [
+                                Double(anchor.anchorX), Double(anchor.anchorY),
+                            ],
+                            qaFilename: "action-\(action).qa.json",
+                            automaticInstallAllowed: false)
+                        let checker: [String: Any] = [
+                            "schemaVersion": 1,
+                            "hardPass": true,
+                            "automaticInstallAllowed": false,
+                            "manualReviewRequired": true,
+                            "identityReviewRequired": true,
+                            "actionID": definition.id.rawValue,
+                            "frameCount": definition.finalFrameCount,
+                            "providerCalls": current.usedProviderCalls,
+                            "coherentBatchCount": definition.estimatedProviderCalls,
+                        ]
+                        let checkerData = try JSONSerialization.data(
+                            withJSONObject: checker, options: [.sortedKeys])
+                        let result = try self.actionGenerationJobStore.storeGeneratedResult(
+                            characterID: current.characterID,
+                            sourceLabel: "Mimo Starter · \(definition.titleEn)",
+                            metadata: metadata,
+                            stripData: sheet.pngData,
+                            previewData: sheet.pngData,
+                            checkerData: checkerData)
+                        let review = try self.starterActionJobStore.markAwaitingReview(
+                            jobID: jobID, resultJobID: result.id)
+                        self.emitStarterActionJob(review)
+                        self.settingsCall("actionJobImported", [
+                            "job": self.actionGenerationJobStore.runtimeDictionary(for: result),
+                        ])
+                        self.pushSettingsState()
+                    } catch {
+                        let failed = try? self.starterActionJobStore.markFailed(
+                            jobID: jobID, code: "local_processing_failed",
+                            message: self.starterActionDetail(error))
+                        if let failed { self.emitStarterActionJob(failed) }
+                        self.reportStarterActionError(
+                            jobID: jobID, error: error,
+                            code: "local_processing_failed")
+                        self.pushSettingsState()
+                    }
+                }
+            }
+        } catch {
+            if record.state.isInFlight,
+               let failed = try? starterActionJobStore.markFailed(
+                jobID: jobID, code: "local_setup_failed",
+                message: starterActionDetail(error)) {
+                emitStarterActionJob(failed)
+            }
+            reportStarterActionError(
+                jobID: jobID, error: error, code: "local_setup_failed")
+            pushSettingsState()
+        }
+    }
+
+    func cancelStarterActionJob(jobID: String, characterID: String) {
+        do {
+            let record = try starterActionJobStore.record(jobID: jobID)
+            guard record.characterID == characterID, record.canCancel else {
+                throw StarterActionJobError.invalidTransition
+            }
+            if let requestID = record.requestID {
+                petGenerator.cancel(requestID)
+                disarmStarterActionWatchdog(requestID)
+                releaseStudioGeneration(requestID)
+            }
+            let cancelled = try starterActionJobStore.cancel(jobID: jobID)
+            emitStarterActionJob(cancelled)
+            pushSettingsState()
+        } catch {
+            reportStarterActionError(
+                jobID: jobID, error: error, code: "cancel_failed")
+        }
+    }
+
     // MARK: - Expression sheets (post-adoption blink/joy/rest frames)
 
     /// Sequentially generates one expression sheet per requested stage.
@@ -1735,6 +2136,32 @@ extension AppDelegate {
                     }
                 }
             }
+        case "petStarterActionStart":
+            guard let characterID = activeCustomCharacterID(
+                    requested: body["characterID"]),
+                  let jobID = body["jobID"] as? String else {
+                reportStarterActionError(
+                    jobID: body["jobID"] as? String,
+                    error: StarterActionJobError.invalidCharacterID,
+                    code: "invalid_character")
+                return
+            }
+            startStarterActionJob(
+                jobID: jobID,
+                characterID: characterID,
+                quality: PetFinalGenerationQuality.resolve(
+                    body["quality"] as? String))
+        case "petStarterActionCancel":
+            guard let characterID = activeCustomCharacterID(
+                    requested: body["characterID"]),
+                  let jobID = body["jobID"] as? String else {
+                reportStarterActionError(
+                    jobID: body["jobID"] as? String,
+                    error: StarterActionJobError.invalidCharacterID,
+                    code: "invalid_character")
+                return
+            }
+            cancelStarterActionJob(jobID: jobID, characterID: characterID)
         case "petActionImport":
             guard let characterID = activeCustomCharacterID(requested: body["characterID"]) else {
                 reportActionJobError(ActionGenerationJobError.invalidCharacterID,
@@ -1837,6 +2264,12 @@ extension AppDelegate {
                     anchorInCell: anchor)
                 let installedRecord = (try? actionGenerationJobStore.markInstalled(
                     jobID: record.id)) ?? record
+                if let starter = starterActionJobStore.jobs(characterID: characterID)
+                    .first(where: { $0.resultJobID == record.id }),
+                   let installedStarter = try? starterActionJobStore.markInstalled(
+                    jobID: starter.id) {
+                    emitStarterActionJob(installedStarter)
+                }
                 if JSONSerialization.isValidJSONObject(spec),
                    let data = try? JSONSerialization.data(withJSONObject: spec),
                    let json = String(data: data, encoding: .utf8) {
@@ -2100,6 +2533,7 @@ extension AppDelegate {
                     throw CustomPetStoreError.corruptManifest
                 }
                 d.set(characterID, forKey: "character")
+                _ = try starterActionJobStore.ensureJobs(characterID: characterID)
                 js("famSetCustomPet(\(json))")
                 refreshNativeCompanion()
                 settingsCall("customPetAdopted", ["spec": spec])

@@ -1,4 +1,4 @@
-// sources: pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift consistency_metric.swift action_sheet_run.swift style_reference.swift pet_generation.swift
+// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift consistency_metric.swift action_sheet_run.swift style_reference.swift pet_generation.swift
 // compile-only: paid end-to-end action sheet run; not safe to run unattended
 // Opt-in, paid end-to-end run of the action-sheet pipeline: generate one
 // action cycle for an installed familiar, slice it, score it
