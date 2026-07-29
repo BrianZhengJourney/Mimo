@@ -342,13 +342,17 @@ struct PetGenerationTests {
         let defaultPersonZh = PetVisualTuningNote.detectedPersonDefault(language: "zh")
         let defaultPersonEn = PetVisualTuningNote.detectedPersonDefault(language: "en")
         expect(defaultPersonZh.contains("细腻高分辨率像素画") &&
-               defaultPersonZh.contains("保持主参考的脸、肤色、发型、服装") &&
+               defaultPersonZh.contains("保持主参考的脸、肤色、发型和服装") &&
+               defaultPersonZh.contains("稍微短矮紧凑") &&
+               defaultPersonZh.contains("头身比可爱一点") &&
                defaultPersonZh.contains("不要低清粗块"),
-               "the Chinese default should carry Mimo v2's finish without replacing source identity")
+               "the Chinese default should keep identity while making Mimo v2 compact and cute")
         expect(defaultPersonEn.contains("Refined pixel art") &&
-               defaultPersonEn.contains("Keep face, skin, hair, outfit") &&
+               defaultPersonEn.contains("Keep identity") &&
+               defaultPersonEn.contains("short, compact proportions") &&
+               defaultPersonEn.contains("cute rounded shape") &&
                defaultPersonEn.contains("no chunky pixels"),
-               "the English default should carry Mimo v2's finish without replacing source identity")
+               "the English default should keep identity while making Mimo v2 compact and cute")
         expect(defaultPersonZh.unicodeScalars.count <= PetVisualTuningNote.maximumUnicodeScalars &&
                defaultPersonEn.unicodeScalars.count <= PetVisualTuningNote.maximumUnicodeScalars,
                "detected-person defaults must fit the same bounded tuning-note contract")

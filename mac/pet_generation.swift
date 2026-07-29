@@ -186,11 +186,12 @@ enum PetVisualTuningNote {
         // Both variants must clear sanitize's 160-scalar ceiling or the
         // default silently disappears.
         let note = language == "en"
-            ? "Refined pixel art, crisp silhouette, dark outline, warm shading. Keep face, skin, hair, "
-              + "outfit and natural proportions; no chunky pixels, 3D or extreme chibi."
-            : "细腻高分辨率像素画；清晰全身轮廓、精细深色描边与适度抗锯齿，暖调克制明暗，"
-              + "小尺寸仍能看清脸和衣物褶皱；保持主参考的脸、肤色、发型、服装与自然修长比例，"
-              + "不要低清粗块、塑料3D或过度Q版。"
+            ? "Refined pixel art, crisp outline, warm shading. Keep identity; slightly short, compact "
+              + "proportions and a cute rounded shape; no chunky pixels, 3D or babyish."
+            : "细腻高分辨率像素画；清晰全身轮廓、精细深色描边与适度抗锯齿，暖调柔和明暗，"
+              + "小尺寸仍能看清脸和衣物褶皱；保持主参考的脸、肤色、发型和服装，"
+              + "整体比例稍微短矮紧凑、头身比可爱一点，轮廓轻微圆润但不要胖乎乎；"
+              + "不要低清粗块、塑料3D或夸张幼态大头。"
         return sanitize(note)
     }
 }
