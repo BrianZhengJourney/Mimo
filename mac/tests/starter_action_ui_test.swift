@@ -24,7 +24,7 @@ struct StarterActionUITests {
                    "Settings has a durable card for \(action.rawValue)")
         }
         for event in [
-            "petStarterActionStart", "petStarterActionCancel",
+            "petStarterActionStartDefaults", "petStarterActionCancelDefaults",
             "starterActionJobUpdated", "starterActionJobProgress",
             "starterActionJobError",
         ] {
@@ -33,8 +33,11 @@ struct StarterActionUITests {
         }
         expect(html.contains("Advanced: import an external action result"),
                "local external import remains available as an advanced seam")
-        expect(html.contains("calls · ${starterActionCost(job)}"),
-               "every start or retry discloses remaining calls and estimated cost")
+        expect(html.contains("一键生成默认动作") &&
+               html.contains("${calls} calls · ~$${(calls*each).toFixed(3)}"),
+               "one default-pack action discloses total calls and estimated cost")
+        expect(!html.contains("onclick=\"startStarterAction('${job.jobID}')"),
+               "users do not select or start default actions one by one")
         expect(html.contains("STYLE_TUNING_MIMO_V2") &&
                html.contains("细腻高分辨率像素画") &&
                html.contains("白衣伴灵画风（默认）"),

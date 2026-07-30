@@ -366,6 +366,12 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .starter-actions-intro{ display:flex; align-items:flex-start; gap:10px; color:var(--dim);
   font-size:11px; line-height:1.45; }
 .starter-actions-intro b{ color:var(--ink); display:block; font-size:12px; margin-bottom:2px; }
+.starter-actions-pack{ display:flex; align-items:center; gap:8px; padding:9px 10px;
+  border-radius:11px; background:#1b1638; border:1px solid #625796; }
+.starter-actions-pack .copy{ flex:1; min-width:0; }
+.starter-actions-pack b{ display:block; font-size:11.5px; }
+.starter-actions-pack small{ display:block; margin-top:2px; color:var(--dim); font-size:9.5px; }
+.starter-actions-pack button{ flex:0 0 auto; }
 .starter-actions-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
 .starter-action-card{ display:grid; gap:7px; min-width:0; padding:10px; border-radius:11px;
   background:#15112d; border:1px solid var(--line); }
@@ -1541,13 +1547,6 @@ const STARTER_ACTION_UI={
   tennis:{glyph:'🎾',zh:'打网球',en:'Play tennis'},
   wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'}
 };
-function starterActionCost(job){
-  const editable=['planned','failed','cancelled'].includes(job.state);
-  const quality=IMAGE_QUALITIES.find(q=>q.id===(editable?S.imageQuality:job.quality))||IMAGE_QUALITIES[0];
-  const calls=Math.max(0,(+job.estimatedProviderCalls||0)-(+job.completedBatches||0));
-  const each=Number(String(quality.cost||'$0').replace('$',''))||0;
-  return `~$${(calls*each).toFixed(3)}`;
-}
 function starterActionState(job){
   const done=Math.max(0,+job.completedBatches||0),total=Math.max(1,+job.estimatedProviderCalls||1);
   const phase=String(job.phase||'').replaceAll('-',' ');
@@ -1565,21 +1564,37 @@ function starterActionState(job){
 }
 function starterActionButtons(job,result){
   const busy=starterActionBusy.has(job.jobID)||actionJobBusy;
-  const remaining=Math.max(0,(+job.estimatedProviderCalls||0)-(+job.completedBatches||0));
-  if(job.canStart){
-    const retry=job.state==='failed'||job.state==='cancelled';
-    return `<button type="button" ${busy?'disabled':''} onclick="startStarterAction('${job.jobID}')">${retry?tx('从断点重试','Resume'):tx('生成','Generate')} · ${remaining} calls · ${starterActionCost(job)}</button>`;
-  }
-  if(job.canCancel){
-    return `<button type="button" ${busy?'disabled':''} onclick="cancelStarterAction('${job.jobID}')">${tx('取消','Cancel')}</button>`;
-  }
   if((job.state==='awaiting_review'||job.state==='installed')&&result){
-    return `<button type="button" ${busy?'disabled':''} onclick="selectActionResult('${result.jobID}');previewActionJob('${result.jobID}')">${tx('桌面预览','Preview')}</button>${job.canReprocess?`<button type="button" ${busy?'disabled':''} onclick="reprocessStarterAction('${job.jobID}')">${tx('本机重新抠图','Reprocess matte')}</button>`:''}<button type="button" ${busy||job.state==='installed'||!result.installEligible?'disabled':''} onclick="acceptActionJob('${result.jobID}')">${job.state==='installed'?tx('已安装','Installed'):tx('接受并安装','Accept')}</button>`;
-  }
-  if(job.canReprocess){
-    return `<button type="button" ${busy?'disabled':''} onclick="reprocessStarterAction('${job.jobID}')">${tx('本机重新抠图','Reprocess matte')}</button>`;
+    return `<button type="button" ${busy?'disabled':''} onclick="selectActionResult('${result.jobID}');previewActionJob('${result.jobID}')">${tx('桌面预览','Preview')}</button><button type="button" ${busy||job.state==='installed'||!result.installEligible?'disabled':''} onclick="acceptActionJob('${result.jobID}')">${job.state==='installed'?tx('已安装','Installed'):tx('接受并安装','Accept')}</button>`;
   }
   return '';
+}
+function starterActionPackPanel(starterJobs){
+  const pack=S.starterActionPack||{};
+  const active=pack.active===true;
+  const runnable=starterJobs.filter(job=>
+    (job.state==='failed'&&job.canReprocess)||job.canStart);
+  const calls=runnable.reduce((sum,job)=>{
+    if(job.state==='failed'&&job.canReprocess)return sum;
+    return sum+Math.max(0,(+job.estimatedProviderCalls||0)-(+job.completedBatches||0));
+  },0);
+  const quality=IMAGE_QUALITIES.find(q=>q.id===(S.imageQuality||'medium'))||IMAGE_QUALITIES[0];
+  const each=Number(String(quality.cost||'$0').replace('$',''))||0;
+  const ready=starterJobs.filter(job=>['awaiting_review','installed'].includes(job.state)).length;
+  const remaining=Math.max(0,+pack.remainingCount||0);
+  let copy,button;
+  if(active){
+    copy=`<b>${tx('正在生成默认动作包','Generating the default action pack')}</b><small>${tx(`剩余 ${remaining} 套；会自动继续，不用逐个点`,`${remaining} sets remaining; Mimo continues automatically`)}</small>`;
+    button=`<button type="button" onclick="cancelDefaultStarterActions()">${tx('停止','Stop')}</button>`;
+  }else if(runnable.length){
+    const local=runnable.filter(job=>job.state==='failed'&&job.canReprocess).length;
+    copy=`<b>${tx('4 个动作已默认选好','All 4 actions are included by default')}</b><small>${tx(`${ready}/4 已完成 · ${local?`${local} 套本机修复 · `:''}${calls} calls · ~$${(calls*each).toFixed(3)}`,`${ready}/4 ready · ${local?`${local} local repairs · `:''}${calls} calls · ~$${(calls*each).toFixed(3)}`)}</small>`;
+    button=`<button type="button" onclick="startDefaultStarterActions()">${tx('一键生成默认动作','Generate defaults')}</button>`;
+  }else{
+    copy=`<b>${tx('默认动作已全部生成','All default actions are generated')}</b><small>${tx('逐个预览并接受后，就会加入这只伴灵。','Preview and accept each result to install it.')}</small>`;
+    button=`<button type="button" disabled>${tx('已完成','Done')}</button>`;
+  }
+  return `<div class="starter-actions-pack"><div class="copy">${copy}</div>${button}</div>`;
 }
 function starterActionCards(starterJobs,actionJobs){
   return starterJobs.map(job=>{
@@ -1589,10 +1604,8 @@ function starterActionCards(starterJobs,actionJobs){
     const pct=['local_processing','awaiting_review','installed'].includes(job.state)?100:Math.round(done/total*100);
     const cardClass=['queued','generating','local_processing'].includes(job.state)?'running':['awaiting_review','installed'].includes(job.state)?'ready':['failed','cancelled'].includes(job.state)?'failed':'';
     const statusClass=['failed','cancelled'].includes(job.state)?'error':'';
-    const quality=['planned','failed','cancelled'].includes(job.state)
-      ?(S.imageQuality||job.quality||'medium'):(job.quality||'medium');
     return `<article class="starter-action-card ${cardClass}" data-starter-job="${esc(job.jobID)}">
-      <div class="starter-action-title"><span class="glyph">${ui.glyph}</span><div><b>${esc(LANG==='zh'?ui.zh:ui.en)}</b><small>${job.finalFrameCount}f · ${job.estimatedProviderCalls} calls · ${String(quality).toUpperCase()}</small></div></div>
+      <div class="starter-action-title"><span class="glyph">${ui.glyph}</span><div><b>${esc(LANG==='zh'?ui.zh:ui.en)}</b><small>${job.finalFrameCount}f · ${tx('默认动作','default')}</small></div></div>
       <div class="starter-action-state ${statusClass}">${esc(starterActionState(job))}</div>
       <div class="starter-action-meter" aria-label="${done}/${total} batches"><i style="width:${pct}%"></i></div>
       <div class="action-review-actions">${starterActionButtons(job,result)}</div>
@@ -1624,12 +1637,19 @@ function renderActionReview(){
   const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择外部结果文件夹…','Choose external result folder…')}</button>`;
   const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的四张动作卡…','Preparing the four motion cards…')}</div>`;
   const history=jobs.length>1?`<div class="action-review-history">${jobs.map(item=>`<button type="button" class="${item.jobID===selectedActionJobID?'sel':''}" onclick="selectActionResult('${item.jobID}')">${esc(item.action)} · ${item.frameCount}f</button>`).join('')}</div>`:'';
-  box.innerHTML=`<div class="starter-actions-intro"><span>✦</span><div><b>${tx('一次生成一套；调用数和进度都可见','Generate one set at a time; calls and progress stay visible')}</b>${tx('Mimo 会自动保持角色一致、保存每个 batch，并在安装前要求你桌面预览。','Mimo locks identity, checkpoints every batch, and requires desktop preview before install.')}</div></div><div class="starter-actions-grid">${cards}</div>${job?`${history}${actionResultReview(job)}`:''}${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}<details class="starter-actions-advanced"><summary>${tx('高级：导入外部动作结果','Advanced: import an external action result')}</summary><div class="note">${tx('只导入本地结果，不会启动 CLI、Modal、Wan 或 Python。','Local import only; this does not launch CLI, Modal, Wan, or Python.')}</div><div class="action-review-actions">${choose}</div></details>`;
+  box.innerHTML=`<div class="starter-actions-intro"><span>✦</span><div><b>${tx('动作不用选，四套都是默认','No action picking — all four are defaults')}</b>${tx('点一次后自动顺序完成；已保存的 batch 会优先本机修复，不会重复付费。安装前仍可预览。','One click runs them in sequence. Saved batches are repaired locally first, without paying twice. You can still preview before install.')}</div></div>${starterActionPackPanel(starterJobs)}<div class="starter-actions-grid">${cards}</div>${job?`${history}${actionResultReview(job)}`:''}${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}<details class="starter-actions-advanced"><summary>${tx('高级：导入外部动作结果','Advanced: import an external action result')}</summary><div class="note">${tx('只导入本地结果，不会启动 CLI、Modal、Wan 或 Python。','Local import only; this does not launch CLI, Modal, Wan, or Python.')}</div><div class="action-review-actions">${choose}</div></details>`;
 }
 function selectActionResult(jobID){selectedActionJobID=jobID;actionJobNotice='';renderActionReview()}
 function startStarterAction(jobID){
   if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);starterActionNotices[jobID]='';
   renderActionReview();send({type:'petStarterActionStart',characterID:S.character,jobID,quality:S.imageQuality||petLab.quality||'medium'});
+}
+function startDefaultStarterActions(){
+  actionJobNotice='';
+  send({type:'petStarterActionStartDefaults',characterID:S.character,quality:S.imageQuality||petLab.quality||'medium'});
+}
+function cancelDefaultStarterActions(){
+  send({type:'petStarterActionCancelDefaults',characterID:S.character});
 }
 function cancelStarterAction(jobID){
   if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);renderActionReview();

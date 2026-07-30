@@ -519,6 +519,15 @@ extension AppDelegate {
         }
         state["actionJobs"] = actionGenerationJobStore.runtimeDictionaries()
         state["starterActionJobs"] = starterActionJobStore.runtimeDictionaries()
+        let starterPackActive = starterActionPackActiveJobID != nil
+            || !starterActionPackQueue.isEmpty
+        state["starterActionPack"] = [
+            "active": starterPackActive,
+            "activeJobID": starterActionPackActiveJobID ?? "",
+            "remainingCount": starterActionPackQueue.count
+                + (starterActionPackActiveJobID == nil ? 0 : 1),
+            "totalCount": StarterActionID.allCases.count,
+        ]
         guard let data = try? JSONSerialization.data(withJSONObject: state),
               let json = String(data: data, encoding: .utf8) else { return }
         settingsWeb?.evaluateJavaScript("initSettings(\(json))", completionHandler: nil)
@@ -1160,6 +1169,14 @@ extension AppDelegate {
         settingsCall("starterActionJobUpdated", [
             "job": starterActionJobStore.runtimeDictionary(for: record),
         ])
+        guard record.id == starterActionPackActiveJobID,
+              !record.state.isInFlight,
+              [.awaitingReview, .installed, .failed, .cancelled]
+                .contains(record.state) else { return }
+        starterActionPackActiveJobID = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.startNextStarterActionPackJob()
+        }
     }
 
     private func reportStarterActionError(jobID: String?, error: Error,
@@ -1256,6 +1273,93 @@ extension AppDelegate {
             return false
         case .invalidResponse, .provider, .timedOut:
             return true
+        }
+    }
+
+    func startStarterActionPack(characterID: String,
+                                quality: PetFinalGenerationQuality) {
+        guard starterActionPackActiveJobID == nil,
+              starterActionPackQueue.isEmpty else {
+            pushSettingsState()
+            return
+        }
+        do {
+            let jobs = try starterActionJobStore.ensureJobs(
+                characterID: characterID)
+            let localRepairs = jobs.filter {
+                $0.state == .failed && $0.canReprocess
+            }
+            let providerJobs = jobs.filter {
+                $0.canStart && !localRepairs.contains($0)
+            }
+            starterActionPackQueue = (localRepairs + providerJobs).map(\.id)
+            starterActionPackCharacterID = characterID
+            starterActionPackQuality = quality
+            pushSettingsState()
+            startNextStarterActionPackJob()
+        } catch {
+            reportStarterActionError(
+                jobID: nil, error: error, code: "pack_start_failed")
+        }
+    }
+
+    private func startNextStarterActionPackJob() {
+        guard starterActionPackActiveJobID == nil else { return }
+        guard let characterID = starterActionPackCharacterID else {
+            starterActionPackQueue.removeAll()
+            pushSettingsState()
+            return
+        }
+        while !starterActionPackQueue.isEmpty {
+            let jobID = starterActionPackQueue.removeFirst()
+            guard let record = try? starterActionJobStore.record(jobID: jobID),
+                  record.characterID == characterID else { continue }
+            if record.state == .failed && record.canReprocess {
+                do {
+                    starterActionPackActiveJobID = jobID
+                    let local = try starterActionJobStore.beginLocalReprocess(
+                        jobID: jobID)
+                    emitStarterActionJob(local)
+                    pushSettingsState()
+                    processStarterActionLocally(jobID: jobID)
+                    return
+                } catch {
+                    starterActionPackActiveJobID = nil
+                    reportStarterActionError(
+                        jobID: jobID, error: error,
+                        code: "pack_local_reprocess_failed")
+                    continue
+                }
+            }
+            guard record.canStart else { continue }
+            starterActionPackActiveJobID = jobID
+            startStarterActionJob(
+                jobID: jobID, characterID: characterID,
+                quality: starterActionPackQuality)
+            if let current = try? starterActionJobStore.record(jobID: jobID),
+               current.state.isInFlight {
+                pushSettingsState()
+                return
+            }
+            starterActionPackActiveJobID = nil
+        }
+        starterActionPackCharacterID = nil
+        pushSettingsState()
+    }
+
+    func cancelStarterActionPack(characterID: String) {
+        guard starterActionPackCharacterID == characterID else { return }
+        starterActionPackQueue.removeAll()
+        let activeJobID = starterActionPackActiveJobID
+        starterActionPackActiveJobID = nil
+        starterActionPackCharacterID = nil
+        if let activeJobID,
+           let record = try? starterActionJobStore.record(jobID: activeJobID),
+           record.characterID == characterID, record.canCancel {
+            cancelStarterActionJob(
+                jobID: activeJobID, characterID: characterID)
+        } else {
+            pushSettingsState()
         }
     }
 
@@ -2157,6 +2261,29 @@ extension AppDelegate {
                     }
                 }
             }
+        case "petStarterActionStartDefaults":
+            guard let characterID = activeCustomCharacterID(
+                    requested: body["characterID"]) else {
+                reportStarterActionError(
+                    jobID: nil,
+                    error: StarterActionJobError.invalidCharacterID,
+                    code: "invalid_character")
+                return
+            }
+            startStarterActionPack(
+                characterID: characterID,
+                quality: PetFinalGenerationQuality.resolve(
+                    body["quality"] as? String))
+        case "petStarterActionCancelDefaults":
+            guard let characterID = activeCustomCharacterID(
+                    requested: body["characterID"]) else {
+                reportStarterActionError(
+                    jobID: nil,
+                    error: StarterActionJobError.invalidCharacterID,
+                    code: "invalid_character")
+                return
+            }
+            cancelStarterActionPack(characterID: characterID)
         case "petStarterActionStart":
             guard let characterID = activeCustomCharacterID(
                     requested: body["characterID"]),
