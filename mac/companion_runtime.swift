@@ -239,8 +239,10 @@ final class CompanionRuntime {
     var streakMinutes: Double = 0
     var level: Double = 1
 
-    /// Raised on a click that was a click, not a drag.
-    var onClick: (() -> Void)?
+    /// Raised on every click that was a click, not a drag. The behavior pack
+    /// still gets the same event, so a tap can be both a pet reaction and a
+    /// product action. The point anchors focus UI beside the moving companion.
+    var onClick: ((CGPoint) -> Void)?
     var onRightClick: (() -> Void)?
     private var pressAnchor: CGPoint = .zero
     private var pressWasDrag = false
@@ -935,17 +937,16 @@ final class CompanionRuntime {
         // A grab that never moved is a click: put the companion back rather
         // than dropping it — the drop would land, and landing resets the
         // director, wiping the very reaction being triggered — then let the
-        // pack answer. Only when it has no answer (no reaction declared, or
-        // its behaviour is gated off right now) does the click fall through
-        // to the app's own handler.
+        // pack answer. The app is notified too: clicking Mimo is both affection
+        // and the one-tap entrance to today's focus feedback.
         if !restoreAfterClick(companion, world: world) {
             companion.state = .airborne
             companion.integrator.velocity = .zero
         }
-        let triggered = companion.director?.trigger(
+        _ = companion.director?.trigger(
             reactionTo: "click",
             snapshot: snapshot(for: companion, world: world)) ?? false
-        if !triggered { onClick?() }
+        onClick?(pressAnchor)
     }
 
     /// Puts a clicked companion back into its pre-grab state, if that state

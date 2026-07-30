@@ -23,7 +23,8 @@ body{ font-family:var(--font-ui); -webkit-user-select:none; }
 
 .stage{ position:absolute; right:10px; bottom:6px; width:calc(150px * var(--fam-display-scale)); }
 /* set by famSetNativeHosted() when companion_runtime.swift owns the familiar */
-body.native-hosted .stage{ display:none; }
+body.native-hosted .familiar,
+body.native-hosted .shadow{ visibility:hidden; pointer-events:none; }
 
 /* ── creature container ── */
 .familiar{ position:relative; width:calc(150px * var(--fam-display-scale)); height:calc(150px * var(--fam-display-scale));
@@ -166,6 +167,10 @@ body[data-char="pixel"] .shadow{ display:none; }
 .bb-col .pct{ font-family:var(--font-magic); font-size:22px; margin:2px 0 3px; }
 .bb-col .pct.good{ color:#7df0cf; } .bb-col .pct.mid{ color:#ffd479; } .bb-col .pct.bad{ color:#e88fae; }
 .bb-col .sub{ font-size:10.5px; color:var(--ink-dim); }
+.bb-verdict{ margin:4px 0 9px; color:#fff; font-size:13.5px; }
+.bb-focus-note{ padding:7px 9px; margin-top:7px; border-radius:9px;
+  color:var(--ink-dim); background:#ffffff08; border:1px solid #ffffff0d; }
+.bb-focus-note b{ color:#fff; }
 .bb-sec{ margin-top:8px; }
 .bb-sec .sh{ font-size:11px; color:#cabcf5; letter-spacing:.05em; margin-bottom:4px; }
 .bb-item{ font-size:12.5px; color:var(--ink); padding:2.5px 0; white-space:nowrap; overflow:hidden;
@@ -1730,57 +1735,68 @@ function windowStats(minutes){
 
 function pctCls(p){ return p >= 65 ? 'good' : p >= 35 ? 'mid' : 'bad'; }
 
-/* click / opt-space now both open the combined journal+thread panel */
+/* Option-space keeps the full journal. A pet click has its own compact focus
+   brief below, so the familiar can answer without becoming a dashboard. */
 function famToggleContext(){ famToggleJournal(); }
 
-function famToggleContextLegacy(){
-  const b = document.getElementById('bubble');
-  if (b.classList.contains('on')) { closeBubble(); return; }
-  const fmt = ms => { const m = Math.round(ms/60000); return m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}m`; };
-  const now = Date.now();
-  const s25 = windowStats(25), s60 = windowStats(60);
-
-  const curLine = Fam.cur
-    ? `<div class="bb-line">${tx(`你在 <b>${Fam.cur.app}</b>——已经 ${fmt(now - Fam.cur.t0)}。`, `You're in <b>${Fam.cur.app}</b> — ${fmt(now - Fam.cur.t0)} so far.`)}</div>` : '';
-
-  const col = (label, s) => s.total < 30000
-    ? `<div class="bb-col"><div class="k">${label}</div><div class="sub" style="margin-top:6px">${tx('数据还不够','not enough data yet')}</div></div>`
-    : `<div class="bb-col"><div class="k">${label}</div>
-       <div class="pct ${pctCls(s.pct)}">${s.pct}%</div>
-       <div class="sub">${tx(`成长 ${s.deepMin} 分钟`, `${s.deepMin}m growth`)}</div></div>`;
-
-  // 📖 read: deep reading entries, deduped by canonical key so the same
-  // paper under different titles collapses to its best-known name
-  const labels = labelMap();
-  const seenK = new Set();
-  const read = windowEntries().reverse()
-    .filter(h => h.kind === 'paper' && (h.detail || h.canon))
-    .filter(h => { const k = canonKey(h); if (seenK.has(k)) return false; seenK.add(k); return true; })
-    .slice(0, 3)
-    .map(h => `<div class="bb-item">📖 ${labels[canonKey(h)] || normTitle(h.detail)}</div>`).join('');
-
-  // 🛠️ built: deep tool time in the last hour, aggregated by app
-  const w0 = now - 3600000, byApp = {};
-  for (const h of windowEntries()){
-    if (!DEEP_KINDS.has(h.kind) || h.kind === 'paper') continue;
-    const a = Math.max(h.t0, w0), bb = Math.min(h.t1, now);
-    if (bb > a) byApp[h.app] = (byApp[h.app] || 0) + (bb - a);
+function todayFocusSnapshot(){
+  const now=Date.now(),dayStart=new Date();dayStart.setHours(0,0,0,0);
+  const w0=dayStart.getTime(),labels=labelMap(),merged=mergeSegments(w0,now,labels);
+  let deep=0,dist=0,neutral=0;
+  for(const item of merged){
+    const duration=item.b-item.a;
+    if(DEEP_KINDS.has(item.kind))deep+=duration;
+    else if(item.kind==='distraction')dist+=duration;
+    else neutral+=duration;
   }
-  const built = Object.entries(byApp).sort((x, y) => y[1] - x[1]).slice(0, 3)
-    .map(([app, ms]) => `<div class="bb-item">🛠️ ${app}<span class="t">${fmt(ms)}</span></div>`).join('');
+  const total=deep+dist+neutral;
+  const top=aggregate(w0,now,labels)
+    .filter(item=>item.sec!=='distracted')
+    .sort((a,b)=>b.ms-a.ms)[0]||null;
+  return {
+    now,deep,dist,neutral,total,
+    pct:total?Math.round(100*deep/total):0,
+    streak:Fam.streakMin(),
+    top
+  };
+}
 
-  const streak = Fam.streakMin();
-  document.getElementById('bubbleInner').innerHTML = `
-    <div class="bb-head">${tx('✦ 这是你刚才留下的线','✦ here is your thread')}</div>
-    ${curLine}
-    <div class="bb-cols">${col(tx('过去 25 分钟','LAST 25 MIN'), s25)}${col(tx('过去一小时','LAST HOUR'), s60)}</div>
-    ${buildStrip(now - 3600000, now, labels, { minLabelPct: 18 })}
-    ${read ? `<div class="bb-sec"><div class="sh">${tx('读过','READ')}</div>${read}</div>` : ''}
-    ${built ? `<div class="bb-sec"><div class="sh">${tx('做过','BUILT')}</div>${built}</div>` : ''}
-    ${!read && !built ? `<div class="bb-line bb-dim">${tx('…我还在熟悉你的节奏。再给我几分钟。','…still getting to know your rhythm. give me a few minutes.')}</div>` : ''}
-    <div class="bb-line" style="margin-top:7px">${streak > 0 ? tx(`连续成长：<b>${streak} 分钟</b> 🔥`,`growth streak: <b>${streak}m</b> 🔥`) : tx('还没有连续成长——喂饱我吧。','no active streak — feed me.')}</div>
-    <button class="bb-btn" onclick="closeBubble()">${tx('好，继续','ok, back to work')}</button><button class="bb-btn" onclick="famToggleJournal()">${tx('完整手记 ↗','full journal ↗')}</button>`;
+function focusVerdict(pct){
+  if(pct>=70)return tx('今天很稳，专注是主线。✦','Steady today — focus is the main thread. ✦');
+  if(pct>=50)return tx('今天节奏不错，偶尔分岔，但很快回来了。','Good rhythm today — a few detours, then back.');
+  if(pct>=30)return tx('今天有几段好专注，不过分心把线切碎了一点。','There were good focus blocks, though distractions cut the thread.');
+  return tx('今天有点散。没关系，从一个 25 分钟的小任务重新开始。','A scattered day. That is okay — restart with one small 25-minute task.');
+}
+
+function famShowFocusBrief(){
+  const b = document.getElementById('bubble');
+  const s=todayFocusSnapshot();
+  const duration=ms=>ms>=30000?fmtDur(ms):'0m';
+  const current=Fam.cur
+    ? tx(`现在：<b>${esc(Fam.cur.app)}</b> · ${fmtDur(s.now-Fam.cur.t0)}`,
+         `Now: <b>${esc(Fam.cur.app)}</b> · ${fmtDur(s.now-Fam.cur.t0)}`)
+    : tx('现在暂时离开','Away for now');
+  const top=s.top
+    ? tx(`今天最投入：<b>${esc(s.top.label)}</b> · ${fmtDur(s.top.ms)}`,
+         `Top focus: <b>${esc(s.top.label)}</b> · ${fmtDur(s.top.ms)}`)
+    : tx('今天还没有足够的专注记录。','Not enough focused activity recorded yet.');
+  const content=s.total<30000
+    ? `<div class="bb-verdict">${tx('我刚开始替你看守今天的注意力。先专注几分钟，再来点我。','I just started watching over today’s attention. Focus for a few minutes, then tap me again.')}</div>`
+    : `<div class="bb-verdict">${focusVerdict(s.pct)}</div>
+       <div class="bb-cols">
+         <div class="bb-col"><div class="k">${tx('专注占比','FOCUS')}</div><div class="pct ${pctCls(s.pct)}">${s.pct}%</div><div class="sub">${tx('已记录时间','of tracked time')}</div></div>
+         <div class="bb-col"><div class="k">${tx('专注','FOCUSED')}</div><div class="pct good">${duration(s.deep)}</div><div class="sub">${tx('代码、阅读、创作','build, read, create')}</div></div>
+         <div class="bb-col"><div class="k">${tx('分心','DISTRACTED')}</div><div class="pct ${s.dist>s.deep?'bad':'mid'}">${duration(s.dist)}</div><div class="sub">${tx('信息流与打断','feeds & detours')}</div></div>
+       </div>`;
+  document.getElementById('bubbleInner').innerHTML=`
+    <div class="bb-head">${tx('🐾 今天专注得怎么样？','🐾 How did focus go today?')}</div>
+    ${content}
+    <div class="bb-focus-note">${current}<br>${top}<br>${s.streak>0?tx(`连续专注：<b>${s.streak} 分钟</b> 🔥`,`Focus streak: <b>${s.streak}m</b> 🔥`):tx('现在没有连续专注。','No active focus streak right now.')}</div>
+    <button class="bb-btn" onclick="closeBubble();famPomodoro(25)">${tx('开始 25 分钟','Start 25 min')}</button>
+    <button class="bb-btn" onclick="closeBubble()">${tx('好，继续','Okay, continue')}</button>
+    <button class="bb-btn" onclick="famToggleJournal()">${tx('完整手记 ↗','Full journal ↗')}</button>`;
   document.getElementById('journal').classList.remove('on');
+  document.getElementById('stage').classList.remove('journal-open');
   b.classList.add('on');
   bridge({ type: 'bubble', on: true });
 }
@@ -2515,7 +2531,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fam.addEventListener('pointerup', () => {
     if (dragging) bridge({ type: 'dragEnd' });
     else if (hasBridge) bridge({ type: 'famClick' });
-    else famToggleContext();
+    else famShowFocusBrief();
     pd = null; dragging = false;
   });
   // if the pointer is lost mid-drag, end the drag - otherwise the window

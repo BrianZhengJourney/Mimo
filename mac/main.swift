@@ -796,6 +796,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         panel.ignoresMouseEvents = false
         js("famToggleContext()")
     }
+
+    /// One-tap focus feedback, positioned beside a native companion when it
+    /// has wandered away from the legacy overlay's home corner.
+    func showFocusBrief(near screenPoint: CGPoint? = nil) {
+        revealOverlay()
+        if let screenPoint {
+            let screen = NSScreen.screens.first(where: {
+                $0.frame.contains(screenPoint)
+            }) ?? preferredScreen()
+            let target = NSPoint(
+                x: screenPoint.x - (panel.frame.width - 153),
+                y: screenPoint.y - 50)
+            panel.setFrameOrigin(clampedPanelOrigin(
+                target, size: panel.frame.size, inside: screen.visibleFrame))
+        }
+        bubbleOpen = true
+        panel.ignoresMouseEvents = false
+        js("famShowFocusBrief()")
+    }
     @objc func toggleClickable(_ sender: NSMenuItem) {
         clickable.toggle()
     }
@@ -850,13 +869,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         activeCompanionSpec = spec
         recordCompanionStatus("native layer active, \(sprite.frameCount) frames")
 
-        // Fallback only: a click first goes to the behaviour pack's `reactions`
-        // (the familiar gets interrupted and reacts in-world). This fires when
-        // the pack declares no click reaction or it is gated off right now.
-        // The menu stays reachable via right-click either way.
-        companionRuntime.onClick = { [weak self] in
+        // A tap does both jobs: the behavior pack reacts in-world, while the
+        // focus brief answers beside the moving companion.
+        companionRuntime.onClick = { [weak self] point in
             guard let self else { return }
-            if self.hidden { self.unhide() } else { self.showContext() }
+            self.showFocusBrief(near: point)
         }
         companionRuntime.onRightClick = { [weak self] in self?.showCompanionMenu() }
         companionRuntime.onRecovered = { [weak self] reason in
@@ -1403,7 +1420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "dragEnd":
             endDrag()
         case "famClick":
-            if hidden { unhide() } else { showContext() }
+            showFocusBrief()
         case "openPage":
             openJournalPage()
         case "companionArt":
