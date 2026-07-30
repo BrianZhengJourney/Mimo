@@ -41,6 +41,20 @@ struct StarterActionUITests {
                "Studio exposes the approved white-outfit Mimo v2 finish as its default tuning note")
         expect(!html.contains("女性角色默认") && !html.contains("applyFemaleStylePreset"),
                "the retired female-personality preset cannot override the Mimo v2 style default")
+        expect(html.contains("自动找出人物") &&
+               html.contains("生成后手动选择") &&
+               html.contains("等待你确认后再生成"),
+               "Studio should auto-detect the subject but stop for manual approval after Low drafts")
+        for retiredAutoStart in [
+            "petArmCandidateAutoStart", "petCandidateAutoStart",
+            "armCandidateAutoStart", "candidateAutoStartAt",
+            "petLab.candidateIndices=[0]", "8 秒内可换人",
+        ] {
+            expect(!html.contains(retiredAutoStart),
+                   "Settings must not retain the retired Low-to-Medium auto-start: \(retiredAutoStart)")
+            expect(!bridge.contains(retiredAutoStart),
+                   "native bridge must not retain the retired Low-to-Medium auto-start: \(retiredAutoStart)")
+        }
         print("starter action UI contract tests passed")
     }
 }

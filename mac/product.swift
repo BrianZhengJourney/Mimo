@@ -2419,14 +2419,6 @@ extension AppDelegate {
         case "petQuality":
             let quality = PetFinalGenerationQuality.resolve(body["quality"] as? String)
             d.set(quality.rawValue, forKey: "petImageQuality")
-        case "petArmCandidateAutoStart":
-            guard let token = body["token"] as? String,
-                  UUID(uuidString: token) != nil else { return }
-            let requestedDelay = (body["delaySeconds"] as? NSNumber)?.doubleValue ?? 8
-            let delay = max(1, min(30, requestedDelay))
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.settingsCall("petCandidateAutoStart", ["token": token])
-            }
         case "petVisibleDrafts":
             if let raw = body["draftID"] as? String,
                let id = generationRequestID(raw), pendingEvolutionSheets[id] != nil {
