@@ -48,6 +48,11 @@ struct StarterActionUITests {
                html.contains("生成后手动选择") &&
                html.contains("等待你确认后再生成"),
                "Studio should auto-detect the subject but stop for manual approval after Low drafts")
+        expect(html.contains("type:'petUpload',remaining:MAX_PET_REFERENCES-petLab.references.length") &&
+               html.contains("function enqueuePetImageData") &&
+               bridge.contains("PetReferenceImportQueue") &&
+               bridge.contains("panel.urls.prefix(selectionLimit)"),
+               "multi-photo selection should respect remaining slots and cross WebKit sequentially")
         for retiredAutoStart in [
             "petArmCandidateAutoStart", "petCandidateAutoStart",
             "armCandidateAutoStart", "candidateAutoStartAt",

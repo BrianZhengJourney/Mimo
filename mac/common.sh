@@ -28,6 +28,7 @@ APP_SOURCES=(
   action_sheet_run.swift
   generation_draft.swift
   generation_ledger.swift
+  pet_reference_import.swift
   style_reference.swift
   reference_preprocessor.swift
   main.swift

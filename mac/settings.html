@@ -773,7 +773,7 @@ function requestPetReference(){
   if(petLab.references.length>=MAX_PET_REFERENCES){
     setupStudioError(tx('最多可以添加 8 张参考图。','You can add up to 8 reference images.'));return;
   }
-  send({type:'petUpload'});
+  send({type:'petUpload',remaining:MAX_PET_REFERENCES-petLab.references.length});
 }
 function syncPrimaryReference(){
   if(!Array.isArray(petLab.references))petLab.references=[];
@@ -1446,11 +1446,31 @@ function decodePetReference(url,sourceName){
   });
 }
 let petReferenceLoadQueue=Promise.resolve();
-// Native single-select remains compatible. Passing {append:true} explicitly is
-// recommended when a future multi-select panel calls this once per chosen file.
+function petReferenceImportStarted(event){
+  const count=Math.max(0,Math.min(MAX_PET_REFERENCES,+event?.count||0));
+  petLab.importing=Math.max(0,+petLab.importing||0)+count;
+  const skipped=Math.max(0,+event?.skippedDueToLimit||0);
+  petLab.referenceNoticeZh=skipped?`将导入 ${count} 张；另有 ${skipped} 张超过剩余名额。`:`正在导入 ${count} 张参考图…`;
+  petLab.referenceNoticeEn=skipped?`Importing ${count}; ${skipped} exceeded the remaining slots.`:`Importing ${count} reference images…`;
+  renderPetLab();
+}
+function petReferenceImportSkipped(event){
+  petLab.importing=Math.max(0,(+petLab.importing||1)-1);
+  petLab.referenceNoticeZh=event?.messageZh||'有一张图片无法读取，已跳过。';
+  petLab.referenceNoticeEn=event?.messageEn||'One image could not be read and was skipped.';
+  renderPetLab();
+}
+// Return a primitive immediately so native can wait for WebKit to accept this
+// payload before delivering the next large data URI.
+function enqueuePetImageData(url,sourceName){
+  void loadPetImageData(url,sourceName,{append:true,importReserved:true});
+  return true;
+}
 function loadPetImageData(url,sourceName,options={append:true}){
   const append=options?.append!==false;
-  petLab.importing=Math.max(0,+petLab.importing||0)+1;renderPetLab();
+  const importReserved=options?.importReserved===true;
+  if(!importReserved)petLab.importing=Math.max(0,+petLab.importing||0)+1;
+  renderPetLab();
   const task=petReferenceLoadQueue.then(async()=>{
     if(studioBusy())return false;
     if(append&&petLab.references.length>=MAX_PET_REFERENCES){

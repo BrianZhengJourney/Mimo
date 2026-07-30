@@ -436,6 +436,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var pendingEvolutionSheets: [String: PendingEvolutionSheetDraft] = [:]
     var pendingLocalRecoveries: [String: PendingLocalGenerationRecovery] = [:]
     var pendingReferencePreflights: [String: PendingReferencePreflight] = [:]
+    /// Retained until every selected photo has crossed the WKWebView bridge.
+    var petReferenceImportQueue: PetReferenceImportQueue<URL>?
     /// Character currently receiving post-adoption expression sheets (one
     /// sequential run at a time; nil when idle).
     var expressionRunCharacterID: String?

@@ -2235,6 +2235,54 @@ extension AppDelegate {
         }
     }
 
+    private func importPetReferenceURLs(_ urls: [URL],
+                                        skippedDueToLimit: Int) {
+        guard petReferenceImportQueue == nil, !urls.isEmpty else { return }
+        settingsCall("petReferenceImportStarted", [
+            "count": urls.count,
+            "skippedDueToLimit": max(0, skippedDueToLimit),
+        ])
+        let queue = PetReferenceImportQueue(
+            items: urls,
+            delivery: { [weak self] url, delivered in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    let uri = petReferenceDataURI(url)
+                    if scoped { url.stopAccessingSecurityScopedResource() }
+                    let name = url.deletingPathExtension().lastPathComponent
+                    DispatchQueue.main.async {
+                        guard let self else {
+                            delivered()
+                            return
+                        }
+                        guard let uri, let web = self.settingsWeb else {
+                            self.settingsCall("petReferenceImportSkipped", [
+                                "messageZh": "有一张图片太大、尺寸异常或无法读取；已跳过它。",
+                                "messageEn": "One image was too large, had unsafe dimensions, or could not be read, so it was skipped.",
+                            ])
+                            delivered()
+                            return
+                        }
+                        let script = "enqueuePetImageData(\(jsonStr(uri)), \(jsonStr(name)))"
+                        web.evaluateJavaScript(script) { [weak self] _, error in
+                            if error != nil {
+                                self?.settingsCall("petReferenceImportSkipped", [
+                                    "messageZh": "有一张图片没有成功加入参考集；已跳过它。",
+                                    "messageEn": "One image could not be added to the reference set and was skipped.",
+                                ])
+                            }
+                            delivered()
+                        }
+                    }
+                }
+            },
+            completion: { [weak self] in
+                self?.petReferenceImportQueue = nil
+            })
+        petReferenceImportQueue = queue
+        queue.start()
+    }
+
     func handleSettings(_ body: [String: Any]) {
         let d = UserDefaults.standard
         switch body["type"] as? String ?? "" {
@@ -2263,39 +2311,25 @@ extension AppDelegate {
                 revealOverlay()
             }
         case "petUpload":
+            guard petReferenceImportQueue == nil else { return }
+            let reportedRemaining = (body["remaining"] as? NSNumber)?.intValue
+            let selectionLimit = PetReferenceImportPolicy.selectionLimit(
+                reportedRemaining: reportedRemaining)
+            guard selectionLimit > 0 else { return }
             let panel = NSOpenPanel()
             panel.canChooseDirectories = false
             panel.canChooseFiles = true
             panel.allowsMultipleSelection = true
             panel.allowedContentTypes = [.image]
-            panel.message = voice("最多选择 8 张同一主角的多角度参考", "Choose up to 8 views of the same subject")
+            panel.prompt = voice("加入参考集", "Add References")
+            panel.message = voice(
+                "可一次选择最多 \(selectionLimit) 张同一主角的照片",
+                "Choose up to \(selectionLimit) photos of the same subject at once")
             if panel.runModal() == .OK {
-                // Each image is decoded, downsampled to 2048px, re-encoded as
-                // JPEG, and base64'd. Eight large screenshots is seconds of
-                // work and eight ~28MB strings live at once — it beachballed
-                // when it ran inline on the main thread.
-                let urls = Array(panel.urls.prefix(8))
-                for url in urls {
-                    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                        let uri = petReferenceDataURI(url)
-                        let name = url.deletingPathExtension().lastPathComponent
-                        DispatchQueue.main.async {
-                            guard let self else { return }
-                            guard let uri else {
-                                self.settingsCall("petStudioError", [
-                                    "kind": "setup", "phase": "input", "code": "invalid_reference",
-                                    "messageZh": "有一张图片太大、尺寸异常或无法读取；已跳过它。请选择 20 MB 以内的 PNG、JPEG 或 WebP。",
-                                    "messageEn": "One image was too large, had unsafe dimensions, or could not be read, so it was skipped. Choose PNG, JPEG, or WebP under 20 MB.",
-                                    "requestNotStarted": true, "outputRetained": false,
-                                ])
-                                return
-                            }
-                            self.settingsWeb?.evaluateJavaScript(
-                                "loadPetImageData(\(jsonStr(uri)), \(jsonStr(name)), {append:true})",
-                                completionHandler: nil)
-                        }
-                    }
-                }
+                let selected = Array(panel.urls.prefix(selectionLimit))
+                importPetReferenceURLs(
+                    selected,
+                    skippedDueToLimit: panel.urls.count - selected.count)
             }
         case "petStarterActionStartDefaults":
             guard let characterID = activeCustomCharacterID(
