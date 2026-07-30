@@ -171,6 +171,22 @@ struct ActionSheetTests {
         } catch { preconditionFailure("unexpected \(error)") }
     }
 
+    static func testSparseLargePanelEdgeContactIsNotClipping() {
+        var cell = CharacterSheetRGBAImage(width: 500, height: 1000)
+        // A safely contained body plus eighteen antialiased hair pixels at the
+        // side, matching the real sleep batch that was falsely rejected.
+        for y in 400..<700 {
+            for x in 80..<360 {
+                cell.setRGBA(x: x, y: y, (220, 120, 90, 255))
+            }
+        }
+        for y in 470..<488 {
+            cell.setRGBA(x: 0, y: y, (80, 50, 40, 255))
+        }
+        expect(ActionSheetProcessor.clippedEdge(of: cell) == nil,
+               "sparse contact in a large panel is not a cropped subject")
+    }
+
     /// The second-pass walk result drew the last row through the canvas's
     /// bottom frame, leaving four waist-up sprites. Framed sheets used to
     /// exempt bottom contact because older prompts treated the bar as a floor;
@@ -216,6 +232,58 @@ struct ActionSheetTests {
             expect(index == 3 && edge == "bottom",
                    "the last framed cell is rejected at bottom, got \(index)/\(edge)")
         } catch { preconditionFailure("unexpected \(error)") }
+    }
+
+    /// GPT Image sometimes renders one separator as two dark strokes with a
+    /// narrow light gap. Treat that pair as one frame band; falling back to
+    /// uniform 512px slicing leaves the presentation border in the cell and
+    /// falsely reports a safely padded subject as bottom-clipped.
+    static func testSplitStrokePanelBordersAreMerged() throws {
+        let cell = 128
+        let layout = ActionSheetLayout(rows: 1, columns: 3)
+        var sheet = makeSheet(
+            cell: cell, layout: layout,
+            blobs: [
+                bounds(35, 36, 58, 62),
+                bounds(34, 40, 60, 58),
+                // Close to the separator, but still wholly inside it. The
+                // registration crop must not amputate these leading pixels.
+                bounds(8, 38, 56, 60),
+            ],
+            matte: (239, 234, 224, 255))
+
+        func paintColumn(_ x: Int) {
+            for y in 0..<sheet.height {
+                sheet.setRGBA(x: x, y: y, (48, 34, 74, 255))
+            }
+        }
+        func paintRow(_ y: Int) {
+            for x in 0..<sheet.width {
+                sheet.setRGBA(x: x, y: y, (48, 34, 74, 255))
+            }
+        }
+        // Leave a thin white presentation rim around the outer frame, as the
+        // real wall batch does.
+        for inset in 2..<6 {
+            paintRow(inset); paintRow(sheet.height - 1 - inset)
+            paintColumn(inset); paintColumn(sheet.width - 1 - inset)
+        }
+        for boundary in [cell, cell * 2] {
+            for offset in -5 ... -3 { paintColumn(boundary + offset) }
+            for offset in 1...3 { paintColumn(boundary + offset) }
+        }
+
+        let data = png(sheet)
+        let image = try CharacterSheetProcessor.decodePNG(data)
+        let grid = ActionSheetProcessor.detectDrawnGrid(image, layout: layout)
+        expect(grid != nil, "split strokes must resolve to one separator per panel boundary")
+
+        let result = try ActionSheetProcessor.processCoherentBatches(
+            pngDatas: [data], keepCounts: [3])
+        expect(result.frames.allSatisfy { $0.bounds.width < 100 && $0.bounds.height < 100 },
+               "presentation borders must not survive as foreground bounds")
+        expect(result.frames[2].bounds.width == 56,
+               "grid cleanup must preserve art that is inside the separator")
     }
 
     // MARK: - Rejections
@@ -589,6 +657,8 @@ struct ActionSheetTests {
         try testNeighbourOverflowIsRemovedFromTheCell()
         testSubjectCutByThePanelEdgeIsRejected()
         testFramedBottomContactIsRejected()
+        try testSplitStrokePanelBordersAreMerged()
+        testSparseLargePanelEdgeContactIsNotClipping()
         testEmptyCellIsRejected()
         testTinySubjectIsRejected()
         testIndivisibleDimensionsAreRejected()

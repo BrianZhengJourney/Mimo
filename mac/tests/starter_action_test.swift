@@ -78,6 +78,8 @@ struct StarterActionTests {
             }
             expect(definition.estimatedProviderCalls == definition.batches.count,
                    "\(id.rawValue) discloses every paid coherent-family call")
+            expect((1.0...60.0).contains(definition.previewFramesPerSecond),
+                   "\(id.rawValue) preview FPS must satisfy action metadata validation")
         }
     }
 

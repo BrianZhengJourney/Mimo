@@ -519,10 +519,43 @@ enum ActionSheetProcessor {
             }
             if let s = start { runs.append((s, counts.count - 1)) }
 
-            let interior = runs.filter { $0.start > 0 && $0.end < counts.count - 1 }
+            // Image models often render one requested separator as two dark
+            // strokes with a tiny light/antialiased gap. Treat nearby strokes
+            // as one frame line; otherwise we fall back to uniform slicing,
+            // retain the presentation frame, and can falsely flag a safely
+            // padded subject as clipped.
+            var mergedRuns: [(start: Int, end: Int)] = []
+            for run in runs {
+                if let last = mergedRuns.last,
+                   run.start - last.end - 1 <= frameFringeInset {
+                    mergedRuns[mergedRuns.count - 1] =
+                        (start: last.start, end: run.end)
+                } else {
+                    mergedRuns.append(run)
+                }
+            }
+            runs = mergedRuns
+
+            // A generated sheet may add a thin white presentation rim outside
+            // the requested frame. Outer bands are therefore "edge" bands
+            // when they sit near the canvas edge, not only when they touch
+            // pixel zero exactly.
+            let leading = runs.first {
+                $0.start <= frameFringeInset
+            }
+            let trailing = runs.last {
+                counts.count - 1 - $0.end <= frameFringeInset
+            }
+            let interior = runs.filter { run in
+                let isLeading = leading.map {
+                    run.start == $0.start && run.end == $0.end
+                } ?? false
+                let isTrailing = trailing.map {
+                    run.start == $0.start && run.end == $0.end
+                } ?? false
+                return !isLeading && !isTrailing
+            }
             guard interior.count == expectedPanels - 1 else { return nil }
-            let leading = runs.first { $0.start == 0 }
-            let trailing = runs.first { $0.end == counts.count - 1 }
 
             var edges: [Int] = [(leading.map { $0.end + 1 } ?? 0)]
             for run in interior {
@@ -555,8 +588,8 @@ enum ActionSheetProcessor {
               let columns = contentRanges(counts: darkPerColumn,
                                           threshold: Int(Double(height) * frameBandCoverage),
                                           expectedPanels: layout.columns,
-                                          fringeLow: frameFringeInset,
-                                          fringeHigh: frameFringeInset) else { return nil }
+                                          fringeLow: 2,
+                                          fringeHigh: 2) else { return nil }
         return (rows, columns)
     }
 
@@ -565,8 +598,10 @@ enum ActionSheetProcessor {
     /// Alpha at or below the sprite loader's threshold counts as empty here
     /// too, so a faint matte fringe cannot read as a clipped subject.
     static let clipAlphaThreshold: UInt8 = 24
-    /// Contact this wide against a cell edge means the subject was cut by the
-    /// grid, not merely near it.
+    /// Minimum contact against a small cell edge that means the subject was
+    /// cut by the grid, not merely near it. Large generated panels use a
+    /// proportional threshold below so a handful of antialiased hair pixels
+    /// cannot become a false clipping failure.
     static let clipContactMinimum = 12
 
     /// The edge the subject is cut off at, or nil if it sits clear of all four.
@@ -585,10 +620,12 @@ enum ActionSheetProcessor {
             if opaque(x: 0, y: y) { left += 1 }
             if opaque(x: width - 1, y: y) { right += 1 }
         }
-        if bottom >= clipContactMinimum { return "bottom" }
-        if top >= clipContactMinimum { return "top" }
-        if left >= clipContactMinimum { return "left" }
-        if right >= clipContactMinimum { return "right" }
+        let horizontalThreshold = max(clipContactMinimum, width / 32)
+        let verticalThreshold = max(clipContactMinimum, height / 32)
+        if bottom >= horizontalThreshold { return "bottom" }
+        if top >= horizontalThreshold { return "top" }
+        if left >= verticalThreshold { return "left" }
+        if right >= verticalThreshold { return "right" }
         return nil
     }
 

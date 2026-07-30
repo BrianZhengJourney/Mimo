@@ -111,7 +111,9 @@ struct StarterActionDefinition: Equatable, Sendable {
     var previewFramesPerSecond: Double {
         let duration = frameDurations.reduce(0, +)
         guard duration > 0 else { return 2 }
-        return Double(finalFrameCount) / duration
+        // Runtime playback still uses the exact authored holds. The exported
+        // constant-FPS preview only needs a schema-valid fallback value.
+        return min(60, max(1, Double(finalFrameCount) / duration))
     }
 }
 
