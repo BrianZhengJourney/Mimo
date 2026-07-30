@@ -257,41 +257,64 @@ struct CustomPetTests {
         let png = makeSheet()
         let uuid = UUID(uuidString: "7D8DFD2E-E852-4691-A585-C74803211F0D")!
         let canonicalID = uuid.uuidString.lowercased()
+        let master = makeSheet(width: 512, height: 512)
+        let recipe = CustomPetGenerationRecipe(
+            schemaVersion: CustomPetGenerationRecipe.schemaVersion,
+            promptTemplateVersion: "mimo-character-test-v1",
+            styleProfile: "human-v2",
+            styleBoardSHA256: String(repeating: "a", count: 64),
+            styleTuningNote: "refined warm pixel art",
+            likeness: 0.58,
+            finalQuality: "medium",
+            stageQualities: ["medium", "medium", "medium"],
+            model: "gpt-image-2",
+            selectedCandidateIndex: 1,
+            masterAsset: CustomPetStore.masterFilename,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000))
         let runtime = try store.install(
             pngData: png,
             name: "Mimi",
             temperamentID: "dreamy-mysterious",
             accent: "#7df0cf",
+            generationRecipe: recipe,
+            masterPNGData: master,
             id: uuid
         )
 
         let expectedKeys: Set<String> = [
             "schemaVersion", "kind", "id", "characterID", "name",
             "temperamentID", "accent", "assetURL", "motionProfile", "expressionURLs",
-            "actionURLs", "actionSpecs",
+            "actionURLs", "actionSpecs", "styleProfile",
         ]
         expect(Set(runtime.keys) == expectedKeys, "runtime dictionary should expose only the agreed keys")
-        expect(runtime["schemaVersion"] as? Int == 4, "new installs should use runtime schema v4")
+        expect(runtime["schemaVersion"] as? Int == 5, "new installs should use runtime schema v5")
         expect(runtime["kind"] as? String == "raster-sheet", "runtime kind should be raster-sheet")
         expect(runtime["id"] as? String == canonicalID, "runtime should expose the canonical UUID")
         expect(runtime["characterID"] as? String == "custom:\(canonicalID)", "selection ID should be namespaced")
         expect(runtime["accent"] as? String == "#7DF0CF", "accent should be canonicalized")
         expect(runtime["motionProfile"] as? String == "dreamy-float", "motion should derive from temperament")
+        expect(runtime["styleProfile"] as? String == "human-v2",
+               "runtime generation should retain the installed style profile")
         expect((runtime["expressionURLs"] as? [String: String])?.isEmpty == true,
                "a fresh install should have no expression sheets yet")
         expect((runtime["actionSpecs"] as? [String: [String: Any]])?.isEmpty == true,
                "a fresh install should have no action metadata yet")
-        let assetURLString = "mimo-pet://asset/\(canonicalID)/sheet.png?v=4"
+        let assetURLString = "mimo-pet://asset/\(canonicalID)/sheet.png?v=5"
         expect(runtime["assetURL"] as? String == assetURLString, "asset URL should be computed, not persisted input")
 
         let petDirectory = root.appendingPathComponent("Pets/\(canonicalID)")
         let sheetURL = petDirectory.appendingPathComponent("sheet.png")
         let manifestURL = petDirectory.appendingPathComponent("manifest.json")
+        let masterURL = petDirectory.appendingPathComponent("master.png")
         expect(fileManager.fileExists(atPath: sheetURL.path), "sheet should be installed under Pets/UUID")
         expect(fileManager.fileExists(atPath: manifestURL.path), "manifest should be installed beside the sheet")
+        expect(fileManager.fileExists(atPath: masterURL.path),
+               "the selected generated master should be retained privately")
         let persistedManifestData = try Data(contentsOf: manifestURL)
         let manifest = try JSONDecoder().decode(CustomPetManifest.self, from: persistedManifestData)
         expect(manifest.id == canonicalID && manifest.asset == "sheet.png", "manifest should contain a fixed local asset name")
+        expect(manifest.generationRecipe == recipe,
+               "the privacy-bounded generation recipe should round-trip")
         expect(!String(data: persistedManifestData, encoding: .utf8)!.contains("mimo-pet://"),
                "computed runtime URLs should not be persisted")
 
@@ -343,6 +366,25 @@ struct CustomPetTests {
             _ = try store.install(pngData: png, name: "Unsafe", temperamentID: "quiet-curious",
                                   accent: "red; background:url(file:///etc/passwd)")
         }
+        let invalidRecipe = CustomPetGenerationRecipe(
+            schemaVersion: recipe.schemaVersion,
+            promptTemplateVersion: recipe.promptTemplateVersion,
+            styleProfile: "unknown-style",
+            styleBoardSHA256: recipe.styleBoardSHA256,
+            styleTuningNote: recipe.styleTuningNote,
+            likeness: recipe.likeness,
+            finalQuality: recipe.finalQuality,
+            stageQualities: recipe.stageQualities,
+            model: recipe.model,
+            selectedCandidateIndex: recipe.selectedCandidateIndex,
+            masterAsset: recipe.masterAsset,
+            createdAt: recipe.createdAt)
+        expectThrows("unknown style profiles must not be persisted") {
+            _ = try store.install(
+                pngData: png, name: "Unsafe",
+                temperamentID: "quiet-curious", accent: "#123456",
+                generationRecipe: invalidRecipe, masterPNGData: master)
+        }
         expectThrows("blank names should be rejected") {
             _ = try store.install(pngData: png, name: "   ", temperamentID: "quiet-curious",
                                   accent: "#123456")
@@ -357,17 +399,17 @@ struct CustomPetTests {
             characterID: "custom:\(canonicalID)", stageIndex: 1, pngData: png)
         let expressionURLs = expressionRuntime["expressionURLs"] as? [String: String]
         expect(expressionURLs?.count == 1
-               && expressionURLs?["1"] == "mimo-pet://asset/\(canonicalID)/expr-1.png?v=4",
+               && expressionURLs?["1"] == "mimo-pet://asset/\(canonicalID)/expr-1.png?v=5",
                "installing one stage's expressions should expose exactly that URL")
         expect(fileManager.fileExists(
                    atPath: petDirectory.appendingPathComponent("expr-1.png").path),
                "expression sheet should be stored beside the base sheet")
         let servedExpression = try store.assetData(
-            for: URL(string: "mimo-pet://asset/\(canonicalID)/expr-1.png?v=4")!)
+            for: URL(string: "mimo-pet://asset/\(canonicalID)/expr-1.png?v=5")!)
         expect(servedExpression == png, "expression assets should be served byte-for-byte")
         expectThrows("unlisted expression stages should not be served") {
             _ = try store.assetData(
-                for: URL(string: "mimo-pet://asset/\(canonicalID)/expr-0.png?v=4")!)
+                for: URL(string: "mimo-pet://asset/\(canonicalID)/expr-0.png?v=5")!)
         }
         expectThrows("expression stage indices must stay in range") {
             _ = try store.installExpressionSheet(characterID: "custom:\(canonicalID)",
@@ -379,10 +421,11 @@ struct CustomPetTests {
                "re-installing one stage should not duplicate manifest entries")
 
         // Legacy v3 manifests (no action metadata) must keep loading.
-        let v4ManifestData = try Data(contentsOf: manifestURL)
-        var legacyObject = try JSONSerialization.jsonObject(with: v4ManifestData) as! [String: Any]
+        let v5ManifestData = try Data(contentsOf: manifestURL)
+        var legacyObject = try JSONSerialization.jsonObject(with: v5ManifestData) as! [String: Any]
         legacyObject["schemaVersion"] = 3
         legacyObject.removeValue(forKey: "actionSpecs")
+        legacyObject.removeValue(forKey: "generationRecipe")
         try JSONSerialization.data(withJSONObject: legacyObject)
             .write(to: manifestURL, options: [.atomic])
         let v3Listed = try store.listRuntimeSpecs()
@@ -403,10 +446,10 @@ struct CustomPetTests {
         // from a migrated v3 pet that simply has no expression sheets.
         expect(legacyListed[0]["schemaVersion"] as? Int == 2,
                "a v2 manifest must report v2, not be silently relabelled v3")
-        try v4ManifestData.write(to: manifestURL, options: [.atomic])
+        try v5ManifestData.write(to: manifestURL, options: [.atomic])
         let currentListed = try store.listRuntimeSpecs()
-        expect(currentListed[0]["schemaVersion"] as? Int == 4,
-               "a v4 manifest still reports v4")
+        expect(currentListed[0]["schemaVersion"] as? Int == 5,
+               "a v5 manifest still reports v5")
 
         let handler = CustomPetAssetSchemeHandler(store: store)
         let goodTask = FakeSchemeTask(URLRequest(url: URL(string: assetURLString)!))

@@ -89,6 +89,23 @@ struct CustomPetActionSpec: Codable, Equatable, Sendable {
     let anchorY: Double?
 }
 
+struct CustomPetGenerationRecipe: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let promptTemplateVersion: String
+    let styleProfile: String
+    let styleBoardSHA256: String
+    let styleTuningNote: String
+    let likeness: Double
+    let finalQuality: String
+    let stageQualities: [String]
+    let model: String
+    let selectedCandidateIndex: Int
+    let masterAsset: String
+    let createdAt: Date
+}
+
 struct CustomPetManifest: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let kind: String
@@ -107,6 +124,9 @@ struct CustomPetManifest: Codable, Equatable, Sendable {
     /// Rich action metadata, keyed by the same action name as `actions`.
     /// Absent in v3 manifests.
     let actionSpecs: [String: CustomPetActionSpec]?
+    /// Privacy-bounded generation parameters and the generated master asset.
+    /// Original user reference images are deliberately never persisted.
+    let generationRecipe: CustomPetGenerationRecipe?
 }
 
 struct CustomPetRuntimeActionSpec: Equatable, Sendable {
@@ -144,6 +164,7 @@ struct CustomPetRuntimeSpec: Equatable, Sendable {
     let accent: String
     let assetURL: String
     let motionProfile: String
+    let styleProfile: String
     /// Stage index ("0"…"2") → asset URL for that stage's expression sheet.
     let expressionURLs: [String: String]
     /// Action name ("walk") → asset URL for that action's frame strip.
@@ -163,6 +184,7 @@ struct CustomPetRuntimeSpec: Equatable, Sendable {
             "accent": accent,
             "assetURL": assetURL,
             "motionProfile": motionProfile,
+            "styleProfile": styleProfile,
             "expressionURLs": expressionURLs,
             "actionURLs": actionURLs,
             "actionSpecs": actionSpecs.mapValues(\.dictionary),
@@ -186,6 +208,8 @@ enum CustomPetStoreError: LocalizedError {
     case invalidExpressionStage
     case invalidActionName
     case invalidActionStrip
+    case invalidGenerationRecipe
+    case invalidMasterAsset
 
     var errorDescription: String? {
         switch self {
@@ -204,20 +228,25 @@ enum CustomPetStoreError: LocalizedError {
         case .invalidExpressionStage: return "The expression sheet stage index is invalid."
         case .invalidActionName: return "The action name is invalid."
         case .invalidActionStrip: return "The action strip must be square 512px cells in a horizontal row."
+        case .invalidGenerationRecipe: return "The familiar generation recipe is invalid."
+        case .invalidMasterAsset: return "The selected familiar master is invalid."
         }
     }
 }
 
 final class CustomPetStore: @unchecked Sendable {
-    static let schemaVersion = 4
-    /// v2 has no expression sheets; v3 has action filenames but no metadata.
-    static let legacySchemaVersions: Set<Int> = [2, 3]
+    static let schemaVersion = 5
+    /// v2 has no expressions; v3 has basic actions; v4 adds action metadata.
+    static let legacySchemaVersions: Set<Int> = [2, 3, 4]
     static let kind = "raster-sheet"
     static let characterPrefix = "custom:"
     static let scheme = "mimo-pet"
     static let schemeHost = "asset"
-    static let assetRevision = "4"
+    static let assetRevision = "5"
     static let sheetFilename = "sheet.png"
+    static let masterFilename = "master.png"
+    static let approvedHumanStyleSourcePetID =
+        "e3851869-e455-44ba-8520-8df00031a1c8"
     static let manifestFilename = "manifest.json"
     static let expressionStageCount = 3
 
@@ -285,6 +314,9 @@ final class CustomPetStore: @unchecked Sendable {
     /// Action strips can contain 32 cells, so they need a separate bounded cap.
     static let maximumActionPNGBytes = 48 * 1024 * 1024
     static let maximumManifestBytes = 64 * 1024
+    static let supportedStyleProfiles: Set<String> = [
+        "creature-v1", "human-v2",
+    ]
 
     private static func isValidActionAnchor(_ anchor: CGPoint?) -> Bool {
         guard let anchor else { return true }
@@ -326,7 +358,10 @@ final class CustomPetStore: @unchecked Sendable {
     /// the exact runtime dictionary consumed by Settings and the overlay.
     @discardableResult
     func install(pngData: Data, name: String, temperamentID: String,
-                 accent: String, id: UUID = UUID()) throws -> [String: Any] {
+                 accent: String,
+                 generationRecipe: CustomPetGenerationRecipe? = nil,
+                 masterPNGData: Data? = nil,
+                 id: UUID = UUID()) throws -> [String: Any] {
         try synchronized {
             try ensureStorageReady()
             try validateName(name)
@@ -337,6 +372,13 @@ final class CustomPetStore: @unchecked Sendable {
             let sanitizedPNGData = try CharacterSheetProcessor.sanitizeNormalizedSheet(
                 pngData: pngData)
             try Self.validateNormalizedPNG(sanitizedPNGData)
+            guard (generationRecipe == nil) == (masterPNGData == nil) else {
+                throw CustomPetStoreError.invalidGenerationRecipe
+            }
+            if let generationRecipe, let masterPNGData {
+                try Self.validateGenerationRecipe(generationRecipe)
+                try Self.validateMasterPNG(masterPNGData)
+            }
 
             let idString = Self.canonical(id)
             let destination = petDirectory(idString)
@@ -365,15 +407,28 @@ final class CustomPetStore: @unchecked Sendable {
                 asset: Self.sheetFilename,
                 expressions: [],
                 actions: nil,
-                actionSpecs: nil
+                actionSpecs: nil,
+                generationRecipe: generationRecipe
             )
             let manifestData = try Self.encodeManifest(manifest)
 
             let sheetURL = temporary.appendingPathComponent(Self.sheetFilename, isDirectory: false)
             let manifestURL = temporary.appendingPathComponent(Self.manifestFilename, isDirectory: false)
             try sanitizedPNGData.write(to: sheetURL, options: [.atomic])
+            if let masterPNGData {
+                try masterPNGData.write(
+                    to: temporary.appendingPathComponent(
+                        Self.masterFilename, isDirectory: false),
+                    options: [.atomic])
+            }
             try manifestData.write(to: manifestURL, options: [.atomic])
             try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: sheetURL.path)
+            if masterPNGData != nil {
+                try? fileManager.setAttributes(
+                    [.posixPermissions: 0o600],
+                    ofItemAtPath: temporary.appendingPathComponent(
+                        Self.masterFilename).path)
+            }
             try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: manifestURL.path)
 
             try fileManager.moveItem(at: temporary, to: destination)
@@ -420,7 +475,8 @@ final class CustomPetStore: @unchecked Sendable {
                 asset: manifest.asset,
                 expressions: indices,
                 actions: manifest.actions,
-                actionSpecs: manifest.actionSpecs
+                actionSpecs: manifest.actionSpecs,
+                generationRecipe: manifest.generationRecipe
             )
             let manifestURL = directory.appendingPathComponent(Self.manifestFilename,
                                                                isDirectory: false)
@@ -497,7 +553,8 @@ final class CustomPetStore: @unchecked Sendable {
                 asset: manifest.asset,
                 expressions: manifest.expressions,
                 actions: actions,
-                actionSpecs: actionSpecs
+                actionSpecs: actionSpecs,
+                generationRecipe: manifest.generationRecipe
             )
             let manifestURL = directory.appendingPathComponent(Self.manifestFilename,
                                                                isDirectory: false)
@@ -577,7 +634,8 @@ final class CustomPetStore: @unchecked Sendable {
                 asset: manifest.asset,
                 expressions: manifest.expressions,
                 actions: manifest.actions,
-                actionSpecs: manifest.actionSpecs)
+                actionSpecs: manifest.actionSpecs,
+                generationRecipe: manifest.generationRecipe)
             let manifestURL = petDirectory(uuidString).appendingPathComponent(
                 Self.manifestFilename, isDirectory: false)
             guard Self.isDescendant(manifestURL, of: petsURL) else {
@@ -784,6 +842,23 @@ final class CustomPetStore: @unchecked Sendable {
                 throw CustomPetStoreError.corruptManifest
             }
         }
+        if let recipe = manifest.generationRecipe {
+            do {
+                try Self.validateGenerationRecipe(recipe)
+                let masterURL = directory.appendingPathComponent(
+                    recipe.masterAsset, isDirectory: false)
+                guard Self.isSafeRegularFile(
+                    masterURL, maximumBytes: Self.maximumPNGBytes,
+                    fileManager: fileManager),
+                      Self.isDescendant(masterURL, of: petsURL) else {
+                    throw CustomPetStoreError.invalidMasterAsset
+                }
+                try Self.validateMasterPNG(
+                    Data(contentsOf: masterURL, options: [.mappedIfSafe]))
+            } catch {
+                throw CustomPetStoreError.corruptManifest
+            }
+        }
         return manifest
     }
 
@@ -851,6 +926,9 @@ final class CustomPetStore: @unchecked Sendable {
             accent: manifest.accent,
             assetURL: "\(Self.scheme)://\(Self.schemeHost)/\(manifest.id)/\(Self.sheetFilename)?v=\(Self.assetRevision)",
             motionProfile: profile.motionID,
+            styleProfile: manifest.generationRecipe?.styleProfile
+                ?? (manifest.id == Self.approvedHumanStyleSourcePetID
+                    ? "human-v2" : "creature-v1"),
             expressionURLs: expressionURLs,
             actionURLs: actionURLs,
             actionSpecs: actionSpecs
@@ -1010,6 +1088,58 @@ final class CustomPetStore: @unchecked Sendable {
         let root = ancestor.resolvingSymlinksInPath().standardizedFileURL.path
         let path = candidate.resolvingSymlinksInPath().standardizedFileURL.path
         return path.hasPrefix(root + "/")
+    }
+
+    private static func validateGenerationRecipe(
+        _ recipe: CustomPetGenerationRecipe
+    ) throws {
+        let validVersion = (1...80).contains(recipe.promptTemplateVersion.count)
+            && recipe.promptTemplateVersion.allSatisfy {
+                $0.isASCII && ($0.isLetter || $0.isNumber || "-._+".contains($0))
+            }
+        let validHash = recipe.styleBoardSHA256.count == 64
+            && recipe.styleBoardSHA256.allSatisfy {
+                ("a"..."f").contains($0) || ("0"..."9").contains($0)
+            }
+        let hasUnsafeControl = recipe.styleTuningNote.unicodeScalars.contains {
+            CharacterSet.controlCharacters.contains($0)
+                && !CharacterSet.whitespacesAndNewlines.contains($0)
+        }
+        guard recipe.schemaVersion == CustomPetGenerationRecipe.schemaVersion,
+              validVersion,
+              supportedStyleProfiles.contains(recipe.styleProfile),
+              validHash,
+              recipe.styleTuningNote.utf8.count <= 600,
+              !hasUnsafeControl,
+              recipe.likeness.isFinite, (0...1).contains(recipe.likeness),
+              ["medium", "high"].contains(recipe.finalQuality),
+              recipe.stageQualities.count == 3,
+              recipe.stageQualities.allSatisfy({
+                  ["medium", "high"].contains($0)
+              }),
+              recipe.model == "gpt-image-2",
+              (0...2).contains(recipe.selectedCandidateIndex),
+              recipe.masterAsset == masterFilename else {
+            throw CustomPetStoreError.invalidGenerationRecipe
+        }
+    }
+
+    private static func validateMasterPNG(_ data: Data) throws {
+        guard !data.isEmpty, data.count <= maximumPNGBytes,
+              data.starts(with: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) == 1,
+              CGImageSourceGetType(source) == UTType.png.identifier as CFString,
+              let properties = CGImageSourceCopyPropertiesAtIndex(
+                source, 0, nil) as? [CFString: Any],
+              (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue
+                == frameWidth,
+              (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue
+                == sheetHeight,
+              (properties[kCGImagePropertyHasAlpha] as? NSNumber)?.boolValue
+                == true else {
+            throw CustomPetStoreError.invalidMasterAsset
+        }
     }
 
     private static func validateNormalizedPNG(_ data: Data) throws {

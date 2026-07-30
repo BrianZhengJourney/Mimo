@@ -7,6 +7,11 @@ import ServiceManagement
 import UniformTypeIdentifiers
 import ImageIO
 
+enum MimoGenerationRecipeContract {
+    static let promptTemplateVersion = "mimo-character-2026-07-30-v1"
+    static let model = "gpt-image-2"
+}
+
 struct PendingCandidateBoardDraft {
     let pngData: Data
     let candidatePNGs: [Data]
@@ -15,6 +20,7 @@ struct PendingCandidateBoardDraft {
     let styleTuningNote: String
     let temperamentID: String
     let likeness: Double
+    let styleProfile: MimoStyleProfile
     var lastTouchedAt: Date
 }
 
@@ -27,6 +33,8 @@ struct PendingEvolutionSheetDraft {
     var styleTuningNote: String
     let temperamentID: String
     let likeness: Double
+    let styleProfile: MimoStyleProfile
+    let selectedCandidateIndex: Int
     let quality: PetFinalGenerationQuality
     var stageQualities: [PetFinalGenerationQuality]
     var lastTouchedAt: Date
@@ -40,6 +48,7 @@ struct CandidateGenerationRecovery {
     let styleTuningNote: String
     let temperamentID: String
     let likeness: Double
+    let styleProfile: MimoStyleProfile
     let providerSeconds: Double
     let usage: PetGenerationUsage
     let styleBoardUsed: Bool
@@ -54,6 +63,8 @@ struct EvolutionGenerationRecovery {
     let styleTuningNote: String
     let temperamentID: String
     let likeness: Double
+    let styleProfile: MimoStyleProfile
+    let selectedCandidateIndex: Int
     let quality: PetFinalGenerationQuality
     let providerSeconds: Double
     let usage: PetGenerationUsage
@@ -68,6 +79,7 @@ struct PendingReferencePreflight {
     let styleTuningNote: String
     let profile: CustomPetTemperamentProfile
     let likeness: Double
+    let styleProfile: MimoStyleProfile
     let createdAt: Date
 }
 
@@ -1013,7 +1025,10 @@ extension AppDelegate {
                     sourceDataURI: boardURI,
                     referenceEvidenceJSON: payload.analysisJSON,
                     styleTuningNote: effectiveStyleTuningNote,
-                    profile: profile, likeness: likeness, createdAt: Date())
+                    profile: profile, likeness: likeness,
+                    styleProfile: payload.identityBoard.mode == .isolatedPeople
+                        ? .humanV2 : .creatureV1,
+                    createdAt: Date())
                 let ambiguous = result.images.contains {
                     $0.warnings.contains(.identityAmbiguous)
                 }
@@ -1043,10 +1058,11 @@ extension AppDelegate {
                                           styleTuningNote: String,
                                           profile: CustomPetTemperamentProfile,
                                           likeness: Double,
+                                          styleProfile: MimoStyleProfile,
                                           alreadyReserved: Bool = false) {
         guard alreadyReserved || reserveProviderGeneration(requestID) else { return }
         let startedAt = Date()
-        let style = MimoStyleReference.requestData()
+        let style = MimoStyleReference.requestData(profile: styleProfile)
         petGenerator.generateCandidateBoard(
             requestID: requestID, sourceDataURI: source, styleBoardData: style,
             referenceEvidenceJSON: referenceEvidenceJSON,
@@ -1073,6 +1089,7 @@ extension AppDelegate {
                         referenceEvidenceJSON: referenceEvidenceJSON,
                         styleTuningNote: styleTuningNote,
                         temperamentID: profile.id, likeness: likeness,
+                        styleProfile: styleProfile,
                         providerSeconds: providerSeconds, usage: output.usage,
                         styleBoardUsed: style != nil, createdAt: Date())
                     self.pendingLocalRecoveries[requestID] = .candidates(recovery)
@@ -1122,7 +1139,9 @@ extension AppDelegate {
                         referenceEvidenceJSON: recovery.referenceEvidenceJSON,
                         styleTuningNote: recovery.styleTuningNote,
                         temperamentID: recovery.temperamentID,
-                        likeness: recovery.likeness, lastTouchedAt: Date())
+                        likeness: recovery.likeness,
+                        styleProfile: recovery.styleProfile,
+                        lastTouchedAt: Date())
                     self.visibleCandidateDraftID = requestID
                     self.pendingLocalRecoveries.removeValue(forKey: requestID)
                     self.settingsCall("petCandidateResult", [
@@ -1252,7 +1271,8 @@ extension AppDelegate {
     }
 
     private func starterActionCanonicalContext(characterID: String) throws
-        -> (master: Data, personality: String) {
+        -> (master: Data, personality: String,
+            styleProfile: MimoStyleProfile) {
         let spec = try customPetStore.runtimeSpec(characterID: characterID)
         guard let assetURLString = spec["assetURL"] as? String,
               let assetURL = URL(string: assetURLString),
@@ -1263,7 +1283,8 @@ extension AppDelegate {
         let master = try CharacterSheetProcessor.extractNormalizedStage(
             fromNormalizedSheet: sheet, stageIndex: 2)
         let profile = CustomPetTemperaments.profile(for: temperamentID)
-        return (master, profile.promptFragment)
+        return (master, profile.promptFragment,
+                MimoStyleProfile.resolve(spec["styleProfile"] as? String))
     }
 
     private func starterActionFailureMayHaveSpent(_ error: Error) -> Bool {
@@ -1389,6 +1410,7 @@ extension AppDelegate {
                     runStarterActionBatch(
                         jobID: jobID, canonicalMaster: context.master,
                         personality: context.personality,
+                        styleProfile: context.styleProfile,
                         quality: quality, requestID: firstRequestID)
                 } else {
                     let generating = try starterActionJobStore.markGenerating(
@@ -1411,6 +1433,7 @@ extension AppDelegate {
     private func runStarterActionBatch(jobID: String,
                                        canonicalMaster: Data,
                                        personality: String,
+                                       styleProfile: MimoStyleProfile,
                                        quality: PetFinalGenerationQuality,
                                        requestID: String) {
         do {
@@ -1440,7 +1463,8 @@ extension AppDelegate {
                 batchIndex: batchIndex,
                 canonicalMasterData: canonicalMaster,
                 previousBatchData: previous,
-                styleBoardData: MimoStyleReference.requestData(),
+                styleBoardData: MimoStyleReference.requestData(
+                    profile: styleProfile),
                 personalityVisual: personality,
                 quality: quality,
                 progress: { [weak self] phase, _, _ in
@@ -1506,7 +1530,8 @@ extension AppDelegate {
                             }
                             self.runStarterActionBatch(
                                 jobID: jobID, canonicalMaster: canonicalMaster,
-                                personality: personality, quality: quality,
+                                personality: personality,
+                                styleProfile: styleProfile, quality: quality,
                                 requestID: nextRequestID)
                         } catch {
                             let failed = try? self.starterActionJobStore.markFailed(
@@ -1734,7 +1759,10 @@ extension AppDelegate {
         }
         let rest = Array(remaining.dropFirst())
         let profile = CustomPetTemperaments.profile(for: temperamentID)
-        let style = MimoStyleReference.requestData()
+        let storedStyle = (try? customPetStore.runtimeSpec(
+            characterID: characterID))?["styleProfile"] as? String
+        let style = MimoStyleReference.requestData(
+            profile: MimoStyleProfile.resolve(storedStyle))
         // A plain UUID: petCancel parses its argument with UUID(uuidString:),
         // so the old "expr-<uuid>" form could never be matched and an in-flight
         // paid expression request was uncancellable.
@@ -1877,7 +1905,8 @@ extension AppDelegate {
         let startedAt = Date()
         let master = candidate.candidatePNGs[candidateIndex]
         let profile = CustomPetTemperaments.profile(for: candidate.temperamentID)
-        let style = MimoStyleReference.requestData()
+        let style = MimoStyleReference.requestData(
+            profile: candidate.styleProfile)
         petGenerator.generateFinalEvolutionSheet(
             requestID: requestID, masterData: master,
             sourceDataURI: candidate.sourceDataURI,
@@ -1907,7 +1936,10 @@ extension AppDelegate {
                         referenceEvidenceJSON: candidate.referenceEvidenceJSON,
                         styleTuningNote: styleTuningNote,
                         temperamentID: candidate.temperamentID,
-                        likeness: candidate.likeness, quality: quality,
+                        likeness: candidate.likeness,
+                        styleProfile: candidate.styleProfile,
+                        selectedCandidateIndex: candidateIndex,
+                        quality: quality,
                         providerSeconds: providerSeconds, usage: output.usage,
                         candidateDraftID: candidateDraftID,
                         styleBoardUsed: style != nil, createdAt: Date())
@@ -1956,7 +1988,10 @@ extension AppDelegate {
                         referenceEvidenceJSON: recovery.referenceEvidenceJSON,
                         styleTuningNote: recovery.styleTuningNote,
                         temperamentID: recovery.temperamentID,
-                        likeness: recovery.likeness, quality: recovery.quality,
+                        likeness: recovery.likeness,
+                        styleProfile: recovery.styleProfile,
+                        selectedCandidateIndex: recovery.selectedCandidateIndex,
+                        quality: recovery.quality,
                         stageQualities: Array(repeating: recovery.quality, count: 3),
                         lastTouchedAt: Date(),
                         relatedRequestIDs: [recovery.candidateDraftID, requestID])
@@ -2005,7 +2040,8 @@ extension AppDelegate {
         }
         let startedAt = Date()
         let profile = CustomPetTemperaments.profile(for: evolution.temperamentID)
-        let style = MimoStyleReference.requestData()
+        let style = MimoStyleReference.requestData(
+            profile: evolution.styleProfile)
         petGenerator.regenerateEvolutionStage(
             requestID: requestID, stage: stage,
             currentSheetData: evolution.pngData, masterData: evolution.masterPNG,
@@ -2517,6 +2553,7 @@ extension AppDelegate {
                 referenceEvidenceJSON: prepared.referenceEvidenceJSON,
                 styleTuningNote: confirmedStyleTuningNote,
                 profile: prepared.profile, likeness: prepared.likeness,
+                styleProfile: prepared.styleProfile,
                 alreadyReserved: true)
         case "petCancel":
             if let rawID = body["requestID"] as? String,
@@ -2686,8 +2723,26 @@ extension AppDelegate {
             let name = requestedName.isEmpty ? voice("我的小伴灵", "My little familiar") : String(requestedName.prefix(60))
             let profile = CustomPetTemperaments.profile(for: evolution.temperamentID)
             do {
-                let spec = try customPetStore.install(pngData: evolution.pngData, name: name,
-                                                      temperamentID: profile.id, accent: profile.accent)
+                let recipe = CustomPetGenerationRecipe(
+                    schemaVersion: CustomPetGenerationRecipe.schemaVersion,
+                    promptTemplateVersion:
+                        MimoGenerationRecipeContract.promptTemplateVersion,
+                    styleProfile: evolution.styleProfile.rawValue,
+                    styleBoardSHA256: MimoStyleReference.assetSHA256(
+                        profile: evolution.styleProfile),
+                    styleTuningNote: evolution.styleTuningNote,
+                    likeness: evolution.likeness,
+                    finalQuality: evolution.quality.rawValue,
+                    stageQualities: evolution.stageQualities.map(\.rawValue),
+                    model: MimoGenerationRecipeContract.model,
+                    selectedCandidateIndex: evolution.selectedCandidateIndex,
+                    masterAsset: CustomPetStore.masterFilename,
+                    createdAt: Date())
+                let spec = try customPetStore.install(
+                    pngData: evolution.pngData, name: name,
+                    temperamentID: profile.id, accent: profile.accent,
+                    generationRecipe: recipe,
+                    masterPNGData: evolution.masterPNG)
                 let expressionStagePNGs = evolution.stagePNGs
                 pendingEvolutionSheets.removeValue(forKey: draftID)
                 visibleEvolutionDraftID = nil
