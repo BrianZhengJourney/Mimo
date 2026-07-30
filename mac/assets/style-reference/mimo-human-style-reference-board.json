@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "profile": "human-v2",
+  "asset": "mimo-human-style-reference-board.png",
+  "sha256": "b0ed194b98d843b962aa5e301b9296daf254a1afbdc0030eaee52925a3c6316b",
+  "dimensions": {
+    "width": 1536,
+    "height": 512
+  },
+  "format": "png",
+  "source": {
+    "characterID": "custom:e3851869-e455-44ba-8520-8df00031a1c8",
+    "nameAtCapture": "我的小伴灵",
+    "temperamentID": "quiet-curious",
+    "originalAssetCreatedAt": "2026-07-20T19:47:16+08:00",
+    "sourceCodeRevision": "223ba340ebd280686f98654de1ee59a10a4c0a1b"
+  },
+  "purpose": "Dedicated style-only reference for detected people. Preserve its refined high-resolution pixel finish, crisp dark outline, warm soft shading, readable face and clothing folds, compact cute proportions, and full-body clarity. Never copy this person's identity, hair, skin tone, tattoo, white outfit, or accessories.",
+  "visibility": "internal-model-input-only",
+  "privacy": "This is a generated Mimo asset selected by the project owner as the approved human rendering reference. Original user reference images are not included.",
+  "recommendedPromptInstruction": "Use only the rendering language and soft stylized proportions. The current user's identity board and approved master remain authoritative."
+}

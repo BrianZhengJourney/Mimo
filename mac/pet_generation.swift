@@ -1415,7 +1415,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
                                      referenceEvidenceJSON: String = "{}",
                                      styleTuningNote: String = "") -> String {
         let styleReference = hasStyleBoard
-            ? "Image 2 is Mimo's internal STYLE BOARD. Use only its rendering language, proportions, outline, palette discipline, shadow restraint, and cuteness. Ignore its identities, layout, labels, backgrounds, and accessories."
+            ? "Image 2 is Mimo's internal STYLE BOARD. Use only its rendering language, soft stylized proportions, outline, palette discipline, shadow restraint, and cuteness. Never copy any depicted identity, face, hair or fur, skin tone, clothing, markings, tattoo, accessories, layout, labels, or background."
             : "No style-board image is supplied. Follow the Mimo style specification below exactly."
         return """
         MIMO ASSET PASS 1 — MASTER CHARACTER CANDIDATES
@@ -1509,7 +1509,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
                                           referenceEvidenceJSON: String = "{}",
                                           styleTuningNote: String = "") -> String {
         let styleReference = hasStyleBoard
-            ? "Image 3 is Mimo's internal STYLE BOARD. Apply only its rendering language; never copy its character identities, exact accessories, layout, text, or background."
+            ? "Image 3 is Mimo's internal STYLE BOARD. Apply only its rendering language and soft stylized proportions; never copy any depicted identity, face, hair or fur, skin tone, clothing, markings, tattoo, accessories, layout, text, or background."
             : "No style-board image is supplied. Follow the Mimo style specification below exactly."
         return """
         MIMO ASSET PASS 2 — LOCKED THREE-STAGE EVOLUTION SHEET

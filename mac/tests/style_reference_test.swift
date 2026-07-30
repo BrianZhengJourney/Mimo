@@ -28,6 +28,23 @@ struct StyleReferenceTests {
         expect(!MimoStyleReference.isValid(wrongDimensions), "unexpected dimensions must be rejected")
         expect(!MimoStyleReference.isValid(Data("not a png".utf8)), "non-PNG data must be rejected")
 
+        let humanAsset = URL(fileURLWithPath:
+            "mac/assets/style-reference/mimo-human-style-reference-board.png")
+        let humanData = try Data(contentsOf: humanAsset)
+        expect(MimoStyleReference.isValid(humanData, profile: .humanV2),
+               "the dedicated human style board contract should validate")
+        expect(!MimoStyleReference.isValid(humanData, profile: .creatureV1),
+               "human and creature boards must not be silently interchanged")
+        let humanRequest = MimoStyleReference.requestData(
+            masterData: humanData, profile: .humanV2)
+        let humanImage = humanRequest.flatMap(NSBitmapImageRep.init(data:))
+        expect(humanImage?.pixelsWide == MimoStyleReference.humanRequestWidth
+               && humanImage?.pixelsHigh == MimoStyleReference.humanRequestHeight,
+               "human requests should preserve the wide three-take aspect ratio")
+        expect(MimoStyleReference.assetSHA256(profile: .humanV2)
+               == "b0ed194b98d843b962aa5e301b9296daf254a1afbdc0030eaee52925a3c6316b",
+               "the saved human board must remain the approved white-outfit source")
+
         let motionAsset = URL(fileURLWithPath:
             "mac/assets/motion-reference/biped-walk-cycle-16.png")
         let motionData = try Data(contentsOf: motionAsset)
