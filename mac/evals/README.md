@@ -5,14 +5,17 @@ It never calls an image provider.
 
 ## Two fixed layers
 
-1. `diy-v1` synthetic matte cases have exact alpha ground truth. They measure
+1. `diy-v2` synthetic matte cases have exact alpha ground truth. They measure
    alpha IoU, boundary F1, foreground retention, background rejection, and a
    weighted matte error rate across S1/S2/S3 classes.
 2. Ten retained, current-contract Starter Action jobs are reprocessed from
    their already-paid batches. They measure real effective success, error
    frequency, local p95 latency, and unchanged provider-call cost. The source
    images stay in the user's Application Support directory and are never
-   copied into the repository. SHA-256 pins every retained input, so a missing
+   copied into the repository. A processed frame occupying more than `75%` of
+   its alpha canvas is rejected as `field_matte_opaque`; this catches a framed
+   presentation background that structural strip validation alone misses.
+   SHA-256 pins every retained input, so a missing
    or changed field fixture invalidates the run instead of becoming a fake
    product failure.
 

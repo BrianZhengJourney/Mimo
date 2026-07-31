@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "name": "mimo-diy-v1",
+  "name": "mimo-diy-v2",
   "providerCallCostUSD": 0.045,
   "synthetic": {
     "casesPerClass": 20,

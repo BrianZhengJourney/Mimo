@@ -71,6 +71,7 @@ private enum EvalError: LocalizedError {
     case usage
     case invalidDataset
     case invalidFixture(String)
+    case fieldMatteOpaque
     case invalidJSON
 
     var errorDescription: String? {
@@ -80,6 +81,8 @@ private enum EvalError: LocalizedError {
         case .invalidDataset: return "The DIY eval dataset is invalid."
         case .invalidFixture(let detail):
             return "The fixed DIY eval fixture is missing or changed: \(detail)"
+        case .fieldMatteOpaque:
+            return "The processed action frame still contains an opaque presentation background."
         case .invalidJSON: return "The DIY eval could not encode its report."
         }
     }
@@ -128,6 +131,7 @@ private struct FieldResult {
     let passed: Bool
     let durationMS: Double
     let providerCalls: Int
+    let alphaOccupancy: Double?
     let preview: CharacterSheetRGBAImage?
 }
 
@@ -376,6 +380,9 @@ private func validateFixtures(_ dataset: Dataset, arguments: Arguments) throws {
 }
 
 private func classify(_ error: Error) -> String {
+    if let value = error as? EvalError, case .fieldMatteOpaque = value {
+        return "field_matte_opaque"
+    }
     if let value = error as? ActionSheetError {
         switch value {
         case .subjectClipped(_, let edge): return "subject_clipped_\(edge)"
@@ -400,6 +407,17 @@ private func firstFrame(_ image: CharacterSheetRGBAImage) -> CharacterSheetRGBAI
         image, x: 0, y: 0, width: image.height, height: image.height)
 }
 
+private func alphaOccupancy(_ image: CharacterSheetRGBAImage) -> Double {
+    guard image.width > 0, image.height > 0 else { return 1 }
+    let visible = stride(from: 3, to: image.pixels.count, by: 4)
+        .reduce(into: 0) { count, index in
+            if image.pixels[index] > ActionSheetProcessor.clipAlphaThreshold {
+                count += 1
+            }
+        }
+    return Double(visible) / Double(image.width * image.height)
+}
+
 private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult] {
     let fileManager = FileManager.default
     let jobsRoot = arguments.historyRoot.appendingPathComponent("StarterActionJobs")
@@ -414,6 +432,7 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
         let recordURL = directory.appendingPathComponent("job.json")
         let started = CFAbsoluteTimeGetCurrent()
         var preview: CharacterSheetRGBAImage?
+        var occupancy: Double?
         var calls = item.keepCounts.count
         do {
             let recordData = try Data(contentsOf: recordURL)
@@ -432,6 +451,10 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                 pngDatas: batches, keepCounts: item.keepCounts)
             preview = try? firstFrame(
                 CharacterSheetProcessor.decodePNG(sheet.pngData))
+            occupancy = preview.map(alphaOccupancy)
+            guard occupancy.map({ $0 <= 0.75 }) == true else {
+                throw EvalError.fieldMatteOpaque
+            }
             let definition = StarterActionCatalog.definition(actionID)
             guard sheet.frames.count == definition.finalFrameCount,
                   let anchor = sheet.frames.first else {
@@ -467,7 +490,8 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                 id: item.id, action: item.action, severity: item.severity,
                 historicalError: item.historicalError, currentError: nil,
                 passed: true, durationMS: duration,
-                providerCalls: calls, preview: preview))
+                providerCalls: calls, alphaOccupancy: occupancy,
+                preview: preview))
         } catch {
             if preview == nil,
                let firstBatch = try? Data(contentsOf: directory.appendingPathComponent("batch-01.png")),
@@ -481,7 +505,8 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                 id: item.id, action: item.action, severity: item.severity,
                 historicalError: item.historicalError,
                 currentError: classify(error), passed: false,
-                durationMS: duration, providerCalls: calls, preview: preview))
+                durationMS: duration, providerCalls: calls,
+                alphaOccupancy: occupancy, preview: preview))
         }
     }
     return results
@@ -754,6 +779,7 @@ private struct DIYEval {
             ]
             value["historicalError"] = $0.historicalError ?? ""
             value["currentError"] = $0.currentError ?? ""
+            value["alphaOccupancy"] = $0.alphaOccupancy.map(rounded) ?? NSNull()
             return value
         }
         let allCases = syntheticCases + fieldCases

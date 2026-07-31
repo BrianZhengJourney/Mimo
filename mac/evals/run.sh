@@ -6,7 +6,7 @@ source ./mac/common.sh
 
 LABEL="${1:-baseline}"
 BASELINE="${2:-}"
-DATASET="${MIMO_EVAL_DATASET:-mac/evals/datasets/diy-v1.json}"
+DATASET="${MIMO_EVAL_DATASET:-mac/evals/datasets/diy-v2.json}"
 HISTORY_ROOT="${MIMO_EVAL_HISTORY_ROOT:-$(cd "$HOME/Library/Application Support" && pwd)/Mimo}"
 OUTPUT_ROOT="${MIMO_EVAL_OUTPUT_ROOT:-artifacts/evals/runs}"
 OUTPUT="$OUTPUT_ROOT/$LABEL"
