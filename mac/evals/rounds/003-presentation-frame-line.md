@@ -59,3 +59,19 @@ to either side; thick subjects stay intact and continue to fail crop QA.
 Provider p95 remains unavailable for the legacy retained cohort, so the
 end-to-end hard gate and `5% → 25% → 100%` promotion remain blocked pending
 fresh instrumented action calls.
+
+## Clean-head replay and rollout audit
+
+The original candidate artifact was generated while the one-mechanism change
+was still uncommitted, so it records `-dirty` and is evidence for the local
+decision only. The same full dataset was replayed without provider calls at
+clean release head `b2245e4` as `round-003-clean-b2245e4`:
+
+- effective success `100%`, matte error `1.1910%`, Pareto empty;
+- no hard-class regressions and no regression contact-sheet rows;
+- field local p95 `30,196.4ms` (lower than the original candidate run);
+- provider samples `0`.
+
+The executable rollout ledger correctly refused to enter 5% and recorded
+`providerP95LatencyAvailable`, `providerP95LatencyWithin10Percent`, and
+`rolloutEligible` as failed. No rollout occurred.

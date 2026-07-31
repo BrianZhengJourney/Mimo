@@ -68,3 +68,27 @@ trigger a model/data/product-strategy review.
 
 Rollout is `5% -> 25% -> 100%`. Any hard-gate failure means immediate rollback
 to the last accepted mechanism; no “ship with a note” exception.
+
+## Rollout ledger
+
+Rollout is an executable state machine, not a checklist. It requires clean,
+40-character baseline and candidate commits from the same dataset. `start`
+enters exactly 5%; passing observations advance to 25%, then 100%, and one
+more passing 100% observation marks the candidate complete. Any failed gate,
+changed commit, or changed dataset records a rollback to 0%.
+
+```bash
+STATE=artifacts/evals/rollouts/diy-v3.json
+./mac/evals/rollout.sh start \
+  --baseline artifacts/evals/runs/baseline/metrics.json \
+  --candidate artifacts/evals/runs/candidate/metrics.json \
+  --state "$STATE"
+./mac/evals/rollout.sh observe --metrics cohort-5/metrics.json --state "$STATE"
+./mac/evals/rollout.sh observe --metrics cohort-25/metrics.json --state "$STATE"
+./mac/evals/rollout.sh observe --metrics cohort-100/metrics.json --state "$STATE"
+```
+
+`bucket --id <stable-install-id>` deterministically selects the current cohort;
+the 5% group is always a subset of 25%. The ledger is the release-control
+record; the distribution layer must consult it and may never infer eligibility
+from an offline success rate alone.
