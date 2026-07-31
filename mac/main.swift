@@ -395,6 +395,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var lastSent = ""
     var clickable = false          // user preference: always clickable (menu toggle)
     var bubbleOpen = false
+    var contextGlobalDismissMonitor: Any?
+    var contextLocalDismissMonitor: Any?
     var paused = false
     // drag / hide state
     var hoverTimer: Timer?
@@ -783,37 +785,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         UserDefaults.standard.set(id, forKey: "character")
         refreshNativeCompanion()
     }
-    @objc func toggleContextMenu() { showContext() }
-    @objc func openJournal() {
-        revealOverlay()
-        bubbleOpen = true
-        panel.ignoresMouseEvents = false
-        js("famToggleJournal()")
-    }
-    func showContext() {
-        revealOverlay()
-        bubbleOpen = true
-        panel.ignoresMouseEvents = false
-        js("famToggleContext()")
+    @objc func toggleContextMenu() { showJournal() }
+    @objc func openJournal() { showJournal() }
+
+    private func positionJournal(near screenPoint: CGPoint?) {
+        guard let screenPoint else { return }
+        let screen = NSScreen.screens.first(where: {
+            $0.frame.contains(screenPoint)
+        }) ?? preferredScreen()
+        let target = NSPoint(
+            x: screenPoint.x - (panel.frame.width - 153),
+            y: screenPoint.y - 50)
+        panel.setFrameOrigin(clampedPanelOrigin(
+            target, size: panel.frame.size, inside: screen.visibleFrame))
     }
 
-    /// One-tap focus feedback, positioned beside a native companion when it
-    /// has wandered away from the legacy overlay's home corner.
-    func showFocusBrief(near screenPoint: CGPoint? = nil) {
+    func showJournal(near screenPoint: CGPoint? = nil) {
         revealOverlay()
-        if let screenPoint {
-            let screen = NSScreen.screens.first(where: {
-                $0.frame.contains(screenPoint)
-            }) ?? preferredScreen()
-            let target = NSPoint(
-                x: screenPoint.x - (panel.frame.width - 153),
-                y: screenPoint.y - 50)
-            panel.setFrameOrigin(clampedPanelOrigin(
-                target, size: panel.frame.size, inside: screen.visibleFrame))
-        }
-        bubbleOpen = true
+        positionJournal(near: screenPoint)
+        setContextPanelOpen(true)
         panel.ignoresMouseEvents = false
-        js("famShowFocusBrief()")
+        js("famShowJournal(true)")
+    }
+
+    func showContext() {
+        showJournal()
+    }
+
+    private func setContextPanelOpen(_ open: Bool) {
+        bubbleOpen = open
+        if open {
+            guard contextGlobalDismissMonitor == nil,
+                  contextLocalDismissMonitor == nil else { return }
+            contextGlobalDismissMonitor = NSEvent.addGlobalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown]
+            ) { [weak self] _ in
+                DispatchQueue.main.async { self?.dismissContextPanel() }
+            }
+            contextLocalDismissMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown]
+            ) { [weak self] event in
+                if let self, event.window !== self.panel {
+                    DispatchQueue.main.async { self.dismissContextPanel() }
+                }
+                return event
+            }
+        } else {
+            if let monitor = contextGlobalDismissMonitor {
+                NSEvent.removeMonitor(monitor)
+                contextGlobalDismissMonitor = nil
+            }
+            if let monitor = contextLocalDismissMonitor {
+                NSEvent.removeMonitor(monitor)
+                contextLocalDismissMonitor = nil
+            }
+        }
+    }
+
+    private func dismissContextPanel() {
+        guard bubbleOpen else { return }
+        setContextPanelOpen(false)
+        js("famCloseJournal()")
     }
     @objc func toggleClickable(_ sender: NSMenuItem) {
         clickable.toggle()
@@ -870,10 +902,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         recordCompanionStatus("native layer active, \(sprite.frameCount) frames")
 
         // A tap does both jobs: the behavior pack reacts in-world, while the
-        // focus brief answers beside the moving companion.
+        // full journal opens beside the moving companion.
         companionRuntime.onClick = { [weak self] point in
             guard let self else { return }
-            self.showFocusBrief(near: point)
+            self.showJournal(near: point)
         }
         companionRuntime.onRightClick = { [weak self] in self?.showCompanionMenu() }
         companionRuntime.onRecovered = { [weak self] reason in
@@ -1414,13 +1446,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               let type = body["type"] as? String else { return }
         switch type {
         case "bubble":
-            bubbleOpen = (body["on"] as? Bool) ?? false
+            setContextPanelOpen((body["on"] as? Bool) ?? false)
         case "dragStart":
             beginDrag()
         case "dragEnd":
             endDrag()
         case "famClick":
-            showFocusBrief()
+            showJournal()
         case "openPage":
             openJournalPage()
         case "companionArt":

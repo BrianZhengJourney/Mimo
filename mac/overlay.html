@@ -140,43 +140,6 @@ body[data-char="pixel"] .shadow{ display:none; }
   background:linear-gradient(90deg,#ff9d4d,#ffd76a); }
 .flamefill.low{ background:linear-gradient(90deg,#5a5470,#7a7490); }
 
-/* ── speech bubble (context restore) ── */
-.bubble{ position:absolute; right:150px; bottom:20px; width:352px; opacity:0;
-  transform:translateY(10px) scale(.96); transform-origin:bottom right;
-  transition:opacity .4s, transform .4s cubic-bezier(.34,1.4,.64,1); pointer-events:none; }
-.bubble.on{ opacity:1; transform:none; pointer-events:auto; }
-.bubble-inner{ background:rgba(24,19,46,.94); backdrop-filter:blur(20px);
-  border:1px solid rgba(185,165,255,.3); border-radius:16px; padding:15px 18px;
-  color:var(--ink); font-size:13.5px; line-height:1.65;
-  max-height:272px; overflow-y:auto; min-height:0; overscroll-behavior:contain;
-  box-shadow:0 16px 44px rgba(0,0,0,.5), 0 0 26px var(--fam-glow); }
-.bubble-tail{ position:absolute; right:-7px; bottom:24px; width:13px; height:13px;
-  background:rgba(24,19,46,.94); border-right:1px solid rgba(185,165,255,.3);
-  border-top:1px solid rgba(185,165,255,.3); transform:rotate(45deg); }
-.bb-head{ font-family:var(--font-magic); font-size:15px; color:#cabcf5; margin-bottom:9px; }
-.bb-line{ margin:5px 0; }
-.bb-line b{ color:#fff; }
-.bb-dim{ color:var(--ink-dim); font-size:12.5px; }
-.bb-mono{ font-family:var(--font-mono); font-size:10.5px; background:#ffffff10; padding:1px 5px; border-radius:4px; color:#9ef0b0; }
-.bb-btn{ font-family:inherit; font-size:11.5px; padding:5px 10px; margin-top:8px; margin-right:6px;
-  border-radius:8px; color:#e9e6f7; background:#7e68dc33; border:1px solid #7e68dc66; cursor:pointer; }
-.bb-btn:hover{ background:#7e68dc55; }
-.bb-cols{ display:flex; gap:8px; margin:8px 0; }
-.bb-col{ flex:1; background:#ffffff08; border:1px solid #ffffff10; border-radius:10px; padding:7px 10px; }
-.bb-col .k{ font-size:10.5px; color:var(--ink-dim); letter-spacing:.04em; }
-.bb-col .pct{ font-family:var(--font-magic); font-size:22px; margin:2px 0 3px; }
-.bb-col .pct.good{ color:#7df0cf; } .bb-col .pct.mid{ color:#ffd479; } .bb-col .pct.bad{ color:#e88fae; }
-.bb-col .sub{ font-size:10.5px; color:var(--ink-dim); }
-.bb-verdict{ margin:4px 0 9px; color:#fff; font-size:13.5px; }
-.bb-focus-note{ padding:7px 9px; margin-top:7px; border-radius:9px;
-  color:var(--ink-dim); background:#ffffff08; border:1px solid #ffffff0d; }
-.bb-focus-note b{ color:#fff; }
-.bb-sec{ margin-top:8px; }
-.bb-sec .sh{ font-size:11px; color:#cabcf5; letter-spacing:.05em; margin-bottom:4px; }
-.bb-item{ font-size:12.5px; color:var(--ink); padding:2.5px 0; white-space:nowrap; overflow:hidden;
-  text-overflow:ellipsis; max-width:100%; }
-.bb-item .t{ color:var(--ink-dim); font-size:11px; margin-left:6px; }
-
 /* ── journal: full openable history, bucketed by time ── */
 .journal{ position:absolute; right:150px; bottom:10px; width:334px; max-height:300px;
   display:none; flex-direction:column; border-radius:15px; overflow:hidden;
@@ -521,10 +484,6 @@ body[data-char="pixel"] .shadow{ display:none; }
     <span class="chip pomo" id="pomoChip" onclick="famPomodoro(0)" title="结束这次冒险">🏹 <b id="pomoTime">25:00</b><span class="pomobar"><span id="pomoFill"></span></span></span>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-  <div class="bubble" id="bubble">
-    <div class="bubble-inner" id="bubbleInner"></div>
-    <div class="bubble-tail"></div>
-  </div>
   <div class="journal" id="journal">
     <div class="j-head">
       <span id="journalTitle">✦ 今日手记</span>
@@ -1655,11 +1614,6 @@ function bridge(msg){
 }
 function sound(name){ bridge({ type: 'sound', name }); }   // Swift plays if Sounds enabled
 
-function closeBubble(){
-  document.getElementById('bubble').classList.remove('on');
-  bridge({ type: 'bubble', on: false });
-}
-
 const DEEP_KINDS = new Set(['deep','code','term','cad','paper','notes']);
 
 /* ── canonicalization: same thing under different names → one entry.
@@ -1731,74 +1685,6 @@ function windowStats(minutes){
     if (DEEP_KINDS.has(h.kind)) deep += b - a;
   }
   return { pct: total ? Math.round(100 * deep / total) : 0, deepMin: Math.round(deep / 60000), total };
-}
-
-function pctCls(p){ return p >= 65 ? 'good' : p >= 35 ? 'mid' : 'bad'; }
-
-/* Option-space keeps the full journal. A pet click has its own compact focus
-   brief below, so the familiar can answer without becoming a dashboard. */
-function famToggleContext(){ famToggleJournal(); }
-
-function todayFocusSnapshot(){
-  const now=Date.now(),dayStart=new Date();dayStart.setHours(0,0,0,0);
-  const w0=dayStart.getTime(),labels=labelMap(),merged=mergeSegments(w0,now,labels);
-  let deep=0,dist=0,neutral=0;
-  for(const item of merged){
-    const duration=item.b-item.a;
-    if(DEEP_KINDS.has(item.kind))deep+=duration;
-    else if(item.kind==='distraction')dist+=duration;
-    else neutral+=duration;
-  }
-  const total=deep+dist+neutral;
-  const top=aggregate(w0,now,labels)
-    .filter(item=>item.sec!=='distracted')
-    .sort((a,b)=>b.ms-a.ms)[0]||null;
-  return {
-    now,deep,dist,neutral,total,
-    pct:total?Math.round(100*deep/total):0,
-    streak:Fam.streakMin(),
-    top
-  };
-}
-
-function focusVerdict(pct){
-  if(pct>=70)return tx('今天很稳，专注是主线。✦','Steady today — focus is the main thread. ✦');
-  if(pct>=50)return tx('今天节奏不错，偶尔分岔，但很快回来了。','Good rhythm today — a few detours, then back.');
-  if(pct>=30)return tx('今天有几段好专注，不过分心把线切碎了一点。','There were good focus blocks, though distractions cut the thread.');
-  return tx('今天有点散。没关系，从一个 25 分钟的小任务重新开始。','A scattered day. That is okay — restart with one small 25-minute task.');
-}
-
-function famShowFocusBrief(){
-  const b = document.getElementById('bubble');
-  const s=todayFocusSnapshot();
-  const duration=ms=>ms>=30000?fmtDur(ms):'0m';
-  const current=Fam.cur
-    ? tx(`现在：<b>${esc(Fam.cur.app)}</b> · ${fmtDur(s.now-Fam.cur.t0)}`,
-         `Now: <b>${esc(Fam.cur.app)}</b> · ${fmtDur(s.now-Fam.cur.t0)}`)
-    : tx('现在暂时离开','Away for now');
-  const top=s.top
-    ? tx(`今天最投入：<b>${esc(s.top.label)}</b> · ${fmtDur(s.top.ms)}`,
-         `Top focus: <b>${esc(s.top.label)}</b> · ${fmtDur(s.top.ms)}`)
-    : tx('今天还没有足够的专注记录。','Not enough focused activity recorded yet.');
-  const content=s.total<30000
-    ? `<div class="bb-verdict">${tx('我刚开始替你看守今天的注意力。先专注几分钟，再来点我。','I just started watching over today’s attention. Focus for a few minutes, then tap me again.')}</div>`
-    : `<div class="bb-verdict">${focusVerdict(s.pct)}</div>
-       <div class="bb-cols">
-         <div class="bb-col"><div class="k">${tx('专注占比','FOCUS')}</div><div class="pct ${pctCls(s.pct)}">${s.pct}%</div><div class="sub">${tx('已记录时间','of tracked time')}</div></div>
-         <div class="bb-col"><div class="k">${tx('专注','FOCUSED')}</div><div class="pct good">${duration(s.deep)}</div><div class="sub">${tx('代码、阅读、创作','build, read, create')}</div></div>
-         <div class="bb-col"><div class="k">${tx('分心','DISTRACTED')}</div><div class="pct ${s.dist>s.deep?'bad':'mid'}">${duration(s.dist)}</div><div class="sub">${tx('信息流与打断','feeds & detours')}</div></div>
-       </div>`;
-  document.getElementById('bubbleInner').innerHTML=`
-    <div class="bb-head">${tx('🐾 今天专注得怎么样？','🐾 How did focus go today?')}</div>
-    ${content}
-    <div class="bb-focus-note">${current}<br>${top}<br>${s.streak>0?tx(`连续专注：<b>${s.streak} 分钟</b> 🔥`,`Focus streak: <b>${s.streak}m</b> 🔥`):tx('现在没有连续专注。','No active focus streak right now.')}</div>
-    <button class="bb-btn" onclick="closeBubble();famPomodoro(25)">${tx('开始 25 分钟','Start 25 min')}</button>
-    <button class="bb-btn" onclick="closeBubble()">${tx('好，继续','Okay, continue')}</button>
-    <button class="bb-btn" onclick="famToggleJournal()">${tx('完整手记 ↗','Full journal ↗')}</button>`;
-  document.getElementById('journal').classList.remove('on');
-  document.getElementById('stage').classList.remove('journal-open');
-  b.classList.add('on');
-  bridge({ type: 'bubble', on: true });
 }
 
 /* ── journal render + toggle: time views, quest story, week heatmap ── */
@@ -2491,30 +2377,46 @@ function famExportHTML(){
 </body></html>`;
 }
 
-function famToggleJournal(){
+function famCloseJournal(){
   const j = document.getElementById('journal');
   const stage = document.getElementById('stage');
-  if (j.classList.contains('on')) {
-    j.classList.remove('on');
-    stage.classList.remove('journal-open');
-    bridge({ type: 'bubble', on: false });
-    return;
-  }
-  document.getElementById('bubble').classList.remove('on');
+  j.classList.remove('on');
+  stage.classList.remove('journal-open');
+  bridge({ type: 'bubble', on: false });
+}
+
+function famShowJournal(today=false){
+  const j = document.getElementById('journal');
+  const stage = document.getElementById('stage');
+  if(today){J.view='time';J.tf=1440;J.openSess=null;}
   renderJournal();
   j.classList.add('on');
   stage.classList.add('journal-open');
   bridge({ type: 'bubble', on: true });
 }
 
-/* click creature → context bubble */
+function famToggleJournal(){
+  if(document.getElementById('journal').classList.contains('on'))famCloseJournal();
+  else famShowJournal(false);
+}
+
+/* Pet click → complete journal on today's view. */
+function famToggleContext(){famShowJournal(true);}
+
+/* Close immediately when a click lands in the transparent WebView outside
+   the journal. Native also monitors clicks beyond this panel. */
+document.addEventListener('pointerdown',event=>{
+  const journal=document.getElementById('journal');
+  if(!journal.classList.contains('on')||event.target.closest('#journal'))return;
+  famCloseJournal();
+},true);
+
 document.addEventListener('DOMContentLoaded', () => {
   Fam.setCharacter(localStorage.getItem('ff-char') || 'lulu');
   Fam.setFocus(55);
   Fam.loadXP();
 
-  // click = context bubble; press-and-move = drag (window moved by Swift);
-  // in a plain browser (no bridge) click falls back to the bubble directly
+  // click = complete journal; press-and-move = drag (window moved by Swift).
   const fam = document.getElementById('familiar');
   const hasBridge = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge);
   let pd = null, dragging = false;
@@ -2531,7 +2433,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fam.addEventListener('pointerup', () => {
     if (dragging) bridge({ type: 'dragEnd' });
     else if (hasBridge) bridge({ type: 'famClick' });
-    else famShowFocusBrief();
+    else famShowJournal(true);
     pd = null; dragging = false;
   });
   // if the pointer is lost mid-drag, end the drag - otherwise the window
