@@ -299,6 +299,40 @@ struct CharacterSheetTests {
                "matte-blended edges should keep a feathered alpha ramp")
         expect(opaqueCount > 0, "figure interiors should stay fully opaque")
 
+        var pale = CharacterSheetRGBAImage(
+            width: 64, height: 64, fill: matte)
+        let paleInk: (UInt8, UInt8, UInt8, UInt8) = (229, 224, 214, 255)
+        let halfBlend: (UInt8, UInt8, UInt8, UInt8) = (235, 230, 220, 255)
+        paintRect(&pale, x: 20, y: 20, width: 24, height: 24, color: paleInk)
+        for x in 20..<44 {
+            pale.setRGBA(x: x, y: 19, halfBlend)
+            pale.setRGBA(x: x, y: 44, halfBlend)
+        }
+        for y in 20..<44 {
+            pale.setRGBA(x: 19, y: y, halfBlend)
+            pale.setRGBA(x: 44, y: y, halfBlend)
+        }
+        CharacterSheetProcessor.removeBorderConnectedMatte(from: &pale)
+        let recoveredAlpha = Int(pale.rgba(x: 30, y: 19).3)
+        expect((105...150).contains(recoveredAlpha),
+               "local warm-matte contrast should recover a half-covered pale edge")
+        expect(pale.rgba(x: 30, y: 18).3 == 0,
+               "flat warm matte outside the pale edge must remain transparent")
+        expect(pale.rgba(x: 30, y: 30).3 == 255,
+               "the pale clothing interior must remain opaque")
+
+        var edgeTouchingPale = CharacterSheetRGBAImage(
+            width: 64, height: 64, fill: matte)
+        paintRect(&edgeTouchingPale, x: 1, y: 20, width: 23, height: 24,
+                  color: paleInk)
+        for y in 20..<44 {
+            edgeTouchingPale.setRGBA(x: 0, y: y, halfBlend)
+        }
+        CharacterSheetProcessor.removeBorderConnectedMatte(
+            from: &edgeTouchingPale)
+        expect(edgeTouchingPale.rgba(x: 0, y: 30).3 == 0,
+               "local recovery must not resurrect pixels on the crop edge")
+
         // Expression generation reuses one normalized stage as its identity
         // reference; extraction must produce a clean single 512px frame.
         let extractedStage = try CharacterSheetProcessor.extractNormalizedStage(

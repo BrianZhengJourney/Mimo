@@ -765,6 +765,118 @@ enum CharacterSheetProcessor {
             if y + 1 < height { seed(index + width) }
         }
 
+        // A pale subject on Mimo's warm matte can have less color contrast
+        // than the flood threshold. Normalize that edge against a neighboring
+        // retained low-contrast foreground pixel. Never run this against a
+        // dark estimated matte: on a framed provider batch, that estimate can
+        // be the presentation border itself, and recovering it resurrects the
+        // grid line.
+        func hasDarkPresentationFrame() -> Bool {
+            let insetLimit = min(16, min(width, height) / 2)
+            guard insetLimit > 0 else { return false }
+            func dark(x: Int, y: Int) -> Bool {
+                let pixel = (y * width + x) * 4
+                return image.pixels[pixel + 3] >= 16
+                    && Int(image.pixels[pixel])
+                        + Int(image.pixels[pixel + 1])
+                        + Int(image.pixels[pixel + 2]) < 300
+            }
+            for inset in 0..<insetLimit {
+                var top = 0, bottom = 0, left = 0, right = 0
+                for x in 0..<width {
+                    if dark(x: x, y: inset) { top += 1 }
+                    if dark(x: x, y: height - 1 - inset) { bottom += 1 }
+                }
+                for y in 0..<height {
+                    if dark(x: inset, y: y) { left += 1 }
+                    if dark(x: width - 1 - inset, y: y) { right += 1 }
+                }
+                if top * 2 >= width || bottom * 2 >= width
+                    || left * 2 >= height || right * 2 >= height {
+                    return true
+                }
+            }
+            return false
+        }
+        let usesWarmNeutralMatte = matte.0 >= 180 && matte.1 >= 170
+            && matte.2 >= 160
+            && max(matte.0, matte.1, matte.2)
+                - min(matte.0, matte.1, matte.2) <= 60
+            && outerMatte.0 >= 150 && outerMatte.1 >= 150
+            && outerMatte.2 >= 150
+            && !hasDarkPresentationFrame()
+        var locallyRecoveredAlpha = [UInt8](repeating: 0, count: width * height)
+        let recoveryFloor = max(3, threshold / 5)
+        let recoveryFloorSquared = recoveryFloor * recoveryFloor
+        let minimumSolidDistanceSquared = threshold * threshold
+        let maximumSolidDistance = threshold * 3
+        let maximumSolidDistanceSquared =
+            maximumSolidDistance * maximumSolidDistance
+
+        func localAlpha(at index: Int) -> UInt8? {
+            guard usesWarmNeutralMatte, !chromaKeyed,
+                  image.pixels[index * 4 + 3] >= 16 else { return nil }
+            let pixel = index * 4
+            let current = (
+                Int(image.pixels[pixel]) - matte.0,
+                Int(image.pixels[pixel + 1]) - matte.1,
+                Int(image.pixels[pixel + 2]) - matte.2)
+            let currentDistanceSquared =
+                current.0 * current.0 + current.1 * current.1
+                + current.2 * current.2
+            guard currentDistanceSquared >= recoveryFloorSquared else {
+                return nil
+            }
+            let x = index % width, y = index / width
+            guard x >= 2, x < width - 2, y >= 2, y < height - 2 else {
+                return nil
+            }
+            var best: (residualRatio: Double, alpha: Double)?
+            for oy in -1...1 {
+                for ox in -1...1 where ox != 0 || oy != 0 {
+                    let nx = x + ox, ny = y + oy
+                    guard nx >= 0, nx < width, ny >= 0, ny < height else {
+                        continue
+                    }
+                    let neighbor = ny * width + nx
+                    guard background[neighbor] == 0 else { continue }
+                    let neighborPixel = neighbor * 4
+                    let solid = (
+                        Int(image.pixels[neighborPixel]) - matte.0,
+                        Int(image.pixels[neighborPixel + 1]) - matte.1,
+                        Int(image.pixels[neighborPixel + 2]) - matte.2)
+                    let solidDistanceSquared =
+                        solid.0 * solid.0 + solid.1 * solid.1
+                        + solid.2 * solid.2
+                    guard solidDistanceSquared >= minimumSolidDistanceSquared,
+                          solidDistanceSquared <= maximumSolidDistanceSquared else {
+                        continue
+                    }
+                    let dot = current.0 * solid.0 + current.1 * solid.1
+                        + current.2 * solid.2
+                    guard dot > 0 else { continue }
+                    let alpha = Double(dot) / Double(solidDistanceSquared)
+                    guard alpha >= 0.05, alpha <= 1.05 else { continue }
+                    let residual = (
+                        Double(current.0) - alpha * Double(solid.0),
+                        Double(current.1) - alpha * Double(solid.1),
+                        Double(current.2) - alpha * Double(solid.2))
+                    let residualSquared = residual.0 * residual.0
+                        + residual.1 * residual.1
+                        + residual.2 * residual.2
+                    let residualRatio =
+                        residualSquared / Double(currentDistanceSquared)
+                    guard residualRatio <= 0.12 else { continue }
+                    if best == nil || residualRatio < best!.residualRatio {
+                        best = (residualRatio, alpha)
+                    }
+                }
+            }
+            guard let best else { return nil }
+            return UInt8(
+                max(1, min(255, Int((min(1, best.alpha) * 255).rounded()))))
+        }
+
         // Foreground pixels touching the background get a feathered alpha ramp
         // based on how matte-blended their color is, so raster portraits keep
         // anti-aliased edges instead of a hard binary cut. Interior pixels stay
@@ -805,13 +917,49 @@ enum CharacterSheetProcessor {
                 edgeDistance[index] = UInt8(min(3, nearest))
             }
         }
+        var boundaryIndices: [Int] = []
         for index in 0..<(width * height) where background[index] == 0 {
-            if edgeDistance[index] <= 2 { boundaryBand[index] = 1 }
+            if edgeDistance[index] <= 2 {
+                boundaryBand[index] = 1
+                boundaryIndices.append(index)
+            }
+        }
+        if usesWarmNeutralMatte {
+            for index in boundaryIndices {
+                if let alpha = localAlpha(at: index) {
+                    locallyRecoveredAlpha[index] = alpha
+                }
+                let x = index % width, y = index / width
+                for oy in -1...1 {
+                    for ox in -1...1 where ox != 0 || oy != 0 {
+                        let nx = x + ox, ny = y + oy
+                        guard nx >= 0, nx < width, ny >= 0, ny < height else {
+                            continue
+                        }
+                        let neighbor = ny * width + nx
+                        guard background[neighbor] == 1,
+                              locallyRecoveredAlpha[neighbor] == 0,
+                              let alpha = localAlpha(at: neighbor),
+                              alpha < 255 else { continue }
+                        locallyRecoveredAlpha[neighbor] = alpha
+                    }
+                }
+            }
         }
 
         for index in 0..<(width * height) {
             let pixel = index * 4
-            if background[index] == 1 || image.pixels[pixel + 3] < 16 {
+            if locallyRecoveredAlpha[index] > 0 {
+                let alpha = Int(locallyRecoveredAlpha[index])
+                let inverse = 255 - alpha
+                image.pixels[pixel] = UInt8(max(
+                    0, Int(image.pixels[pixel]) - matte.0 * inverse / 255))
+                image.pixels[pixel + 1] = UInt8(max(
+                    0, Int(image.pixels[pixel + 1]) - matte.1 * inverse / 255))
+                image.pixels[pixel + 2] = UInt8(max(
+                    0, Int(image.pixels[pixel + 2]) - matte.2 * inverse / 255))
+                image.pixels[pixel + 3] = UInt8(alpha)
+            } else if background[index] == 1 || image.pixels[pixel + 3] < 16 {
                 image.pixels[pixel] = 0
                 image.pixels[pixel + 1] = 0
                 image.pixels[pixel + 2] = 0
@@ -848,8 +996,11 @@ enum CharacterSheetProcessor {
                 // 3× the threshold, smoothstepped for gentle edges.
                 let t = max(0.0, min(1.0, (distance - Double(threshold)) / (2.0 * Double(threshold))))
                 let smooth = t * t * (3.0 - 2.0 * t)
-                let boundaryAlpha = Int(max(
+                let globalBoundaryAlpha = Int(max(
                     0.0, min(255.0, (smooth * 255.0).rounded())))
+                let localBoundaryAlpha = Int(locallyRecoveredAlpha[index])
+                let boundaryAlpha = localBoundaryAlpha > 0
+                    ? localBoundaryAlpha : globalBoundaryAlpha
                 let finalAlpha = min(alpha, boundaryAlpha)
                 // Buffers are premultiplied. If spatial feathering lowers the
                 // already-unmixed alpha, scale its recovered RGB by the same
