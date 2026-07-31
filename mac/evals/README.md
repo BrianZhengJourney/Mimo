@@ -59,6 +59,44 @@ first instrumented field cohort establishes a fresh provider-p95 baseline.
 Candidate rollout remains blocked until both its baseline and candidate have
 provider samples and the p95 ratio is at most `1.10`.
 
+For a release audit, `telemetry.sh` runs two interleaved default-action packs
+through the exact production `generateStarterActionBatch` path. Results live in
+an isolated local directory: they are never installed and never modify a pet or
+its Studio jobs. The harness checkpoints after every paid call, performs the
+same coherent-batch normalization/QA locally, and writes one validated
+`telemetry.json` per cohort. A complete cohort is exactly 10 calls and four
+passing action results.
+
+```bash
+./mac/evals/telemetry.sh \
+  --pet-dir /path/to/a/local/Mimo/Pets/UUID \
+  --style-board mac/assets/style-reference/mimo-human-style-reference-board.png \
+  --style-profile human-v2 \
+  --output-root /private/local/telemetry-run \
+  --runtime-commit "$(git rev-parse HEAD)" \
+  --quality medium \
+  --cohort-id initial \
+  --preflight true
+```
+
+Remove `--preflight true` only after cost approval. A failed checkpoint is not
+silently replayed; resume with `--retry-failed true` after reviewing it.
+Candidate evaluation consumes the pair without rewriting the fixed baseline:
+
+Use a fresh output root and cohort ID with `--candidate-only true` for each
+5% / 25% / 100% observation. This makes every rollout decision consume a new
+ten-call candidate pack rather than repeatedly approving the initial evidence.
+
+```bash
+MIMO_EVAL_BASELINE_PROVIDER_TELEMETRY=/run/baseline/telemetry.json \
+MIMO_EVAL_PROVIDER_TELEMETRY=/run/candidate/telemetry.json \
+  ./mac/evals/run.sh candidate-with-provider \
+  artifacts/evals/runs/baseline/metrics.json
+```
+
+The eval rejects partial cohorts, dirty runtime commits, contract/input/quality
+mismatches, call success below 99%, or action QA below 99%.
+
 ## Round discipline
 
 Every candidate names one mechanism and one falsifiable prediction. Run a

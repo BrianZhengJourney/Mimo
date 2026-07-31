@@ -40,6 +40,8 @@ private struct Arguments {
     let output: URL
     let label: String
     let baseline: URL?
+    let providerTelemetry: URL?
+    let baselineProviderTelemetry: URL?
     let commit: String
 
     static func parse() throws -> Arguments {
@@ -63,6 +65,10 @@ private struct Arguments {
             output: URL(fileURLWithPath: output),
             label: label,
             baseline: values["--baseline"].map(URL.init(fileURLWithPath:)),
+            providerTelemetry: values["--provider-telemetry"]
+                .map(URL.init(fileURLWithPath:)),
+            baselineProviderTelemetry: values["--baseline-provider-telemetry"]
+                .map(URL.init(fileURLWithPath:)),
             commit: values["--commit"] ?? "unknown")
     }
 }
@@ -77,7 +83,7 @@ private enum EvalError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .usage:
-            return "usage: diy_eval --dataset FILE --history-root DIR --output DIR --label NAME [--baseline FILE] [--commit SHA]"
+            return "usage: diy_eval --dataset FILE --history-root DIR --output DIR --label NAME [--baseline FILE] [--provider-telemetry FILE] [--baseline-provider-telemetry FILE] [--commit SHA]"
         case .invalidDataset: return "The DIY eval dataset is invalid."
         case .invalidFixture(let detail):
             return "The fixed DIY eval fixture is missing or changed: \(detail)"
@@ -631,7 +637,9 @@ private func dictionaryDoubles(_ value: Any?) -> [String: Double] {
 
 private func compare(current: [String: Any],
                      currentCases: [[String: Any]],
-                     baselineURL: URL?) -> [String: Any] {
+                     baselineURL: URL?,
+                     baselineProvider: DIYProviderTelemetrySummary?,
+                     currentProvider: DIYProviderTelemetrySummary?) -> [String: Any] {
     guard let baselineURL, let baseline = jsonObject(at: baselineURL),
           let baseMetrics = baseline["metrics"] as? [String: Any],
           let metrics = current["metrics"] as? [String: Any] else {
@@ -653,16 +661,23 @@ private func compare(current: [String: Any],
     let latencyRatio = number(baseMetrics, "p95FieldLocalLatencyMS") > 0
         ? number(metrics, "p95FieldLocalLatencyMS")
             / number(baseMetrics, "p95FieldLocalLatencyMS") : 1
-    let costRatio = number(baseMetrics, "estimatedUnitCostUSD") > 0
-        ? number(metrics, "estimatedUnitCostUSD") / number(baseMetrics, "estimatedUnitCostUSD") : 1
+    let baseUnitCost = baselineProvider?.unitCostUSD
+        ?? number(baseMetrics, "estimatedUnitCostUSD")
+    let currentUnitCost = currentProvider?.unitCostUSD
+        ?? number(metrics, "estimatedUnitCostUSD")
+    let costRatio = baseUnitCost > 0 ? currentUnitCost / baseUnitCost : 1
     let baseProviderMeasured =
         (baseMetrics["providerLatencyMeasured"] as? NSNumber)?.boolValue ?? false
     let currentProviderMeasured =
         (metrics["providerLatencyMeasured"] as? NSNumber)?.boolValue ?? false
-    let baseProviderP95 = number(baseMetrics, "providerP95LatencyMS")
-    let currentProviderP95 = number(metrics, "providerP95LatencyMS")
-    let providerLatencyAvailable = baseProviderMeasured
-        && currentProviderMeasured && baseProviderP95 > 0
+    let baseProviderP95 = baselineProvider.map {
+        percentile($0.durationsSeconds.map { $0 * 1_000 }, 0.95)
+    } ?? number(baseMetrics, "providerP95LatencyMS")
+    let currentProviderP95 = currentProvider.map {
+        percentile($0.durationsSeconds.map { $0 * 1_000 }, 0.95)
+    } ?? number(metrics, "providerP95LatencyMS")
+    let providerLatencyAvailable = (baselineProvider != nil || baseProviderMeasured)
+        && (currentProvider != nil || currentProviderMeasured) && baseProviderP95 > 0
     let providerLatencyRatio = providerLatencyAvailable
         ? currentProviderP95 / baseProviderP95 : 0
 
@@ -707,6 +722,18 @@ private func compare(current: [String: Any],
         "providerP95LatencyAvailable": providerLatencyAvailable,
         "providerP95LatencyWithin10Percent":
             providerLatencyAvailable && providerLatencyRatio <= 1.10,
+        "providerContractMatches": baselineProvider != nil
+            && baselineProvider?.contractFingerprint
+                == currentProvider?.contractFingerprint,
+        "providerInputMatches": baselineProvider != nil
+            && baselineProvider?.inputFingerprint
+                == currentProvider?.inputFingerprint,
+        "providerQualityMatches": baselineProvider != nil
+            && baselineProvider?.quality == currentProvider?.quality,
+        "providerCallSuccessAtLeast99":
+            (currentProvider?.callSuccessRate ?? 0) >= 0.99,
+        "providerActionSuccessAtLeast99":
+            (currentProvider?.actionSuccessRate ?? 0) >= 0.99,
     ]
     var result: [String: Any] = [
         "kind": "candidate",
@@ -737,6 +764,21 @@ private func writeJSON(_ object: Any, to url: URL) throws {
     try data.write(to: url, options: [.atomic])
 }
 
+private func providerTelemetry(at url: URL?, role: DIYProviderTelemetryRole,
+                               dataset: String, runtimeCommit: String) throws
+    -> DIYProviderTelemetrySummary? {
+    guard let url else { return nil }
+    let evidence = try JSONDecoder().decode(
+        DIYProviderTelemetryEvidence.self, from: Data(contentsOf: url))
+    let summary = try evidence.validated(
+        expectedRole: role, expectedDataset: dataset)
+    guard summary.runtimeCommit == runtimeCommit else {
+        throw EvalError.invalidFixture(
+            "provider telemetry runtime does not match the evaluated commit")
+    }
+    return summary
+}
+
 @main
 private struct DIYEval {
     static func main() throws {
@@ -751,11 +793,20 @@ private struct DIYEval {
               !dataset.synthetic.classes.isEmpty,
               !dataset.fieldJobs.isEmpty else { throw EvalError.invalidDataset }
         try validateFixtures(dataset, arguments: arguments)
+        let currentProvider = try providerTelemetry(
+            at: arguments.providerTelemetry, role: .candidate,
+            dataset: dataset.name, runtimeCommit: arguments.commit)
+        let baselineProvider = try providerTelemetry(
+            at: arguments.baselineProviderTelemetry, role: .baseline,
+            dataset: dataset.name, runtimeCommit: arguments.commit)
 
         let synthetic = runSynthetic(dataset)
         let field = runField(dataset, arguments: arguments)
         let syntheticSuccess = mean(synthetic.map { $0.passed ? 1 : 0 })
         let fieldSuccess = mean(field.map { $0.passed ? 1 : 0 })
+        let providerActionSuccess = currentProvider?.actionSuccessRate ?? 1
+        let effectiveSuccess = min(
+            syntheticSuccess, min(fieldSuccess, providerActionSuccess))
         let matteScore = mean(synthetic.map(\.metrics.score))
         var classScores: [String: Double] = [:]
         for classID in Set(synthetic.map(\.classID)) {
@@ -764,12 +815,13 @@ private struct DIYEval {
         }
         let syntheticDurations = synthetic.map(\.durationMS)
         let fieldDurations = field.map(\.durationMS)
-        let providerDurationsMS = field
-            .flatMap(\.providerDurationsSeconds).map { $0 * 1_000 }
+        let providerDurationsMS = currentProvider?.durationsSeconds.map { $0 * 1_000 }
+            ?? field.flatMap(\.providerDurationsSeconds).map { $0 * 1_000 }
         let providerP95 = percentile(providerDurationsMS, 0.95)
         let providerLatencyMeasured = !providerDurationsMS.isEmpty
-        let unitCost = mean(field.map { Double($0.providerCalls) })
-            * dataset.providerCallCostUSD
+        let unitCost = currentProvider?.unitCostUSD
+            ?? (mean(field.map { Double($0.providerCalls) })
+                * dataset.providerCallCostUSD)
 
         var errors: [String: Int] = [:]
         for item in synthetic where !item.passed {
@@ -827,7 +879,7 @@ private struct DIYEval {
             "fieldCaseCount": field.count,
             "syntheticSuccessRate": rounded(syntheticSuccess),
             "fieldSuccessRate": rounded(fieldSuccess),
-            "effectiveSuccessRate": rounded(min(syntheticSuccess, fieldSuccess)),
+            "effectiveSuccessRate": rounded(effectiveSuccess),
             "mattePrimaryScore": rounded(matteScore),
             "mattePrimaryErrorRate": rounded(1 - matteScore),
             "hardClassScores": classScores.mapValues(rounded),
@@ -838,6 +890,21 @@ private struct DIYEval {
                 ? rounded(providerP95) as Any : NSNull(),
             "providerLatencyMeasured": providerLatencyMeasured,
             "providerLatencySampleCount": providerDurationsMS.count,
+            "providerCallSuccessRate": currentProvider.map {
+                rounded($0.callSuccessRate) as Any
+            } ?? NSNull(),
+            "providerActionSuccessRate": currentProvider.map {
+                rounded($0.actionSuccessRate) as Any
+            } ?? NSNull(),
+            "providerCohortCostUSD": currentProvider.map {
+                rounded($0.unitCostUSD) as Any
+            } ?? NSNull(),
+            "providerTelemetryRuntimeCommit":
+                currentProvider?.runtimeCommit as Any? ?? NSNull(),
+            "providerContractFingerprint":
+                currentProvider?.contractFingerprint as Any? ?? NSNull(),
+            "providerInputFingerprint":
+                currentProvider?.inputFingerprint as Any? ?? NSNull(),
         ]
         var report: [String: Any] = [
             "schemaVersion": 1,
@@ -855,7 +922,9 @@ private struct DIYEval {
         ]
         let comparison = compare(
             current: report, currentCases: allCases,
-            baselineURL: arguments.baseline)
+            baselineURL: arguments.baseline,
+            baselineProvider: baselineProvider,
+            currentProvider: currentProvider)
         report["comparison"] = comparison
 
         let worst = synthetic.sorted { $0.metrics.score < $1.metrics.score }.prefix(12)
