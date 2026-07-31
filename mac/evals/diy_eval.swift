@@ -131,6 +131,7 @@ private struct FieldResult {
     let passed: Bool
     let durationMS: Double
     let providerCalls: Int
+    let providerDurationsSeconds: [Double]
     let alphaOccupancy: Double?
     let preview: CharacterSheetRGBAImage?
 }
@@ -199,8 +200,12 @@ private func syntheticCase(classID: String, variant: Int)
     for y in 0..<size {
         for x in 0..<size {
             var covered = 0
+            let subjectShiftX =
+                classID == "near_edge_light_subject_warm_matte"
+                ? 69.0 : 0.0
             for sample in samples where insideSubject(
-                Double(x) + sample.0, Double(y) + sample.1,
+                Double(x) + sample.0 + subjectShiftX,
+                Double(y) + sample.1,
                 classID: classID, variant: variant) {
                 covered += 1
             }
@@ -220,7 +225,7 @@ private func syntheticCase(classID: String, variant: Int)
 
             var foreground = (r: 52.0, g: 83.0, b: 91.0)
             if y < 112 { foreground = (42, 27, 31) }
-            if classID == "light_subject_warm_matte" {
+            if classID.contains("light_subject_warm_matte") {
                 foreground = y < 112 ? (93, 67, 58) : (229, 224, 214)
             } else if classID == "green_subject_green_matte" {
                 foreground = y < 112 ? (30, 54, 38) : (24, 196, 48)
@@ -232,6 +237,10 @@ private func syntheticCase(classID: String, variant: Int)
             let blue = foreground.b * alpha + localMatte.2 * (1 - alpha)
             source.setRGBA(x: x, y: y,
                            (clampByte(red), clampByte(green), clampByte(blue), 255))
+            if classID == "framed_light_subject_warm_matte",
+               y == 8, (63...192).contains(x) {
+                source.setRGBA(x: x, y: y, (28, 24, 33, 255))
+            }
         }
     }
     return (source, truth)
@@ -434,6 +443,7 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
         var preview: CharacterSheetRGBAImage?
         var occupancy: Double?
         var calls = item.keepCounts.count
+        var providerDurations: [Double] = []
         do {
             let recordData = try Data(contentsOf: recordURL)
             guard let record = try JSONSerialization.jsonObject(with: recordData)
@@ -443,6 +453,13 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                 throw EvalError.invalidDataset
             }
             calls = record["estimatedProviderCalls"] as? Int ?? calls
+            providerDurations = (record["providerCallMetrics"]
+                as? [[String: Any]] ?? []).compactMap {
+                guard let seconds = ($0["durationSeconds"] as? NSNumber)?
+                        .doubleValue,
+                      seconds.isFinite, seconds >= 0 else { return nil }
+                return seconds
+            }
             let batches = try item.keepCounts.indices.map { index in
                 try Data(contentsOf: directory.appendingPathComponent(
                     String(format: "batch-%02d.png", index + 1)))
@@ -490,7 +507,9 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                 id: item.id, action: item.action, severity: item.severity,
                 historicalError: item.historicalError, currentError: nil,
                 passed: true, durationMS: duration,
-                providerCalls: calls, alphaOccupancy: occupancy,
+                providerCalls: calls,
+                providerDurationsSeconds: providerDurations,
+                alphaOccupancy: occupancy,
                 preview: preview))
         } catch {
             if preview == nil,
@@ -506,6 +525,7 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                 historicalError: item.historicalError,
                 currentError: classify(error), passed: false,
                 durationMS: duration, providerCalls: calls,
+                providerDurationsSeconds: providerDurations,
                 alphaOccupancy: occupancy, preview: preview))
         }
     }
@@ -635,6 +655,16 @@ private func compare(current: [String: Any],
             / number(baseMetrics, "p95FieldLocalLatencyMS") : 1
     let costRatio = number(baseMetrics, "estimatedUnitCostUSD") > 0
         ? number(metrics, "estimatedUnitCostUSD") / number(baseMetrics, "estimatedUnitCostUSD") : 1
+    let baseProviderMeasured =
+        (baseMetrics["providerLatencyMeasured"] as? NSNumber)?.boolValue ?? false
+    let currentProviderMeasured =
+        (metrics["providerLatencyMeasured"] as? NSNumber)?.boolValue ?? false
+    let baseProviderP95 = number(baseMetrics, "providerP95LatencyMS")
+    let currentProviderP95 = number(metrics, "providerP95LatencyMS")
+    let providerLatencyAvailable = baseProviderMeasured
+        && currentProviderMeasured && baseProviderP95 > 0
+    let providerLatencyRatio = providerLatencyAvailable
+        ? currentProviderP95 / baseProviderP95 : 0
 
     let baseClasses = dictionaryDoubles(baseMetrics["hardClassScores"])
     let currentClasses = dictionaryDoubles(metrics["hardClassScores"])
@@ -667,7 +697,6 @@ private func compare(current: [String: Any],
               let base = baseScores[id] else { return nil }
         return ["id": id, "delta": rounded(score - base)]
     }
-    let providerLatencyAvailable = false
     let gates: [String: Bool] = [
         "effectiveSuccessAtLeast99": currentSuccess >= 0.99,
         "topErrorReducedAtLeast50": topReduction >= 0.50,
@@ -676,6 +705,8 @@ private func compare(current: [String: Any],
         "localP95LatencyWithin10Percent": latencyRatio <= 1.10,
         "unitCostWithin10Percent": costRatio <= 1.10,
         "providerP95LatencyAvailable": providerLatencyAvailable,
+        "providerP95LatencyWithin10Percent":
+            providerLatencyAvailable && providerLatencyRatio <= 1.10,
     ]
     var result: [String: Any] = [
         "kind": "candidate",
@@ -685,6 +716,8 @@ private func compare(current: [String: Any],
         "matteErrorRelativeReduction": rounded(matteImprovement),
         "localLatencyRatio": rounded(latencyRatio),
         "unitCostRatio": rounded(costRatio),
+        "providerLatencyRatio": providerLatencyAvailable
+            ? rounded(providerLatencyRatio) as Any : NSNull(),
         "caseDeltas": deltas,
         "allHardGatesPassed": gates.values.allSatisfy { $0 },
         "rolloutEligible": gates.values.allSatisfy { $0 },
@@ -731,6 +764,10 @@ private struct DIYEval {
         }
         let syntheticDurations = synthetic.map(\.durationMS)
         let fieldDurations = field.map(\.durationMS)
+        let providerDurationsMS = field
+            .flatMap(\.providerDurationsSeconds).map { $0 * 1_000 }
+        let providerP95 = percentile(providerDurationsMS, 0.95)
+        let providerLatencyMeasured = !providerDurationsMS.isEmpty
         let unitCost = mean(field.map { Double($0.providerCalls) })
             * dataset.providerCallCostUSD
 
@@ -780,6 +817,8 @@ private struct DIYEval {
             value["historicalError"] = $0.historicalError ?? ""
             value["currentError"] = $0.currentError ?? ""
             value["alphaOccupancy"] = $0.alphaOccupancy.map(rounded) ?? NSNull()
+            value["providerDurationsMS"] =
+                $0.providerDurationsSeconds.map { rounded($0 * 1_000) }
             return value
         }
         let allCases = syntheticCases + fieldCases
@@ -795,8 +834,10 @@ private struct DIYEval {
             "p95SyntheticLatencyMS": rounded(percentile(syntheticDurations, 0.95)),
             "p95FieldLocalLatencyMS": rounded(percentile(fieldDurations, 0.95)),
             "estimatedUnitCostUSD": rounded(unitCost),
-            "providerP95LatencyMS": NSNull(),
-            "providerLatencyMeasured": false,
+            "providerP95LatencyMS": providerLatencyMeasured
+                ? rounded(providerP95) as Any : NSNull(),
+            "providerLatencyMeasured": providerLatencyMeasured,
+            "providerLatencySampleCount": providerDurationsMS.count,
         ]
         var report: [String: Any] = [
             "schemaVersion": 1,

@@ -1250,13 +1250,21 @@ extension AppDelegate {
             self.petGenerator.cancel(requestID)
             self.releaseStudioGeneration(requestID)
             self.disarmStarterActionWatchdog(requestID)
+            let providerSeconds = max(
+                0, Date().timeIntervalSince(
+                    self.starterActionProviderStartedAt.removeValue(
+                        forKey: requestID) ?? Date()))
             let spent = min(
                 record.usedProviderCalls + 1,
                 record.estimatedProviderCalls * record.maximumAttempts)
             if let failed = try? self.starterActionJobStore.markFailed(
                 jobID: jobID, code: "timed_out",
                 message: "The provider callback timed out; completed batches remain saved.",
-                usedProviderCalls: spent) {
+                usedProviderCalls: spent,
+                providerMetric: StarterActionProviderCallMetric(
+                    batchIndex: record.completedBatches,
+                    durationSeconds: providerSeconds,
+                    outcome: .timedOut)) {
                 self.emitStarterActionJob(failed)
             }
             self.reportStarterActionError(
@@ -1456,6 +1464,7 @@ extension AppDelegate {
                 requestID: requestID)
             emitStarterActionJob(generating)
             pushSettingsState()
+            starterActionProviderStartedAt[requestID] = Date()
             armStarterActionWatchdog(jobID: jobID, requestID: requestID)
             petGenerator.generateStarterActionBatch(
                 requestID: requestID,
@@ -1483,6 +1492,10 @@ extension AppDelegate {
                     guard let self else { return }
                     self.disarmStarterActionWatchdog(requestID)
                     self.releaseStudioGeneration(requestID)
+                    let providerSeconds = max(
+                        0, Date().timeIntervalSince(
+                            self.starterActionProviderStartedAt.removeValue(
+                                forKey: requestID) ?? Date()))
                     guard let current = try? self.starterActionJobStore.record(jobID: jobID),
                           current.state == .generating,
                           current.requestID == requestID else { return }
@@ -1494,12 +1507,26 @@ extension AppDelegate {
                         }
                         let spent = current.usedProviderCalls
                             + (self.starterActionFailureMayHaveSpent(error) ? 1 : 0)
+                        let outcome: StarterActionProviderOutcome
+                        if let generation = error as? PetGenerationError,
+                           case .timedOut = generation {
+                            outcome = .timedOut
+                        } else {
+                            outcome = .failed
+                        }
+                        let metric = self.starterActionFailureMayHaveSpent(error)
+                            ? StarterActionProviderCallMetric(
+                                batchIndex: batchIndex,
+                                durationSeconds: providerSeconds,
+                                outcome: outcome)
+                            : nil
                         let failed = try? self.starterActionJobStore.markFailed(
                             jobID: jobID, code: "provider_failed",
                             message: self.starterActionDetail(error),
                             usedProviderCalls: min(
                                 spent,
-                                current.estimatedProviderCalls * current.maximumAttempts))
+                                current.estimatedProviderCalls * current.maximumAttempts),
+                            providerMetric: metric)
                         if let failed { self.emitStarterActionJob(failed) }
                         self.reportStarterActionError(
                             jobID: jobID, error: error, code: "provider_failed")
@@ -1509,7 +1536,8 @@ extension AppDelegate {
                             let completed = try self.starterActionJobStore.storeCompletedBatch(
                                 jobID: jobID, batchIndex: batchIndex,
                                 pngData: output.data,
-                                usedProviderCalls: current.usedProviderCalls + 1)
+                                usedProviderCalls: current.usedProviderCalls + 1,
+                                providerSeconds: providerSeconds)
                             self.emitStarterActionJob(completed)
                             self.pushSettingsState()
                             if completed.completedBatches
@@ -1547,6 +1575,7 @@ extension AppDelegate {
                 })
         } catch {
             disarmStarterActionWatchdog(requestID)
+            starterActionProviderStartedAt.removeValue(forKey: requestID)
             releaseStudioGeneration(requestID)
             if let record = try? starterActionJobStore.record(jobID: jobID),
                record.state.isInFlight,
@@ -1683,6 +1712,23 @@ extension AppDelegate {
                 petGenerator.cancel(requestID)
                 disarmStarterActionWatchdog(requestID)
                 releaseStudioGeneration(requestID)
+                let providerSeconds = max(
+                    0, Date().timeIntervalSince(
+                        starterActionProviderStartedAt.removeValue(
+                            forKey: requestID) ?? Date()))
+                let spent = min(
+                    record.usedProviderCalls + 1,
+                    record.estimatedProviderCalls * record.maximumAttempts)
+                let cancelled = try starterActionJobStore.cancel(
+                    jobID: jobID,
+                    usedProviderCalls: spent,
+                    providerMetric: StarterActionProviderCallMetric(
+                        batchIndex: record.completedBatches,
+                        durationSeconds: providerSeconds,
+                        outcome: .cancelled))
+                emitStarterActionJob(cancelled)
+                pushSettingsState()
+                return
             }
             let cancelled = try starterActionJobStore.cancel(jobID: jobID)
             emitStarterActionJob(cancelled)

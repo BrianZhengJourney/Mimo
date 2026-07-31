@@ -93,11 +93,18 @@ struct StarterActionJobTests {
                    "every provider batch receives its own cancellable idempotency key")
             _ = try store.storeCompletedBatch(
                 jobID: gaze.id, batchIndex: batchIndex,
-                pngData: makeBatchPNG(), usedProviderCalls: batchIndex + 1)
+                pngData: makeBatchPNG(), usedProviderCalls: batchIndex + 1,
+                providerSeconds: Double(batchIndex + 1) * 12.5)
         }
         let completedGaze = try store.record(jobID: gaze.id)
         expect(completedGaze.usedProviderCalls == gaze.estimatedProviderCalls,
                "every completed paid call remains visible")
+        expect(completedGaze.providerCallMetrics?.map(\.durationSeconds)
+               == [12.5, 25.0, 37.5],
+               "provider latency is checkpointed beside every paid batch")
+        expect(completedGaze.providerCallMetrics?.allSatisfy {
+            $0.outcome == .success
+        } == true, "completed batches persist successful provider outcomes")
 
         let local = try store.markLocalProcessing(jobID: gaze.id, phase: "registering")
         expect(local.state == .localProcessing, "provider completion becomes local processing")
@@ -135,7 +142,8 @@ struct StarterActionJobTests {
             completedBatches: 0, usedProviderCalls: 0)
         let completed = try store!.storeCompletedBatch(
             jobID: sleep.id, batchIndex: 0,
-            pngData: makeBatchPNG(), usedProviderCalls: 1)
+            pngData: makeBatchPNG(), usedProviderCalls: 1,
+            providerSeconds: 18.25)
         expect(completed.completedBatches == 1 && completed.usedProviderCalls == 1,
                "each paid completed batch is durably checkpointed")
         store = nil
@@ -192,7 +200,8 @@ struct StarterActionJobTests {
             usedProviderCalls: 3,
             resultJobID: legacyResultID,
             errorCode: nil,
-            errorMessage: nil)
+            errorMessage: nil,
+            providerCallMetrics: nil)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(legacy).write(
@@ -220,11 +229,55 @@ struct StarterActionJobTests {
                "Studio exposes only the current sleep contract")
     }
 
+    static func testFailedAndCancelledProviderCallsKeepLatencyEvidence() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "mimo-starter-provider-metrics-\(UUID().uuidString)",
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = StarterActionJobStore(root: root)
+        let jobs = try store.ensureJobs(characterID: characterID)
+        let wall = jobs.first { $0.actionID == .wall }!
+        _ = try store.queue(
+            jobID: wall.id, requestID: UUID().uuidString, quality: "medium")
+        _ = try store.markGenerating(
+            jobID: wall.id, phase: "batch-1", completedBatches: 0,
+            usedProviderCalls: 0)
+        let failed = try store.markFailed(
+            jobID: wall.id, code: "provider_failed", message: "fixture",
+            usedProviderCalls: 1,
+            providerMetric: StarterActionProviderCallMetric(
+                batchIndex: 0, durationSeconds: 44.5, outcome: .failed))
+        expect(failed.providerCallMetrics == [
+            StarterActionProviderCallMetric(
+                batchIndex: 0, durationSeconds: 44.5, outcome: .failed),
+        ], "a failed paid call keeps its latency and outcome")
+
+        let tennis = jobs.first { $0.actionID == .tennis }!
+        _ = try store.queue(
+            jobID: tennis.id, requestID: UUID().uuidString, quality: "high")
+        _ = try store.markGenerating(
+            jobID: tennis.id, phase: "batch-1", completedBatches: 0,
+            usedProviderCalls: 0)
+        let cancelled = try store.cancel(
+            jobID: tennis.id, usedProviderCalls: 1,
+            providerMetric: StarterActionProviderCallMetric(
+                batchIndex: 0, durationSeconds: 3.25,
+                outcome: .cancelled))
+        expect(cancelled.usedProviderCalls == 1
+               && cancelled.providerCallMetrics?.first?.outcome == .cancelled,
+               "cancelling a submitted call preserves possible spend and latency")
+        let runtime = store.runtimeDictionary(for: cancelled)
+        expect((runtime["providerCallMetrics"] as? [[String: Any]])?.count == 1,
+               "Settings receives durable provider telemetry")
+    }
+
     static func main() throws {
         try testEnsureCreatesOneDurableCardPerStarterAction()
         try testJobMovesThroughPaidAndLocalPhasesIntoReview()
         try testRestartFailsClosedWithoutRepeatingPaidWork()
         try testRevisedSleepKeepsPaidLegacyAndCreatesANewCurrentCard()
+        try testFailedAndCancelledProviderCallsKeepLatencyEvidence()
         print("starter action job tests passed")
     }
 }

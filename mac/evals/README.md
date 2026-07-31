@@ -5,7 +5,7 @@ It never calls an image provider.
 
 ## Two fixed layers
 
-1. `diy-v2` synthetic matte cases have exact alpha ground truth. They measure
+1. `diy-v3` synthetic matte cases have exact alpha ground truth. They measure
    alpha IoU, boundary F1, foreground retention, background rejection, and a
    weighted matte error rate across S1/S2/S3 classes.
 2. Ten retained, current-contract Starter Action jobs are reprocessed from
@@ -19,9 +19,10 @@ It never calls an image provider.
    or changed field fixture invalidates the run instead of becoming a fake
    product failure.
 
-An additional `UNKNOWN` field artifact remains in the triage queue until one
-root cause is assigned. New S2/S3 and UNKNOWN examples must be added to a new
-versioned dataset before a round closes.
+Two `UNKNOWN` field artifacts remain in the triage queue until one root cause
+is assigned. `diy-v3` also pins the newly discovered framed S2 and near-edge S3
+matte cases. New S2/S3 and UNKNOWN examples must be added to a new versioned
+dataset before a round closes.
 
 ## Run
 
@@ -52,9 +53,11 @@ Each run writes:
 - no S1/S2/S3 class score regresses by more than `2` percentage points;
 - local p95 latency and estimated provider cost grow by no more than `10%`.
 
-Provider latency is not currently persisted on Starter Action job records.
-Until that telemetry exists, a candidate can pass the local-latency gate but
-cannot be promoted to 100% on the full end-to-end latency claim.
+Starter Action records persist the duration and outcome of every newly
+submitted provider call. Legacy retained jobs have no timing samples, so the
+first instrumented field cohort establishes a fresh provider-p95 baseline.
+Candidate rollout remains blocked until both its baseline and candidate have
+provider samples and the p95 ratio is at most `1.10`.
 
 ## Round discipline
 

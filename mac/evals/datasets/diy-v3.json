@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "name": "mimo-diy-v2",
+  "name": "mimo-diy-v3",
   "providerCallCostUSD": 0.045,
   "synthetic": {
     "casesPerClass": 20,
@@ -10,7 +10,9 @@
       {"id": "fine_hair_warm_matte", "severity": "S3"},
       {"id": "variable_warm_matte", "severity": "S2"},
       {"id": "green_matte", "severity": "S2"},
-      {"id": "green_subject_green_matte", "severity": "S3"}
+      {"id": "green_subject_green_matte", "severity": "S3"},
+      {"id": "framed_light_subject_warm_matte", "severity": "S2"},
+      {"id": "near_edge_light_subject_warm_matte", "severity": "S3"}
     ]
   },
   "fieldJobs": [
@@ -144,6 +146,12 @@
       "source": "ActionGenerationJobs",
       "severity": "UNKNOWN",
       "reason": "legacy external walk QA failed several gates and has no single assigned root cause"
+    },
+    {
+      "id": "456747ab-bcf0-4116-ac74-23fba1ab6b38",
+      "source": "StarterActionJobs",
+      "severity": "UNKNOWN",
+      "reason": "legacy two-call gaze predates the pinned eight-direction contract; its keep-count mapping and comparable ground truth are unavailable"
     }
   ]
 }

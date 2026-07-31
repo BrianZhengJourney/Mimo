@@ -423,6 +423,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var studioGenerationLedger = StudioGenerationLedger()
     var studioCleanupTimer: Timer?
     var starterActionWatchdogs: [String: DispatchWorkItem] = [:]
+    var starterActionProviderStartedAt: [String: Date] = [:]
     /// Fixed default-action roster, run sequentially so one click cannot
     /// collide with the single-provider ledger or submit duplicate batches.
     var starterActionPackQueue: [String] = []

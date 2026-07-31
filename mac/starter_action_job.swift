@@ -16,6 +16,19 @@ enum StarterActionJobState: String, Codable, CaseIterable, Sendable {
     }
 }
 
+enum StarterActionProviderOutcome: String, Codable, Sendable {
+    case success
+    case failed
+    case timedOut = "timed_out"
+    case cancelled
+}
+
+struct StarterActionProviderCallMetric: Codable, Equatable, Sendable {
+    let batchIndex: Int
+    let durationSeconds: Double
+    let outcome: StarterActionProviderOutcome
+}
+
 struct StarterActionJobRecord: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let maximumAttempts = 3
@@ -42,6 +55,9 @@ struct StarterActionJobRecord: Codable, Equatable, Sendable {
     var resultJobID: String?
     var errorCode: String?
     var errorMessage: String?
+    /// Optional for schema-v1 compatibility. New calls append one entry after
+    /// every submitted provider request, including failures and cancellation.
+    var providerCallMetrics: [StarterActionProviderCallMetric]?
 
     var canStart: Bool {
         [.planned, .failed, .cancelled].contains(state)
@@ -156,7 +172,8 @@ final class StarterActionJobStore: @unchecked Sendable {
                     usedProviderCalls: 0,
                     resultJobID: nil,
                     errorCode: nil,
-                    errorMessage: nil)
+                    errorMessage: nil,
+                    providerCallMetrics: [])
                 try persist(record)
                 existing.append(record)
                 current.append(record)
@@ -238,6 +255,7 @@ final class StarterActionJobStore: @unchecked Sendable {
     @discardableResult
     func storeCompletedBatch(jobID: String, batchIndex: Int,
                              pngData: Data, usedProviderCalls: Int,
+                             providerSeconds: Double,
                              now: Date = Date()) throws -> StarterActionJobRecord {
         try synchronized {
             try prepareStorage()
@@ -248,6 +266,7 @@ final class StarterActionJobStore: @unchecked Sendable {
                   (0..<record.estimatedProviderCalls).contains(batchIndex),
                   usedProviderCalls == record.usedProviderCalls + 1,
                   usedProviderCalls <= record.estimatedProviderCalls * record.maximumAttempts,
+                  Self.isValidProviderSeconds(providerSeconds),
                   Self.isValidBatchPNG(pngData) else {
                 throw StarterActionJobError.invalidTransition
             }
@@ -267,6 +286,12 @@ final class StarterActionJobStore: @unchecked Sendable {
             record.phase = "batch-\(batchIndex + 1)-complete"
             record.completedBatches = batchIndex + 1
             record.usedProviderCalls = usedProviderCalls
+            var metrics = record.providerCallMetrics ?? []
+            metrics.append(StarterActionProviderCallMetric(
+                batchIndex: batchIndex,
+                durationSeconds: providerSeconds,
+                outcome: .success))
+            record.providerCallMetrics = metrics
             try persist(record)
             committed = true
             return record
@@ -371,7 +396,9 @@ final class StarterActionJobStore: @unchecked Sendable {
 
     @discardableResult
     func markFailed(jobID: String, code: String, message: String,
-                    usedProviderCalls: Int? = nil, now: Date = Date()) throws
+                    usedProviderCalls: Int? = nil,
+                    providerMetric: StarterActionProviderCallMetric? = nil,
+                    now: Date = Date()) throws
         -> StarterActionJobRecord {
         try update(jobID: jobID) { record in
             guard record.state.isInFlight else {
@@ -385,6 +412,17 @@ final class StarterActionJobStore: @unchecked Sendable {
                 }
                 record.usedProviderCalls = usedProviderCalls
             }
+            if let providerMetric {
+                guard Self.isValidProviderMetric(
+                    providerMetric, estimatedCalls: record.estimatedProviderCalls),
+                      (record.providerCallMetrics?.count ?? 0)
+                        < record.usedProviderCalls else {
+                    throw StarterActionJobError.invalidTransition
+                }
+                var metrics = record.providerCallMetrics ?? []
+                metrics.append(providerMetric)
+                record.providerCallMetrics = metrics
+            }
             record.state = .failed
             record.updatedAt = now
             record.phase = "failed"
@@ -395,10 +433,31 @@ final class StarterActionJobStore: @unchecked Sendable {
     }
 
     @discardableResult
-    func cancel(jobID: String, now: Date = Date()) throws -> StarterActionJobRecord {
+    func cancel(jobID: String, usedProviderCalls: Int? = nil,
+                providerMetric: StarterActionProviderCallMetric? = nil,
+                now: Date = Date()) throws -> StarterActionJobRecord {
         try update(jobID: jobID) { record in
             guard record.canCancel else {
                 throw StarterActionJobError.invalidTransition
+            }
+            if let usedProviderCalls {
+                guard (record.usedProviderCalls...(record.estimatedProviderCalls
+                       * record.maximumAttempts))
+                    .contains(usedProviderCalls) else {
+                    throw StarterActionJobError.invalidTransition
+                }
+                record.usedProviderCalls = usedProviderCalls
+            }
+            if let providerMetric {
+                guard Self.isValidProviderMetric(
+                    providerMetric, estimatedCalls: record.estimatedProviderCalls),
+                      (record.providerCallMetrics?.count ?? 0)
+                        < record.usedProviderCalls else {
+                    throw StarterActionJobError.invalidTransition
+                }
+                var metrics = record.providerCallMetrics ?? []
+                metrics.append(providerMetric)
+                record.providerCallMetrics = metrics
             }
             record.state = .cancelled
             record.updatedAt = now
@@ -438,6 +497,15 @@ final class StarterActionJobStore: @unchecked Sendable {
         if let resultJobID = record.resultJobID { value["resultJobID"] = resultJobID }
         if let errorCode = record.errorCode { value["errorCode"] = errorCode }
         if let errorMessage = record.errorMessage { value["errorMessage"] = errorMessage }
+        if let metrics = record.providerCallMetrics {
+            value["providerCallMetrics"] = metrics.map {
+                [
+                    "batchIndex": $0.batchIndex,
+                    "durationSeconds": $0.durationSeconds,
+                    "outcome": $0.outcome.rawValue,
+                ] as [String: Any]
+            }
+        }
         return value
     }
 
@@ -505,7 +573,8 @@ final class StarterActionJobStore: @unchecked Sendable {
               (1...12).contains(record.estimatedProviderCalls),
               (0...record.estimatedProviderCalls).contains(record.completedBatches),
               (0...(record.estimatedProviderCalls * record.maximumAttempts))
-                .contains(record.usedProviderCalls) else {
+                .contains(record.usedProviderCalls),
+              Self.hasValidProviderMetrics(record) else {
             throw StarterActionJobError.missingJob
         }
         return record
@@ -519,7 +588,8 @@ final class StarterActionJobStore: @unchecked Sendable {
               (0...record.maximumAttempts).contains(record.attempt),
               (0...record.estimatedProviderCalls).contains(record.completedBatches),
               (0...(record.estimatedProviderCalls * record.maximumAttempts))
-                .contains(record.usedProviderCalls) else {
+                .contains(record.usedProviderCalls),
+              Self.hasValidProviderMetrics(record) else {
             throw StarterActionJobError.corruptStore
         }
         let directory = jobsURL.appendingPathComponent(record.id, isDirectory: true)
@@ -575,6 +645,28 @@ final class StarterActionJobStore: @unchecked Sendable {
             return false
         }
         return width.intValue == 1536 && height.intValue == 1024
+    }
+
+    private static func isValidProviderSeconds(_ value: Double) -> Bool {
+        value.isFinite && value >= 0 && value <= 3_600
+    }
+
+    private static func isValidProviderMetric(
+        _ metric: StarterActionProviderCallMetric, estimatedCalls: Int
+    ) -> Bool {
+        (0..<estimatedCalls).contains(metric.batchIndex)
+            && isValidProviderSeconds(metric.durationSeconds)
+    }
+
+    private static func hasValidProviderMetrics(
+        _ record: StarterActionJobRecord
+    ) -> Bool {
+        guard let metrics = record.providerCallMetrics else { return true }
+        return metrics.count <= record.usedProviderCalls
+            && metrics.allSatisfy {
+                isValidProviderMetric(
+                    $0, estimatedCalls: record.estimatedProviderCalls)
+            }
     }
 
     private static func productOrdered(_ records: [StarterActionJobRecord])
