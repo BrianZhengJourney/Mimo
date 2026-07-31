@@ -171,6 +171,38 @@ struct ActionSheetTests {
         } catch { preconditionFailure("unexpected \(error)") }
     }
 
+    /// The first retained tennis batch kept the complete racket on the canvas,
+    /// but it crossed the implied 512px boundary into empty space before the
+    /// next pose. The boundary was wrong; the art was not cropped. A clear
+    /// inter-pose gutter must recover that frame without a paid reroll.
+    static func testUnframedHorizontalFamilyRegistersTransparentGutters() throws {
+        let width = 384, height = 128
+        var sheet = CharacterSheetRGBAImage(
+            width: width, height: height, fill: (241, 236, 226, 255))
+        for rectangle in [
+            bounds(36, 26, 119, 82),   // crosses the implied x=128 boundary
+            bounds(178, 28, 62, 80),
+            bounds(292, 24, 58, 84),
+        ] {
+            for y in rectangle.y..<(rectangle.y + rectangle.height) {
+                for x in rectangle.x..<(rectangle.x + rectangle.width) {
+                    sheet.setRGBA(x: x, y: y, (70, 46, 38, 255))
+                }
+            }
+        }
+        let result = try ActionSheetProcessor.process(
+            pngData: png(sheet),
+            layout: ActionSheetLayout(rows: 1, columns: 3),
+            outputCellSize: 128)
+        expect(result.frames.count == 3,
+               "three recoverable poses remain three registered frames")
+        expect(result.frames[0].bounds.width == 119,
+               "the complete cross-boundary racket/body silhouette is retained")
+        expect(result.sourceCells.allSatisfy {
+            ActionSheetProcessor.clippedEdge(of: $0) == nil
+        }, "every recovered pose sits clear of its measured gutter")
+    }
+
     static func testSparseLargePanelEdgeContactIsNotClipping() {
         var cell = CharacterSheetRGBAImage(width: 500, height: 1000)
         // A safely contained body plus eighteen antialiased hair pixels at the
@@ -656,6 +688,7 @@ struct ActionSheetTests {
         try testFeetLandOnTheBaseline()
         try testNeighbourOverflowIsRemovedFromTheCell()
         testSubjectCutByThePanelEdgeIsRejected()
+        try testUnframedHorizontalFamilyRegistersTransparentGutters()
         testFramedBottomContactIsRejected()
         try testSplitStrokePanelBordersAreMerged()
         testSparseLargePanelEdgeContactIsNotClipping()

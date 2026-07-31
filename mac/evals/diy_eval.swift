@@ -814,26 +814,44 @@ private struct DIYEval {
         }
 
         if let comparisonDeltas = comparison["caseDeltas"] as? [[String: Any]] {
-            let byID = Dictionary(uniqueKeysWithValues: synthetic.map { ($0.id, $0) })
-            let sorted = comparisonDeltas.compactMap { value -> (SyntheticResult, Double)? in
-                guard let id = value["id"] as? String, let item = byID[id],
-                      let delta = (value["delta"] as? NSNumber)?.doubleValue else { return nil }
-                return (item, delta)
+            let syntheticByID = Dictionary(
+                uniqueKeysWithValues: synthetic.map { ($0.id, $0) })
+            let fieldByID = Dictionary(
+                uniqueKeysWithValues: field.map { ($0.id, $0) })
+            let changed = comparisonDeltas.compactMap {
+                value -> (id: String, delta: Double)? in
+                guard let id = value["id"] as? String,
+                      let delta = (value["delta"] as? NSNumber)?.doubleValue,
+                      abs(delta) > 0.000_001 else { return nil }
+                return (id, delta)
             }
-            let improvements = sorted.sorted { $0.1 > $1.1 }.prefix(12).map(\.0)
-            let regressions = sorted.sorted { $0.1 < $1.1 }.prefix(12).map(\.0)
-            for (name, items) in [
-                ("improvements-contact-sheet.png", Array(improvements)),
-                ("regressions-contact-sheet.png", Array(regressions)),
+            let improvements = changed.filter { $0.delta > 0 }
+                .sorted { $0.delta > $1.delta }.prefix(12)
+            let regressions = changed.filter { $0.delta < 0 }
+                .sorted { $0.delta < $1.delta }.prefix(12)
+            for (name, items, reportKey) in [
+                ("improvements-contact-sheet.png", Array(improvements),
+                 "improvementContactSheetRows"),
+                ("regressions-contact-sheet.png", Array(regressions),
+                 "regressionContactSheetRows"),
             ] {
-                let rows = items.map {
-                    [resize($0.source, size: 128),
-                     extractedPreview($0, size: 128),
-                     errorPreview($0, size: 128)]
+                let rows = items.compactMap { item -> [CharacterSheetRGBAImage]? in
+                    if let synthetic = syntheticByID[item.id] {
+                        return [
+                            resize(synthetic.source, size: 128),
+                            extractedPreview(synthetic, size: 128),
+                            errorPreview(synthetic, size: 128),
+                        ]
+                    }
+                    if let preview = fieldByID[item.id]?.preview {
+                        return [preview]
+                    }
+                    return nil
                 }
                 try contactSheet(rows, cellSize: 128).write(
                     to: arguments.output.appendingPathComponent(name),
                     options: [.atomic])
+                report[reportKey] = items.map(\.id)
             }
         }
 

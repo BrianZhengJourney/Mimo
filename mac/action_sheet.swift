@@ -377,8 +377,13 @@ enum ActionSheetProcessor {
         // model's uneven rows cannot make the character change size between
         // frames. Sheets with no detectable grid (older art, synthetic
         // fixtures) fall back to the uniform grid.
-        let rowRanges = drawnGrid?.rows ?? uniformRanges(total: source.height, count: layout.rows)
-        let columnRanges = drawnGrid?.columns ?? uniformRanges(total: source.width, count: layout.columns)
+        let rowRanges = drawnGrid?.rows
+            ?? uniformRanges(total: source.height, count: layout.rows)
+        let columnRanges = drawnGrid?.columns
+            ?? (layout.rows == 1
+                ? transparentGutterColumnRanges(source, count: layout.columns)
+                : nil)
+            ?? uniformRanges(total: source.width, count: layout.columns)
         let referencePanelHeight = Double(rowRanges.map(\.count).sorted()[rowRanges.count / 2])
 
         var cells: [CharacterSheetRGBAImage] = []
@@ -477,6 +482,66 @@ enum ActionSheetProcessor {
     static func uniformRanges(total: Int, count: Int) -> [Range<Int>] {
         let size = total / count
         return (0..<count).map { ($0 * size)..<(($0 + 1) * size) }
+    }
+
+    /// Registers an unframed 1×N action family from the actual transparent
+    /// gutters between poses. GPT Image can keep a complete long prop on the
+    /// canvas while letting it cross an implied 512px boundary. Uniform slicing
+    /// then manufactures a crop even though every pixel is recoverable.
+    ///
+    /// Only wide, fully transparent runs near the expected boundaries qualify.
+    /// If any separator is ambiguous, the caller falls back to strict uniform
+    /// slicing and its existing clipping rejection.
+    static func transparentGutterColumnRanges(
+        _ image: CharacterSheetRGBAImage, count: Int
+    ) -> [Range<Int>]? {
+        guard count > 1, image.width >= count * minimumSubjectHeight,
+              image.height > 0 else { return nil }
+        let nominal = image.width / count
+        let radius = max(24, nominal * 2 / 5)
+        let minimumGutter = max(8, nominal / 64)
+        var foreground = [Int](repeating: 0, count: image.width)
+        for y in 0..<image.height {
+            for x in 0..<image.width
+                where image.pixels[(y * image.width + x) * 4 + 3]
+                    > clipAlphaThreshold {
+                foreground[x] += 1
+            }
+        }
+
+        var cuts: [Int] = []
+        for separator in 1..<count {
+            let expected = image.width * separator / count
+            let low = max(1, expected - radius)
+            let high = min(image.width - 1, expected + radius)
+            var runs: [Range<Int>] = []
+            var start: Int?
+            for x in low..<high {
+                if foreground[x] == 0 {
+                    if start == nil { start = x }
+                } else if let value = start {
+                    runs.append(value..<x)
+                    start = nil
+                }
+            }
+            if let value = start { runs.append(value..<high) }
+            guard let best = runs.filter({ $0.count >= minimumGutter }).max(by: {
+                if $0.count == $1.count {
+                    let leftDistance = abs(($0.lowerBound + $0.upperBound) / 2 - expected)
+                    let rightDistance = abs(($1.lowerBound + $1.upperBound) / 2 - expected)
+                    return leftDistance > rightDistance
+                }
+                return $0.count < $1.count
+            }) else { return nil }
+            cuts.append((best.lowerBound + best.upperBound) / 2)
+        }
+
+        let edges = [0] + cuts + [image.width]
+        let ranges = (0..<count).map { edges[$0]..<edges[$0 + 1] }
+        guard ranges.allSatisfy({ $0.count >= minimumSubjectHeight }) else {
+            return nil
+        }
+        return ranges
     }
 
     /// Finds the near-black frame lines the model was asked to draw and
