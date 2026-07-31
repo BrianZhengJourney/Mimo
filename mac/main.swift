@@ -417,7 +417,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     let starterActionJobStore = StarterActionJobStore(root: logDir)
     let companionRuntime = CompanionRuntime()
     var companionSpriteCache: [String: CompanionSprite] = [:]
-    var bundledPreviewAssets: [String: CompanionPreviewAsset] = [:]
     var activeCompanionSpec: [String: Any]?
     let generationDraftStore = FamiliarGenerationDraftStore(root: logDir)
     var studioGenerationLedger = StudioGenerationLedger()
@@ -595,7 +594,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let settings = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
-        appMenu.addItem(makeCompanionPreviewRoot())
         appMenu.addItem(NSMenuItem.separator())
         appMenu.delegate = self
 
@@ -641,8 +639,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let huntRoot = item(voice("开始一次冒险", "Begin a quest"), nil, "", "scope")
         menu.addItem(huntRoot)
         menu.setSubmenu(huntMenu, for: huntRoot)
-
-        menu.addItem(makeCompanionPreviewRoot())
 
         menu.addItem(NSMenuItem.separator())
 
@@ -1072,9 +1068,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         syncNativeHosting()
     }
 
-    /// The familiar's right-click menu. Native raster familiars also expose an
-    /// acceptance loop so generated strips can be inspected on demand instead
-    /// of waiting for a low-probability behavior to fire.
+    /// The familiar's compact right-click menu. Generated actions are reviewed
+    /// in Studio, which owns preview/accept state and avoids a second debug UI.
     func showCompanionMenu() {
         let m = NSMenu()
         let hideIt = NSMenuItem(title: overlayHidden ? voice("显示米墨", "Show Mimo") : voice("藏起米墨", "Hide Mimo"),
@@ -1086,140 +1081,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         settingsIt.target = self
         settingsIt.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         m.addItem(settingsIt)
-        if nativeCompanionActive {
-            m.addItem(makeCompanionPreviewRoot())
-        }
         m.addItem(NSMenuItem.separator())
         let quitIt = NSMenuItem(title: voice("退出 Mimo", "Quit Mimo"), action: #selector(quitApp(_:)), keyEquivalent: "")
         quitIt.target = self
         m.addItem(quitIt)
         m.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
-    }
-
-    private func makeCompanionPreviewRoot() -> NSMenuItem {
-        let root = NSMenuItem(title: voice("验收动作", "Preview Action"),
-                              action: nil, keyEquivalent: "")
-        root.identifier = .init("previewActions")
-        root.image = NSImage(systemSymbolName: "play.rectangle",
-                             accessibilityDescription: nil)
-        root.isEnabled = nativeCompanionActive
-        root.submenu = makeCompanionPreviewMenu()
-        return root
-    }
-
-    private func makeCompanionPreviewMenu() -> NSMenu {
-        let menu = NSMenu()
-        let automatic = NSMenuItem(title: voice("自动行为", "Automatic"),
-                                   action: #selector(previewCompanionAction(_:)),
-                                   keyEquivalent: "")
-        automatic.target = self
-        automatic.representedObject = NSNull()
-        automatic.state = companionRuntime.previewActionName == nil ? .on : .off
-        menu.addItem(automatic)
-        menu.addItem(.separator())
-
-        addBundledPreviewGroup(
-            title: voice("HatchPet · v2 Atlas", "HatchPet · v2 Atlas"),
-            definitions: CompanionPreviewCatalog.hatchPet,
-            to: menu)
-        addBundledPreviewGroup(
-            title: voice(
-                "Mimo 混合方案 · 高保真一致动作组",
-                "Mimo Hybrid · High-Fidelity Coherent Family"),
-            definitions: CompanionPreviewCatalog.hybridFrames,
-            to: menu)
-        addBundledPreviewGroup(
-            title: voice(
-                "Mimo 实验 · 逐帧独立生成",
-                "Mimo Experiment · Independent Frames"),
-            definitions: CompanionPreviewCatalog.independentFrames,
-            to: menu)
-
-        let labels = [
-            ("walk", voice("走路 · 循环", "Walk · Loop")),
-            ("gaze", voice("注视 · 循环", "Gaze · Loop")),
-            ("rest", voice("休息 · 整条循环", "Rest · Full Loop")),
-            ("wall", voice("墙边 · 整条循环", "Wall · Full Loop")),
-        ]
-        let available = Set((activeCompanionSpec?["actionURLs"] as? [String: String] ?? [:]).keys)
-        let installed = labels.filter { available.contains($0.0) }
-        if !installed.isEmpty {
-            let group = NSMenuItem(
-                title: voice(
-                    "Mimo 原方案 · 整张动作表一次生成",
-                    "Mimo Original · One Full Action Sheet"),
-                action: nil, keyEquivalent: "")
-            let submenu = NSMenu()
-            for (name, title) in installed {
-                let item = NSMenuItem(
-                    title: title, action: #selector(previewCompanionAction(_:)),
-                    keyEquivalent: "")
-                item.target = self
-                item.representedObject = "installed:\(name)"
-                item.state = companionRuntime.previewActionName == name ? .on : .off
-                submenu.addItem(item)
-            }
-            menu.setSubmenu(submenu, for: group)
-            menu.addItem(group)
-        }
-        return menu
-    }
-
-    private func addBundledPreviewGroup(title: String,
-                                        definitions: [CompanionPreviewDefinition],
-                                        to menu: NSMenu) {
-        loadBundledPreviewAssetsIfNeeded()
-        let available = definitions.compactMap { definition -> CompanionPreviewAsset? in
-            bundledPreviewAssets[definition.id]
-        }
-        guard !available.isEmpty else { return }
-        let group = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        let submenu = NSMenu()
-        for asset in available {
-            let definition = asset.definition
-            let item = NSMenuItem(
-                title: voice(definition.titleZh, definition.titleEn),
-                action: #selector(previewCompanionAction(_:)),
-                keyEquivalent: "")
-            item.target = self
-            item.representedObject = "bundled:\(definition.id)"
-            item.state = companionRuntime.previewActionName == definition.id ? .on : .off
-            submenu.addItem(item)
-        }
-        menu.setSubmenu(submenu, for: group)
-        menu.addItem(group)
-    }
-
-    private func loadBundledPreviewAssetsIfNeeded() {
-        guard bundledPreviewAssets.isEmpty else { return }
-        let assets = CompanionPreviewCatalog.loadHatchPet()
-            + CompanionPreviewCatalog.loadHybridFrames()
-            + CompanionPreviewCatalog.loadIndependentFrames()
-        bundledPreviewAssets = Dictionary(
-            uniqueKeysWithValues: assets.map { ($0.definition.id, $0) })
-    }
-
-    @objc func previewCompanionAction(_ sender: NSMenuItem) {
-        guard let selection = sender.representedObject as? String else {
-            _ = companionRuntime.previewAction(named: nil)
-            recordCompanionStatus("preview selected: automatic")
-            return
-        }
-        if selection.hasPrefix("installed:") {
-            let name = String(selection.dropFirst("installed:".count))
-            _ = companionRuntime.previewAction(named: name)
-            recordCompanionStatus("preview selected: installed:\(name)")
-            return
-        }
-        if selection.hasPrefix("bundled:") {
-            let id = String(selection.dropFirst("bundled:".count))
-            loadBundledPreviewAssetsIfNeeded()
-            guard let asset = bundledPreviewAssets[id] else { return }
-            _ = companionRuntime.previewExternalAction(
-                named: id, sprite: asset.sprite,
-                playbackSpec: asset.playbackSpec)
-            recordCompanionStatus("preview selected: bundled:\(id)")
-        }
     }
 
     // ── hover hot-zone: click-through everywhere except over the creature ──
@@ -1543,10 +1409,6 @@ extension AppDelegate: NSMenuDelegate {
 
             if item.identifier?.rawValue == "aiStatus" { item.title = SmartClassifier.shared.statusLine }
             if item.identifier?.rawValue == "hideToggle" { item.title = overlayHidden ? "Show familiar" : "Hide familiar" }
-            if item.identifier?.rawValue == "previewActions" {
-                item.isEnabled = nativeCompanionActive
-                item.submenu = makeCompanionPreviewMenu()
-            }
             if item.identifier?.rawValue == "studioStatus" {
                 item.isHidden = studioNotice == nil
                 item.title = studioNotice.map { voice("Mimo Studio：\($0)", "Mimo Studio: \($0)") } ?? ""

@@ -13,7 +13,6 @@ APP_SOURCES=(
   companion_geometry.swift
   companion_physics.swift
   companion_sprite.swift
-  companion_preview_catalog.swift
   companion_window.swift
   companion_expression.swift
   companion_behavior.swift

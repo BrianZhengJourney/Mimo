@@ -24,7 +24,6 @@ cp AppIcon.icns "$APP/Contents/Resources/"
 cp -R assets/style-reference "$APP/Contents/Resources/style-reference"
 cp -R assets/motion-reference "$APP/Contents/Resources/motion-reference"
 cp -R assets/behavior "$APP/Contents/Resources/behavior"
-cp -R assets/preview "$APP/Contents/Resources/preview"
 
 frameworks=()
 for framework in "${APP_FRAMEWORKS[@]}"; do frameworks+=(-framework "$framework"); done
