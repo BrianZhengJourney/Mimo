@@ -17,6 +17,10 @@ struct ReleaseSurfaceTests {
             contentsOfFile: "mac/build.sh", encoding: .utf8)
         let common = try String(
             contentsOfFile: "mac/common.sh", encoding: .utf8)
+        let product = try String(
+            contentsOfFile: "mac/product.swift", encoding: .utf8)
+        let petGeneration = try String(
+            contentsOfFile: "mac/pet_generation.swift", encoding: .utf8)
 
         expect(!main.contains("makeCompanionPreviewRoot") &&
                !main.contains("验收动作") &&
@@ -28,6 +32,9 @@ struct ReleaseSurfaceTests {
         expect(!FileManager.default.fileExists(
             atPath: "mac/assets/preview"),
                "retired preview fixtures should not remain in the release tree")
+        expect(!product.lowercased().contains("pixellab") &&
+               !petGeneration.lowercased().contains("pixellab"),
+               "release credential state should expose only the active OpenAI provider")
 
         print("release surface tests passed")
     }

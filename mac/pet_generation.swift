@@ -8,16 +8,10 @@ import LocalAuthentication
 import Security
 
 enum MimoSecret: String {
-    case pixelLab = "pixellab"
     case openAI = "openai"
 
     private var account: String { "mimo.\(rawValue).api-key" }
-    private var environmentNames: [String] {
-        switch self {
-        case .pixelLab: return ["PIXELLAB_API_TOKEN", "PIXELLAB_API_KEY"]
-        case .openAI: return ["OPENAI_API_KEY"]
-        }
-    }
+    private var environmentNames: [String] { ["OPENAI_API_KEY"] }
 
     private func validated(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)

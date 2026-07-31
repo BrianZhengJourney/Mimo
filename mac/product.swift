@@ -515,7 +515,6 @@ extension AppDelegate {
             "login": SMAppService.mainApp.status == .enabled,
             "stats": historyStats(),
             "projects": GitWatcher.projectsDir().lastPathComponent,
-            "pixelLabConfigured": MimoSecret.pixelLab.isConfigured,
             "openAIConfigured": MimoSecret.openAI.isConfigured,
             "openAIKeySource": MimoSecret.openAI.source.rawValue,
             "imageQuality": PetFinalGenerationQuality.resolve(
@@ -2583,16 +2582,12 @@ extension AppDelegate {
             }
         case "petSaveKeys":
             var failed: [String] = []
-            if let value = body["pixelLab"] as? String, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if !MimoSecret.pixelLab.write(value) { failed.append("PixelLab") }
-            }
             if let value = body["openAI"] as? String, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 if !MimoSecret.openAI.write(value) { failed.append("OpenAI") }
             }
             var keyState: [String: Any] = [
-                "pixelLabConfigured": MimoSecret.pixelLab.isConfigured,
                 "openAIConfigured": MimoSecret.openAI.isConfigured,
-            "openAIKeySource": MimoSecret.openAI.source.rawValue,
+                "openAIKeySource": MimoSecret.openAI.source.rawValue,
             ]
             if !failed.isEmpty {
                 keyState["failed"] = failed
@@ -2600,15 +2595,21 @@ extension AppDelegate {
             }
             settingsCall("petKeysSaved", keyState)
         case "petClearKey":
-            let provider = body["provider"] as? String == "openai" ? "OpenAI" : "PixelLab"
-            let cleared = provider == "OpenAI" ? MimoSecret.openAI.write("") : MimoSecret.pixelLab.write("")
+            guard body["provider"] as? String == "openai" else {
+                settingsCall("petKeysSaved", [
+                    "openAIConfigured": MimoSecret.openAI.isConfigured,
+                    "openAIKeySource": MimoSecret.openAI.source.rawValue,
+                    "error": voice("不支持这个密钥类型。", "This credential type is not supported."),
+                ])
+                return
+            }
+            let cleared = MimoSecret.openAI.write("")
             var keyState: [String: Any] = [
-                "pixelLabConfigured": MimoSecret.pixelLab.isConfigured,
                 "openAIConfigured": MimoSecret.openAI.isConfigured,
-            "openAIKeySource": MimoSecret.openAI.source.rawValue,
-                "cleared": provider,
+                "openAIKeySource": MimoSecret.openAI.source.rawValue,
+                "cleared": "OpenAI",
             ]
-            if !cleared { keyState["error"] = voice("无法清除 \(provider)", "Could not clear \(provider)") }
+            if !cleared { keyState["error"] = voice("无法清除 OpenAI", "Could not clear OpenAI") }
             settingsCall("petKeysSaved", keyState)
         case "petConfirmReferences":
             guard let requestID = generationRequestID(body["requestID"]),
