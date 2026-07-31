@@ -18,7 +18,7 @@ func voice(_ zh: String, _ en: String) -> String {
 
 // ── app classification ──────────────────────────────────────
 // kind strings understood by overlay.html:
-//   code / term / cad / paper / notes  → deep work (typed resources)
+//   code / term / cad / paper / notes  → focused work
 //   distraction / neutral
 
 let deepApps: [String: String] = [
@@ -105,7 +105,7 @@ func defaultKind(_ key: String) -> String {
     return "neutral"
 }
 
-// YouTube is not one thing: shorts are junk food, lectures are spellbooks
+// YouTube is not one thing: shorts distract, while lectures can be focused reading
 func youtubeKind(path: String, title: String?) -> String {
     if path.hasPrefix("/shorts") { return "distraction" }
     let t = (title ?? "").lowercased()
@@ -1367,9 +1367,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     var ruleKinds: [(id: String, label: String)] { [
-        ("code", voice("成长 · 编程", "Growth · code")), ("term", voice("成长 · 终端", "Growth · terminal")),
-        ("cad", voice("成长 · 设计", "Growth · CAD/design")), ("paper", voice("成长 · 阅读", "Growth · reading")),
-        ("notes", voice("成长 · 笔记", "Growth · notes")), ("neutral", voice("日常", "Everyday")),
+        ("code", voice("专注 · 编程", "Focus · code")), ("term", voice("专注 · 终端", "Focus · terminal")),
+        ("cad", voice("专注 · 设计", "Focus · CAD/design")), ("paper", voice("专注 · 阅读", "Focus · reading")),
+        ("notes", voice("专注 · 笔记", "Focus · notes")), ("neutral", voice("日常", "Everyday")),
         ("distraction", voice("分心", "Distraction")),
     ] }
 
@@ -1393,7 +1393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let win = NSWindow(contentRect: scroll.frame,
                                styleMask: [.titled, .closable, .resizable],
                                backing: .buffered, defer: false)
-            win.title = voice("Mimo 成长规则", "Mimo Growth Rules")
+            win.title = voice("Mimo 专注分类", "Mimo Focus Categories")
             win.contentView = scroll
             win.isReleasedWhenClosed = false
             win.center()
@@ -1465,8 +1465,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "log":
             if let entry = body["entry"] as? [String: Any] { appendLog(entry) }
         case "sound":
-            // gain = soft tick, streak = bright ping, poison = low thud
-            let map = ["gain": "Tink", "streak": "Ping", "poison": "Basso"]
+            // streak = bright ping, poison = low thud
+            let map = ["streak": "Ping", "poison": "Basso"]
             if let n = body["name"] as? String, let snd = map[n] { playSound(snd) }
         default:
             break

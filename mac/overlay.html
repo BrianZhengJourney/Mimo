@@ -455,7 +455,6 @@ body[data-char="pixel"] .shadow{ display:none; }
 <div class="stage" id="stage">
   <div class="status-badge" id="statusBadge"><span class="sb-dot"></span><span id="statusText">😐 发发呆</span></div>
   <div class="hud" id="hud">
-    <div class="hud-row" id="resRow"></div>
     <div class="hud-row">
       <span class="chip">🔥 <span class="flamebar"><span class="flamefill" id="flame"></span></span></span>
       <span class="chip streak">◇ <b id="streak">0m</b></span>
@@ -911,7 +910,7 @@ function prototypeMascotPack(spec){
 }
 
 /* v2 raster packs keep the model's polished character art. Mimo supplies all
-   motion, shadow, aura, state filters, and level transitions around one local
+   motion, shadow, aura, and state filters around one local
    three-frame sheet instead of crushing it back into a 20×18 grid. */
 function rasterMascotPack(spec){
   const accent=/^#[0-9a-f]{6}$/i.test(spec.accent||'')?spec.accent:'#7df0cf';
@@ -978,17 +977,17 @@ const Mascot = (() => {
   /* Always draw the approved mature take. The other two cells are generation
      redundancy, not levels the user has to unlock. */
   const MATURE_STAGE = 2;
-  const stageForLevel = () => MATURE_STAGE;
+  const stageForDisplay = () => MATURE_STAGE;
 
-  const rowsForLevel = (pack, level) => {
+  const rowsForDisplay = (pack) => {
     const forms = pack.EVOLUTION_BASES;
     if (!Array.isArray(forms) || !forms.length) return pack.BASE;
-    const index = stageForLevel();
+    const index = stageForDisplay();
     return forms[Math.min(index, forms.length - 1)] || pack.BASE;
   };
-  const artForLevel = (pack, level) => {
+  const artForDisplay = (pack) => {
     if (pack.RASTER_SHEET) {
-      const stage=stageForLevel();
+      const stage=stageForDisplay();
       // A stage with an expression sheet uses ONLY that sheet: frame 0
       // (NEUTRAL) is its idle art, 1 = JOY, 2 = REST. All three frames share
       // one normalized scale + baseline, so swaps can't jitter.
@@ -997,7 +996,7 @@ const Mascot = (() => {
       const frame=exprSheet?0:stage;
       return {body:`<g clip-path="url(#ffpRasterClip)"><image id="ffpRasterImg" href="${esc(sheet)}" x="${-22*frame}" y="0" width="66" height="22" preserveAspectRatio="none" style="image-rendering:auto"/></g>`,depth:'',hasExpressions:!!exprSheet};
     }
-    return bodyFor(pack,rowsForLevel(pack,level));
+    return bodyFor(pack,rowsForDisplay(pack));
   };
 
   let pack = null, refs = null, current = null, walking = false;
@@ -1016,10 +1015,10 @@ const Mascot = (() => {
      It cannot work this out alone: the base sheet's cells are stages while an
      expression sheet's three cells are NEUTRAL/JOY/REST, so which sheet is in
      play decides what the frame index means, and the expression is chosen
-     here. The stage is now always the mature one (see stageForLevel). */
+     here. The stage is now always the approved display take. */
   function reportCompanionArt(expressionFrame){
     if (!pack || !pack.RASTER_SHEET) return;
-    const stage = stageForLevel();
+    const stage = stageForDisplay();
     const hasExpressions = !!(refs && refs._full && refs._full.hasExpressions);
     let expression = expressionFrame;
     if (typeof expression !== 'number') {
@@ -1067,9 +1066,9 @@ const Mascot = (() => {
     if (badge) badge.style.bottom = (displaySize + 8) + 'px';
     const aura=pack.aura || {cx:8,cy:8,rx:9,ry:8};
     const paws=pack.paws || [[3,11],[9,11]];
-    const levelRows=pack.RASTER_SHEET?null:rowsForLevel(pack,1);
-    const full=artForLevel(pack,1);
-    const walkRows=pack.walk&&levelRows?bodyFor(pack,levelRows.slice(0,pack.walk.rows)):null;
+    const displayRows=pack.RASTER_SHEET?null:rowsForDisplay(pack);
+    const full=artForDisplay(pack);
+    const walkRows=pack.walk&&displayRows?bodyFor(pack,displayRows.slice(0,pack.walk.rows)):null;
     holder.innerHTML = `
     <div class="ffp-wrap" id="ffpWrap">
       <svg viewBox="${pack.viewBox}" width="100%" height="100%" style="display:block;overflow:visible">
@@ -1199,7 +1198,6 @@ function mascotStateFor(s){
 const Fam = {
   char: 'wisp', state: 'idle',
   focus: 55, streakStart: null,
-  resources: { protein:0, iron:0, spellbook:0, fragment:0 },
   history: [],          // {app, kind, t0, t1}
   cur: null,            // {app, kind, t0}
   distractSec: 0, deepSec: 0, switches: [],
@@ -1238,23 +1236,6 @@ const Fam = {
   streakMin(){ return this.streakStart ? Math.floor((Date.now() - this.streakStart) / 60000) : 0; },
   renderStreak(){ document.getElementById('streak').textContent = this.streakMin() + 'm'; },
 
-  renderRes(){
-    const icons = { protein:'🥩', iron:'⛓️', spellbook:'📖', fragment:'🔮' };
-    document.getElementById('resRow').innerHTML = Object.entries(this.resources)
-      .filter(([,v]) => v > 0)
-      .map(([k,v]) => `<span class="chip" data-res="${k}">${icons[k]} <b>${v}</b></span>`).join('');
-  },
-
-  gain(key){
-    this.resources[key]++;
-    this.renderRes();
-    const chip = document.querySelector(`.chip[data-res="${key}"]`);
-    chip && chip.classList.add('pop');
-    chip && setTimeout(() => chip.classList.remove('pop'), 500);
-    this.sparkle(3);
-    sound('gain');
-  },
-
   sparkle(n){
     const st = document.getElementById('stage');
     for (let i = 0; i < n; i++) {
@@ -1274,8 +1255,8 @@ const Fam = {
 function statusCopy(state){
   return ({
     idle:     { cls: '',         label: tx('😐 发发呆', '😐 idle') },
-    focused:  { cls: 'focus',    label: tx('🎯 正在成长', '🎯 growing') },
-    scholar:  { cls: 'focus',    label: tx('📖 正在成长 · 阅读', '📖 growing · reading') },
+    focused:  { cls: 'focus',    label: tx('🎯 正在专注', '🎯 focused') },
+    scholar:  { cls: 'focus',    label: tx('📖 专注阅读', '📖 focused · reading') },
     dizzy:    { cls: 'distract', label: tx('🌀 有点分心', '🌀 getting distracted') },
     poisoned: { cls: 'distract', label: tx('☠️ 掉进分心坑', '☠️ distracted') },
     ghost:    { cls: 'distract', label: tx('👻 飘得很远', '👻 very distracted') },
@@ -1295,8 +1276,6 @@ function famNotice(kind,label){
 }
 
 /* ═══ focus engine — real-time-ish, slightly accelerated ═══ */
-const RESOURCE_FOR = k => ({ code:'protein', term:'iron', cad:'iron', paper:'spellbook', notes:'fragment' }[k] || 'protein');
-
 setInterval(() => {
   if (Fam.paused || !Fam.cur) return;
   const kind = Fam.cur.kind;
@@ -1305,7 +1284,6 @@ setInterval(() => {
     Fam.setFocus(Fam.focus + 0.25);
     if (!Fam.streakStart) Fam.streakStart = Date.now();
     if (Fam.deepSec === 6) Fam.setState(kind === 'paper' ? 'scholar' : 'focused');
-    if (Fam.deepSec > 0 && Fam.deepSec % 45 === 0) Fam.gain(RESOURCE_FOR(kind));
     const m = Fam.streakMin();
     if (m === 25 && !Fam._t25) { Fam._t25 = true; toast(tx('🔥 已连续专注 25 分钟','🔥 focused for 25 minutes')); sound('streak'); }
   } else if (kind === 'distraction') {
@@ -1648,9 +1626,9 @@ function stripTip(e){
 }
 
 const J_NOTES = [
-  { min: 70, zh:'今天长得很稳，我吃饱了。✦', en:'an honest stretch of growth. i am well fed. ✦' },
+  { min: 70, zh:'今天专注得很稳。✦', en:'a steady, focused day. ✦' },
   { min: 40, zh:'不错——火苗晃了晃，但还亮着。', en:'decent — the flame flickers, but holds.' },
-  { min: 15, zh:'有点摇晃。关掉信息流，换你来喂我。', en:'we wobble. close the feed and feed me instead.' },
+  { min: 15, zh:'有点摇晃。关掉信息流，回来专注一会儿。', en:'we wobble. close the feed and come back to focus.' },
   { min: 0,  zh:'这一段，我们就不提了。🕳️', en:'we do not speak of this window. 🕳️' },
 ];
 
@@ -1666,7 +1644,7 @@ function renderNow(){
     : tx('暂时离开','away');
   const streak = Fam.streakMin();
   el.innerHTML = `<div>${cur}${streak > 0 ? tx(` · 连续专注 <b>${streak} 分钟</b> 🔥`,` · focus streak <b>${streak}m</b> 🔥`) : ''}</div>` +
-    `<div class="jn-sub">${tx(`过去 25 分钟 ${pc(s25.pct)} 成长 · 过去一小时 ${pc(s60.pct)} 成长`,`last 25 min ${pc(s25.pct)} growth · last hour ${pc(s60.pct)} growth`)}</div>`;
+    `<div class="jn-sub">${tx(`过去 25 分钟 ${pc(s25.pct)} 专注 · 过去一小时 ${pc(s60.pct)} 专注`,`last 25 min ${pc(s25.pct)} focused · last hour ${pc(s60.pct)} focused`)}</div>`;
 }
 
 /* cluster merged segments into sessions (gaps > 10 min split), then
@@ -1735,7 +1713,7 @@ function periodCellMarkup(a, b, now, entries, forceCurrent = false, allowCurrent
   const current = forceCurrent || (allowCurrent && a <= now && now < b);
   const tip = future
     ? `${fmtClock(a)}–${fmtClock(b)} · ${tx('还没发生','upcoming')}`
-    : `${fmtClock(a)}–${fmtClock(b)} · ${fmtRailDur(data.ms.deep)} ${tx('成长','growth')} · ` +
+    : `${fmtClock(a)}–${fmtClock(b)} · ${fmtRailDur(data.ms.deep)} ${tx('专注','focus')} · ` +
       `${fmtRailDur(data.ms.neut)} ${tx('日常','everyday')} · ${fmtRailDur(data.ms.dist)} ${tx('分心','distracted')}` +
       (data.away >= 30000 ? ` · ${fmtRailDur(data.away)} ${tx('离开','away')}` : '');
   const fill = ['deep', 'neut', 'dist'].map(k => {
@@ -1766,7 +1744,7 @@ function weaveCssColor(rgb){ return `rgb(${rgb.join(',')})`; }
 
 function weavePeriodTip(a, b, now, data){
   if (a >= now) return `${fmtClock(a)}–${fmtClock(b)} · ${tx('还没发生','upcoming')}`;
-  return `${fmtClock(a)}–${fmtClock(b)} · ${fmtRailDur(data.ms.deep)} ${tx('成长','growth')} · ` +
+  return `${fmtClock(a)}–${fmtClock(b)} · ${fmtRailDur(data.ms.deep)} ${tx('专注','focus')} · ` +
     `${fmtRailDur(data.ms.neut)} ${tx('日常','everyday')} · ${fmtRailDur(data.ms.dist)} ${tx('分心','distracted')}` +
     (data.away >= 30000 ? ` · ${fmtRailDur(data.away)} ${tx('离开','away')}` : '');
 }
@@ -1860,7 +1838,7 @@ function buildPeriodRail(w0, now, timeframe){
   return `<div class="j-period-summary">
       <span class="j-period-title"><b>30m</b> ${tx('一格','periods')}</span>
       <span class="j-period-legend" aria-label="${tx('时间颜色','period colors')}">
-        <span><i class="deep"></i>${tx('成长','growth')}</span><span><i class="neut"></i>${tx('日常','everyday')}</span><span><i class="dist"></i>${tx('分心','pit')}</span>
+        <span><i class="deep"></i>${tx('专注','focus')}</span><span><i class="neut"></i>${tx('日常','everyday')}</span><span><i class="dist"></i>${tx('分心','pit')}</span>
       </span>
     </div>
     <div class="j-period-rail${count > 8 ? ' many' : ''}" style="--period-count:${count}"
@@ -1897,7 +1875,7 @@ function renderSessions(merged){
         return v > 0 ? `<i class="${k}" style="width:${(100 * v / total).toFixed(1)}%"></i>` : '';
       }).join('');
       const headTip = `${fmtClock(sess.a)}–${fmtClock(sess.b)} · ` +
-        `${Math.round(100 * deep / total)}% ${tx('成长','growth')}` + (dist > 60000 ? ` · ${fmtDur(dist)} ${tx('掉进分心坑','in the pit')}` : '');
+        `${Math.round(100 * deep / total)}% ${tx('专注','focus')}` + (dist > 60000 ? ` · ${fmtDur(dist)} ${tx('掉进分心坑','in the pit')}` : '');
       return `<div class="j-sess ${domCls}">
         <button type="button" class="j-sess-head" data-tip="${esc(headTip)}"
           aria-expanded="${expanded}" aria-controls="${rowsId}"
@@ -1959,16 +1937,16 @@ function renderJournal(){
             <circle cx="37" cy="37" r="${R}" fill="none" stroke="#2fae8f" stroke-width="7"
               stroke-linecap="round" stroke-dasharray="${(C * pct / 100).toFixed(1)} ${C.toFixed(1)}"/>
           </svg>
-          <div class="pct"><b>${pct}%</b><span>${tx('成长','GROWTH')}</span></div>
+          <div class="pct"><b>${pct}%</b><span>${tx('专注','FOCUS')}</span></div>
         </div>
         <div class="j-tiles">
-          <div class="j-tile deep"><span class="v">${fmtDur(deep)}</span><span class="k">${tx('成长','growth')}</span></div>
+          <div class="j-tile deep"><span class="v">${fmtDur(deep)}</span><span class="k">${tx('专注','focus')}</span></div>
           <div class="j-tile pit"><span class="v">${dist > 30000 ? '\u2212' + fmtDur(dist) : '0m'}</span><span class="k">${tx('分心坑','the pit')}</span></div>
         </div>
       </div>`;
     const dayHero = `<div class="j-day-summary">
-      <span class="sigil">✦</span><b>${tx(`今天 ${pct}% 成长`,`${pct}% growth today`)}</b><span class="sep">·</span>
-      <span>${tx(`${fmtDur(deep)} 织入成长`,`${fmtDur(deep)} woven`)}</span><span class="sep">·</span>
+      <span class="sigil">✦</span><b>${tx(`今天 ${pct}% 专注`,`${pct}% focused today`)}</b><span class="sep">·</span>
+      <span>${tx(`专注 ${fmtDur(deep)}`,`${fmtDur(deep)} focused`)}</span><span class="sep">·</span>
       <span>${dist > 30000 ? tx(`${fmtDur(dist)} 散线`,`${fmtDur(dist)} frayed`) : tx('线织得很干净','a clean thread')}</span><span class="sep">·</span>
       <span>${tx(`记下 ${fmtDur(total)}`,`${fmtDur(total)} recorded`)}</span>
     </div>`;
@@ -2025,7 +2003,7 @@ function renderQuest(){
   } else {
     html += node('🏰', tx('启程','dawn'), tx(`${fmtClock(entries[0].a)} 第一次出现`,`first sighted at ${fmtClock(entries[0].a)}`));
     if (deepG[0]) html += node('⚔️', tx(`主线冒险——${deepG[0].label}`,`MAIN QUEST — ${deepG[0].label}`),
-      tx(`认真成长了 ${fmtDur(deepG[0].ms)}`,`${fmtDur(deepG[0].ms)} of honest growth`), 'main');
+      tx(`认真专注了 ${fmtDur(deepG[0].ms)}`,`${fmtDur(deepG[0].ms)} of focused work`), 'main');
     deepG.slice(1, 4).filter(g => g.ms > 8 * 60000).forEach(g =>
       html += node('🗡️', tx(`支线——${g.label}`,`side quest — ${g.label}`), fmtDur(g.ms)));
     if (neut > 5 * 60000) html += node('🧾', tx('日常杂事','admin tax'), tx(`${fmtDur(neut)}——勉强接受吧`,`${fmtDur(neut)} — tolerated, grudgingly`));
@@ -2081,7 +2059,7 @@ function renderWeek(){
       let style = '';
       if (c.dist > c.deep && c.dist > 3 * 60000) style = `background:rgba(193,74,106,${Math.min(.9, .25 + c.dist / 3600000)})`;
       else if (c.deep > 60000) style = `background:rgba(47,174,143,${Math.min(.95, .2 + c.deep / 3600000)})`;
-      const tip = `${dayName(d)} ${String(hr).padStart(2,'0')}:00 — ${fmtDur(c.deep)} ${tx('成长','growth')}${c.dist > 60000 ? ', ' + fmtDur(c.dist) + tx(' 分心',' distracted') : ''}`;
+      const tip = `${dayName(d)} ${String(hr).padStart(2,'0')}:00 — ${fmtDur(c.deep)} ${tx('专注','focus')}${c.dist > 60000 ? ', ' + fmtDur(c.dist) + tx(' 分心',' distracted') : ''}`;
       grid += `<div class="wk-cell" style="${style}" data-tip="${c.deep + c.dist > 60000 ? tip : ''}"></div>`;
     }
   });
@@ -2098,7 +2076,7 @@ function renderWeek(){
   });
   document.getElementById('journalBody').innerHTML = `
     <div class="wk-grid" onmousemove="stripTip(event)" onmouseleave="stripTip(null)">${grid}</div>
-    <div class="wk-legend"><span><i style="background:rgba(47,174,143,.7)"></i>${tx('成长','growth')}</span>
+    <div class="wk-legend"><span><i style="background:rgba(47,174,143,.7)"></i>${tx('专注','focus')}</span>
       <span><i style="background:rgba(193,74,106,.6)"></i>${tx('分心','distracted')}</span><span>${tx('0–23 点 →','hours 0–23 →')}</span></div>
     <div class="wk-days">${dayLines || `<div class="j-empty">${tx('目前只有一天的数据；这一周会慢慢长出来。','one day of data so far — the map fills in as the week goes.')}</div>`}</div>`;
 }
@@ -2151,8 +2129,8 @@ function famExportMD(){
   };
   const st = windowStats(24 * 60);
   return `# ${tx('Mimo 今日手记','Mimo Journal')} — ${new Date().toDateString()}\n\n` +
-    tx(`**${st.pct}% 成长** · 成长 ${fmtDur(st.deepMin * 60000)}`,
-       `**${st.pct}% growth** · ${fmtDur(st.deepMin * 60000)} growth`) +
+    tx(`**${st.pct}% 专注** · 专注 ${fmtDur(st.deepMin * 60000)}`,
+       `**${st.pct}% focused** · ${fmtDur(st.deepMin * 60000)} focus`) +
     sec(tx('📖 读过','📖 Read'), 'read') + sec(tx('🛠️ 做过','🛠️ Built'), 'built') + sec(tx('🕳️ 分心','🕳️ Distractions'), 'distracted') + '\n';
 }
 
@@ -2211,7 +2189,7 @@ function famExportHTML(){
 <body><div class="page">
   <h1>✦ ${tx('Mimo 今日手记','Mimo Journal')}</h1>
   <div class="meta">${new Date().toDateString()} · ${tx('米墨替你记下','recorded by Mimo')} ·
-    <b style="color:#7df0cf">${st.pct}% ${tx('成长','growth')}</b> · ${fmtDur(st.deepMin * 60000)} ${tx('成长','growth')}</div>
+    <b style="color:#7df0cf">${st.pct}% ${tx('专注','focus')}</b> · ${fmtDur(st.deepMin * 60000)} ${tx('专注','focus')}</div>
   <h2>${tx('一天留下的纹理','the day, hour by hour')}</h2>
   ${buildStrip(w0, now, labels)}
   <h2>${tx('⚔️ 冒险手记','⚔️ quest log')}</h2>
@@ -2366,8 +2344,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       Fam.streakStart = Fam.cur ? Fam.cur.t0 : null;
       Fam.focus = 76;
-      Fam.resources = {protein:7,iron:4,spellbook:3,fragment:6};
-      Fam.renderRes(); Fam.setFocus(76); Fam.renderStreak();
+      Fam.setFocus(76); Fam.renderStreak();
       J.view = 'time'; J.openSess = null;
       document.getElementById('journal').classList.add('on');
       document.getElementById('stage').classList.add('journal-open');

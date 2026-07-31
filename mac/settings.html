@@ -416,11 +416,11 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 <body>
 
 <h1>🐾 Mimo <span style="font-size:.62em;color:var(--dim)">米墨</span> <span id="betaBadge" style="font-size:.5em;vertical-align:middle;color:var(--dim);background:#ffffff12;border-radius:5px;padding:2px 8px">Beta</span></h1>
-<div class="tagline" data-zh="住在桌面角落，陪你一起成长。活动记录只留在这台 Mac；DIY 图片只在你点击生成时发送。" data-en="A tiny familiar who grows with your attention. Activity stays on this Mac; DIY images leave only when you choose Generate.">住在桌面角落，陪你一起成长。活动记录只留在这台 Mac；DIY 图片只在你点击生成时发送。</div>
+<div class="tagline" data-zh="住在桌面角落，陪你一起专注。活动记录只留在这台 Mac；DIY 图片只在你点击生成时发送。" data-en="A tiny familiar who keeps you company while you focus. Activity stays on this Mac; DIY images leave only when you choose Generate.">住在桌面角落，陪你一起专注。活动记录只留在这台 Mac；DIY 图片只在你点击生成时发送。</div>
 
 <nav class="settings-tabs" aria-label="Settings sections">
   <button class="settings-tab cur" type="button" data-tab="pet" onclick="setSettingsTab('pet')"><span class="tab-ico">🐾</span><span data-zh="伴灵" data-en="Familiar">伴灵</span></button>
-  <button class="settings-tab" type="button" data-tab="growth" onclick="setSettingsTab('growth')"><span class="tab-ico">✦</span><span data-zh="成长" data-en="Growth">成长</span></button>
+  <button class="settings-tab" type="button" data-tab="focus" onclick="setSettingsTab('focus')"><span class="tab-ico">🎯</span><span data-zh="专注" data-en="Focus">专注</span></button>
   <button class="settings-tab" type="button" data-tab="general" onclick="setSettingsTab('general')"><span class="tab-ico">⚙</span><span data-zh="通用" data-en="General">通用</span></button>
   <button class="settings-tab" type="button" data-tab="language" onclick="setSettingsTab('language')"><span class="tab-ico">文/A</span><span data-zh="语言" data-en="Language">语言</span></button>
 </nav>
@@ -505,12 +505,12 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 </div>
 </div>
 
-<div class="tab-panel" data-panel="growth">
+<div class="tab-panel" data-panel="focus">
 <div class="sec">
-  <h2><span class="ico">📜</span><span data-zh="成长规则" data-en="Growth rules">成长规则</span></h2>
+  <h2><span class="ico">📜</span><span data-zh="专注分类" data-en="Focus categories">专注分类</span></h2>
   <div class="chips" id="chips"></div>
   <div class="rules" id="rules"><div class="note">先使用一会儿 Mac；米墨遇见的 app 和网站会出现在这里。</div></div>
-  <div class="note" data-zh="💪 蛋白质 · ⛓️ 铁 · 📐 蓝图 · 📖 魔法书 · 📝 碎片——都是成长留下的养分。🕳️ 是分心坑。" data-en="💪 protein · ⛓️ iron · 📐 blueprints · 📖 spellbooks · 📝 fragments — nourishment gathered while growing. 🕳️ is the distraction pit.">💪 蛋白质 · ⛓️ 铁 · 📐 蓝图 · 📖 魔法书 · 📝 碎片——都是成长留下的养分。🕳️ 是分心坑。</div>
+  <div class="note" data-zh="编程、终端、设计、阅读和笔记默认算作专注；🕳️ 是分心。你可以按 app 和网站调整分类。" data-en="Code, terminal, design, reading, and notes count as focus by default; 🕳️ marks distractions. You can tune each app and website.">编程、终端、设计、阅读和笔记默认算作专注；🕳️ 是分心。你可以按 app 和网站调整分类。</div>
 </div>
 <div class="sec">
   <h2><span class="ico">🔑</span><span data-zh="权限" data-en="Access">权限</span></h2>
@@ -590,7 +590,7 @@ let LANG = 'zh';
 let activeSettingsTab = 'pet';
 const tx = (zh, en) => LANG === 'zh' ? zh : en;
 function setSettingsTab(tab){
-  const next = ['pet','growth','general','language'].includes(tab) ? tab : 'pet';
+  const next = ['pet','focus','general','language'].includes(tab) ? tab : 'pet';
   const changed = activeSettingsTab !== next;
   activeSettingsTab = next;
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('cur', el.dataset.tab === activeSettingsTab));
@@ -1081,15 +1081,15 @@ function renderPetLab(){
   }else if(petLab.status==='adopted'&&petLab.sheet){
     result.innerHTML=`<div class="sheet-result-head"><b>${esc(tx(`${petLab.adoptedName} 已住进桌面`,`${petLab.adoptedName} is home`))}</b><span class="sheet-meta">ADOPTED · ~${sheetQuality.cost}</span></div>${sheetStages(petLab.sheet,false)}${expressionStatusHTML()}${diagnosticsHTML()}`;
   }else if(petLab.candidates.length&&petLab.preservedResult&&petLab.sheet){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 2 · 选新的主角','Step 2 · Pick the new master')}</b><span class="sheet-meta">LOW · 3 DRAFTS</span></div>${candidateGridHTML()}${diagnosticsHTML()}<div class="preserved-result"><b>${tx('上一套成长图仍安全保留','Previous finished evolution is still safe')}</b>${sheetStages(petLab.sheet,false)}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('仍然使用上一套 ✦','Use previous result ✦')}</button></div></div>`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 2 · 选新的主角','Step 2 · Pick the new master')}</b><span class="sheet-meta">LOW · 3 DRAFTS</span></div>${candidateGridHTML()}${diagnosticsHTML()}<div class="preserved-result"><b>${tx('上一套完整伴灵仍安全保留','Previous complete familiar is still safe')}</b>${sheetStages(petLab.sheet,false)}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('仍然使用上一套 ✦','Use previous result ✦')}</button></div></div>`;
   }else if(petLab.sheet){
     const redo=petLab.candidateDraftID&&petLab.candidateIndex!==null?`<button type="button" onclick="generateEvolution()">${tx(`用 ${quality.name} 整套再画 · ~${quality.cost}+`,`Redo all at ${quality.name} · ~${quality.cost}+`)}</button>`:'';
-    const title=petLab.preservedResult?tx('上一套成长图 · 新设置尚未生成','Previous evolution · new settings not generated'):tx('同一个主角 · 最终形态','One master · final form');
+    const title=petLab.preservedResult?tx('上一套完整伴灵 · 新设置尚未生成','Previous familiar · new settings not generated'):tx('同一个主角 · 最终形态','One master · final form');
     result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${sheetQualityLabel} · ~${sheetQuality.cost}</span></div>${sheetStages(petLab.sheet,!petLab.preservedResult)}${diagnosticsHTML()}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('让它住进桌面 ✦','Bring it home ✦')}</button>${redo}</div><div class="expr-note">${tx('住进后会自动补画表情帧（眨眼 / 开心 / 睡着）· 3 × ~$0.045','Adoption also draws expression frames (blink / joy / rest) · 3 × ~$0.045')}</div>`;
   }else if(petLab.candidates.length){
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 2 · 可以多选','Step 2 · Choose one or more')}</b><span class="sheet-meta">LOW · 3 DRAFTS</span></div>${candidateGridHTML()}${diagnosticsHTML()}`;
   }else{
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 1 · 先找出它是谁','Step 1 · Find who it is')}</b><span class="sheet-meta">LOW · ~$0.010</span></div><div class="sheet-empty">${tx('先画 3 个草稿，再决定要不要生成成长图。','Make 3 drafts first, then decide whether to create the evolution.')}</div>`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 1 · 先找出它是谁','Step 1 · Find who it is')}</b><span class="sheet-meta">LOW · ~$0.010</span></div><div class="sheet-empty">${tx('先画 3 个草稿，再决定要不要生成完整伴灵。','Make 3 drafts first, then decide whether to create the complete familiar.')}</div>`;
   }
   if(!petLab.source)state.innerHTML=`<span class="dot"></span>${tx('先添加至少一张参考图；不会自动发送','Add at least one reference; nothing is sent automatically')}`;
   else if(petLab.status==='review')state.innerHTML=`<span class="dot"></span>${tx('身份板只在本机预览 · 确认后才发送','Identity board is local-only · sent only after confirmation')}`;
@@ -1291,7 +1291,7 @@ function petCandidateResult(event){
 }
 function petEvolutionResult(event){
   if(event.requestID!==petLab.requestID)return;
-  if(!event.sheet){petStudioError({...event,kind:'local',message:tx('成长图已返回，但本机没有得到可安装的透明三段图。','The evolution returned, but local processing did not produce an installable transparent sheet.')});return}
+  if(!event.sheet){petStudioError({...event,kind:'local',message:tx('完整伴灵图已返回，但本机没有得到可安装的透明三段图。','The familiar returned, but local processing did not produce an installable transparent sheet.')});return}
   finishStudioOperation(event);if(IMAGE_QUALITIES.some(q=>q.id===event.quality))petLab.quality=event.quality;
   const finalQuality=IMAGE_QUALITIES.some(q=>q.id===event.quality)?event.quality:petLab.quality;
   const completedCandidate=petLab.activeCandidateIndex;
@@ -1526,11 +1526,11 @@ function installPetDrop(){
   });
 }
 
-const kinds = () => [['code',tx('💪 成长 · 编程','💪 growth · code')],['term',tx('⛓️ 成长 · 终端','⛓️ growth · terminal')],
-  ['cad',tx('📐 成长 · 设计','📐 growth · CAD/design')],['paper',tx('📖 成长 · 阅读','📖 growth · reading')],
-  ['notes',tx('📝 成长 · 笔记','📝 growth · notes')],['neutral',tx('😐 日常','😐 everyday')],
+const kinds = () => [['code',tx('⌨️ 专注 · 编程','⌨️ focus · code')],['term',tx('💻 专注 · 终端','💻 focus · terminal')],
+  ['cad',tx('📐 专注 · 设计','📐 focus · CAD/design')],['paper',tx('📖 专注 · 阅读','📖 focus · reading')],
+  ['notes',tx('📝 专注 · 笔记','📝 focus · notes')],['neutral',tx('😐 日常','😐 everyday')],
   ['distraction',tx('🕳️ 分心','🕳️ distraction')]];
-const KIND_ICO = { code:'💪', term:'⛓️', cad:'📐', paper:'📖', notes:'📝', neutral:'😐', distraction:'🕳️' };
+const KIND_ICO = { code:'⌨️', term:'💻', cad:'📐', paper:'📖', notes:'📝', neutral:'😐', distraction:'🕳️' };
 
 function send(msg){
   try { window.webkit.messageHandlers.settings.postMessage(msg); } catch(e) { console.warn('Settings bridge unavailable:', msg?.type || 'unknown'); }
@@ -1723,7 +1723,7 @@ function renderCards(){
 }
 function pick(id){ S.character = id; selectedActionJobID=null; actionJobNotice=''; renderCards(); renderActionReview(); send({ type: 'pick', id }); }
 
-const filters = () => [['all',tx('全部','all')],['deep',tx('\u{1F4AA} 成长','\u{1F4AA} growth')],
+const filters = () => [['all',tx('全部','all')],['deep',tx('🎯 专注','🎯 focus')],
   ['neutral',tx('\u{1F610} 日常','\u{1F610} everyday')],['distraction',tx('\u{1F573}\uFE0F 分心坑','\u{1F573}\uFE0F pit')]];
 let ruleFilter = 'all';
 

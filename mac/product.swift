@@ -800,7 +800,7 @@ extension AppDelegate {
         case .unreadableImage:
             return ("unreadable_image", "这张生成图在本机无法解码。", value.localizedDescription)
         case .invalidDimensions(let width, let height):
-            return ("invalid_sheet_dimensions", "成长图尺寸应为 1536×1024，实际是 \(width)×\(height)。", value.localizedDescription)
+            return ("invalid_sheet_dimensions", "伴灵图尺寸应为 1536×1024，实际是 \(width)×\(height)。", value.localizedDescription)
         case .invalidCandidateBoardDimensions(let width, let height):
             return ("invalid_candidate_dimensions", "候选图尺寸应为 1024×1024，实际是 \(width)×\(height)。", value.localizedDescription)
         case .invalidSingleStageDimensions(let width, let height):
@@ -2013,7 +2013,7 @@ extension AppDelegate {
                         "generationRecoveryCount": self.generationDraftStore.recoverableDraftCount(),
                     ])
                     self.releaseStudioGeneration(requestID)
-                    self.announceStudioBackground(requestID, kind: "success", "三段成长图已经做好，打开设置可以预览或带回桌面。", "The three-form evolution is ready; open Settings to preview or install it.")
+                    self.announceStudioBackground(requestID, kind: "success", "三段伴灵图已经做好，打开设置可以预览或带回桌面。", "The three-form familiar is ready; open Settings to preview or install it.")
                 case .failure(let error):
                     let canRetry = !salvageNearEdge && self.canSalvageNearEdge(error)
                     if !canRetry { self.pendingLocalRecoveries.removeValue(forKey: requestID) }
@@ -2159,7 +2159,7 @@ extension AppDelegate {
                     }
                     if !recovery.styleBoardUsed {
                         warnings.append([
-                            "zh": "内置米墨风格板没有载入；这次依据现有成长图保持风格。",
+                            "zh": "内置米墨风格板没有载入；这次依据现有伴灵图保持风格。",
                             "en": "The bundled Mimo style board was unavailable; existing-sheet styling was used.",
                         ])
                     }
@@ -2697,7 +2697,7 @@ extension AppDelegate {
                 settingsCall("petStudioError", [
                     "requestID": body["requestID"] as? String ?? "",
                     "kind": "setup", "phase": "input", "code": "evolution_expired",
-                    "messageZh": "这张成长图已过期；米墨没有发出单段重画请求。请从 Low 草稿重新开始。",
+                    "messageZh": "这张伴灵图已过期；米墨没有发出单段重画请求。请从 Low 草稿重新开始。",
                     "messageEn": "This evolution draft expired; Mimo did not submit a redraw. Start again from Low drafts.",
                     "outputRetained": false, "requestNotStarted": true,
                     "resetTo": "candidates",
