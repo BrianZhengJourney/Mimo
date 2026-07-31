@@ -771,9 +771,10 @@ enum CharacterSheetProcessor {
         // dark estimated matte: on a framed provider batch, that estimate can
         // be the presentation border itself, and recovering it resurrects the
         // grid line.
-        func hasDarkPresentationFrame() -> Bool {
+        func darkPresentationFrameMask() -> [UInt8] {
             let insetLimit = min(16, min(width, height) / 2)
-            guard insetLimit > 0 else { return false }
+            var mask = [UInt8](repeating: 0, count: width * height)
+            guard insetLimit > 0 else { return mask }
             func dark(x: Int, y: Int) -> Bool {
                 let pixel = (y * width + x) * 4
                 return image.pixels[pixel + 3] >= 16
@@ -781,22 +782,70 @@ enum CharacterSheetProcessor {
                         + Int(image.pixels[pixel + 1])
                         + Int(image.pixels[pixel + 2]) < 300
             }
-            for inset in 0..<insetLimit {
-                var top = 0, bottom = 0, left = 0, right = 0
-                for x in 0..<width {
-                    if dark(x: x, y: inset) { top += 1 }
-                    if dark(x: x, y: height - 1 - inset) { bottom += 1 }
-                }
-                for y in 0..<height {
-                    if dark(x: inset, y: y) { left += 1 }
-                    if dark(x: width - 1 - inset, y: y) { right += 1 }
-                }
-                if top * 2 >= width || bottom * 2 >= width
-                    || left * 2 >= height || right * 2 >= height {
-                    return true
+            func markHorizontal(y: Int) {
+                var start: Int?
+                for x in 0...width {
+                    if x < width, dark(x: x, y: y) {
+                        if start == nil { start = x }
+                    } else if let lower = start {
+                        let length = x - lower
+                        let supported = [y - 4, y + 4]
+                            .filter { (0..<height).contains($0) }
+                            .contains { supportY in
+                                var darkCount = 0
+                                for runX in lower..<x where dark(
+                                    x: runX, y: supportY) {
+                                    darkCount += 1
+                                }
+                                return darkCount * 2 >= length
+                            }
+                        if length * 2 >= width && !supported {
+                            for runX in lower..<x {
+                                mask[y * width + runX] = 1
+                            }
+                        }
+                        start = nil
+                    }
                 }
             }
-            return false
+            func markVertical(x: Int) {
+                var start: Int?
+                for y in 0...height {
+                    if y < height, dark(x: x, y: y) {
+                        if start == nil { start = y }
+                    } else if let lower = start {
+                        let length = y - lower
+                        let supported = [x - 4, x + 4]
+                            .filter { (0..<width).contains($0) }
+                            .contains { supportX in
+                                var darkCount = 0
+                                for runY in lower..<y where dark(
+                                    x: supportX, y: runY) {
+                                    darkCount += 1
+                                }
+                                return darkCount * 2 >= length
+                            }
+                        if length * 2 >= height && !supported {
+                            for runY in lower..<y {
+                                mask[runY * width + x] = 1
+                            }
+                        }
+                        start = nil
+                    }
+                }
+            }
+            for inset in 0..<insetLimit {
+                markHorizontal(y: inset)
+                markHorizontal(y: height - 1 - inset)
+                markVertical(x: inset)
+                markVertical(x: width - 1 - inset)
+            }
+            return mask
+        }
+        let presentationFrame = darkPresentationFrameMask()
+        let hasDarkPresentationFrame = presentationFrame.contains(1)
+        for index in presentationFrame.indices where presentationFrame[index] == 1 {
+            background[index] = 1
         }
         let usesWarmNeutralMatte = matte.0 >= 180 && matte.1 >= 170
             && matte.2 >= 160
@@ -804,7 +853,7 @@ enum CharacterSheetProcessor {
                 - min(matte.0, matte.1, matte.2) <= 60
             && outerMatte.0 >= 150 && outerMatte.1 >= 150
             && outerMatte.2 >= 150
-            && !hasDarkPresentationFrame()
+            && !hasDarkPresentationFrame
         var locallyRecoveredAlpha = [UInt8](repeating: 0, count: width * height)
         let recoveryFloor = max(3, threshold / 5)
         let recoveryFloorSquared = recoveryFloor * recoveryFloor

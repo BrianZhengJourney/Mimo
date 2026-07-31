@@ -333,6 +333,29 @@ struct CharacterSheetTests {
         expect(edgeTouchingPale.rgba(x: 0, y: 30).3 == 0,
                "local recovery must not resurrect pixels on the crop edge")
 
+        var framedPale = CharacterSheetRGBAImage(
+            width: 64, height: 64, fill: matte)
+        paintRect(&framedPale, x: 20, y: 20, width: 24, height: 24,
+                  color: paleInk)
+        for x in 16..<48 {
+            framedPale.setRGBA(x: x, y: 6, (28, 24, 33, 255))
+        }
+        CharacterSheetProcessor.removeBorderConnectedMatte(from: &framedPale)
+        expect(framedPale.rgba(x: 30, y: 6).3 == 0,
+               "a long dark presentation rule near the edge is background")
+        expect(framedPale.rgba(x: 30, y: 30).3 == 255,
+               "presentation-rule removal must preserve the subject")
+
+        var shortDarkDetail = CharacterSheetRGBAImage(
+            width: 64, height: 64, fill: matte)
+        for x in 24..<40 {
+            shortDarkDetail.setRGBA(x: x, y: 6, (28, 24, 33, 255))
+        }
+        CharacterSheetProcessor.removeBorderConnectedMatte(
+            from: &shortDarkDetail)
+        expect(shortDarkDetail.rgba(x: 30, y: 6).3 == 255,
+               "a short dark detail must not be mistaken for a frame")
+
         // Expression generation reuses one normalized stage as its identity
         // reference; extraction must produce a clean single 512px frame.
         let extractedStage = try CharacterSheetProcessor.extractNormalizedStage(
