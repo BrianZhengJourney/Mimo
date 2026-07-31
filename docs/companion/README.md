@@ -3,9 +3,10 @@
 把 Mimo 从"角落里会换表情的状态指示器"升级成一个**有物理手感、有行为系统、
 可拖可扔、能被 DIY 生成管线喂养**的桌面伴灵。参照物是 Shimeji / Shimeji-ee。
 
-**状态**：v0.2 Alpha working baseline + P1 Starter Actions 已完成，可直接运行。
-四套动作已接入 Studio、断点 job、0-call 本机重新抠图、安全 preview/install 与
-runtime；下一步是用户完成桌面视觉验收，再扩到更多用户。最后更新 2026-07-28。
+**状态**：v0.2 Alpha working baseline 可直接运行。四套默认动作已接入一键顺序
+生成、断点 job、0-call 本机重新抠图、安全 preview/install 与 runtime。等级、
+XP、走路生成和旧实验预览已退出正式产品。当前事实与 rollout gate 见
+[STATUS.md](STATUS.md)。最后更新 2026-07-31。
 
 ---
 
@@ -13,8 +14,9 @@ runtime；下一步是用户完成桌面视觉验收，再扩到更多用户。�
 
 | 文件 | 含章节 | 内容 | 谁该读 |
 |---|---|---|---|
-| [SESSION-HANDOFF.md](SESSION-HANDOFF.md) | — | **会话交接:当前进度、下一步、已知缺口、踩过的坑** | **新会话先读这个** |
-| [00-overview-and-decisions.md](00-overview-and-decisions.md) | TL;DR, §0 | 摘要 + **全部已拍板架构决策(D1–D8)** | **所有人先读这个** |
+| [STATUS.md](STATUS.md) | — | **当前可用 baseline、质量指标、release gate、如何检查版本** | **新会话先读这个** |
+| [SESSION-HANDOFF.md](SESSION-HANDOFF.md) | — | 2026-07-28 前的历史实验与踩坑记录 | 需要考古时 |
+| [00-overview-and-decisions.md](00-overview-and-decisions.md) | TL;DR, §0 | 2026-07-18 架构决策记录；部分产品决定已被取代 | 需要设计依据时 |
 | [01-shimeji-research.md](01-shimeji-research.md) | §1 | Shimeji 交互模型源码级拆解:行为系统、物理、环境模型、资源包、以及**哪些不该抄** | 想理解"为什么这样设计" |
 | [02-mimo-baseline.md](02-mimo-baseline.md) | §2 | Mimo 现状读码结论 + 瓶颈清单 + 要保住的资产 | 上手改代码前 |
 | [03-runtime-architecture.md](03-runtime-architecture.md) | §3, §4.1–4.7 | 设计原则 + 运行时架构:窗口/渲染、引擎分层、行为包格式、物理参数、窗口地形、资源包分级 | 实施 P0–P2、P4 |
@@ -62,10 +64,10 @@ runtime；下一步是用户完成桌面视觉验收，再扩到更多用户。�
 | **D1** | 渲染宿主 → **原生 CALayer**(每显示器一个透明全屏层,`CVDisplayLink` 单一时钟);WKWebView 退居 HUD | §0, §4.1–4.2 |
 | **D2** | 动画帧 → **扩展生成管线到 N 帧行为包**(一次性批量生成,运行时零成本) | §0, §4.6 |
 | **D3** | 窗口感知 → **分阶段**,P1 只做屏幕/工作区边界,窗口攀爬推到 P4 | §0, §4.5 |
-| **D4** | **两家 provider(OpenAI / Gemini)都实现**,做正式 A/B 用数据定默认值 | §6, §4.8–4.9 |
-| **D5** | matte 换成**饱和绿 `#00FF00`** + 2–3px 白描边,P3a 实测验证 | §6, §4.9 |
+| **D4-R1** | 正式产品当前只接 **OpenAI**；其他 provider 仅保留为历史研究方向 | STATUS |
+| **D5-R1** | 当前默认 **暖白 matte**；绿幕只留作 eval/legacy 覆盖 | STATUS, eval v3 |
 | **D6** | 漫游默认 = **岗位为主,deepWork 期间永远安静** | §6, §3 |
-| **D7-R1** | 动作卡领养后自动建立，但**只有用户逐卡点击才会生成**；先显示 calls 与成本 | §11–§12 |
+| **D7-R2** | 四套动作默认选好，用户**点击一次后顺序生成**；preview/accept 仍逐项确认 | §12, STATUS |
 | **D8** | 代码绘制的角色(内置像素包 / Lane A 抽象伴灵)**不资产化**,渲染保持程序化,但**接入同一套行为引擎** | §6 |
 | — | 自动重掷上限 **3 次**;开发期保留全部 1–3 次尝试用于阈值标定 | §6 |
 | **D9** | 签名动作**按气质共享 6 套**(设计/prompt/行为包共享,图仍按每只生成) | §9 |
@@ -87,6 +89,6 @@ runtime；下一步是用户完成桌面视觉验收，再扩到更多用户。�
 
 ## 下一步
 
-先按 [§12](12-starter-actions.md) 在 App 内生成并验收一只真实 DIY 伴灵的
-gaze / sleep / tennis / wall。通过后再做 P2 扩展：更多动作包、创作者模板、
-可分享但不含个人原图/credential 的 pet package，以及用户级发布渠道。
+先按 [STATUS](STATUS.md) 补齐新 telemetry 的真实 provider p95 baseline 与
+candidate cohort，再按 `5% → 25% → 100%` 扩大用户访问。产品侧优先保持
+“上传参考图 → 自动找人物 → 一键默认动作 → 预览接受”的单一路径。

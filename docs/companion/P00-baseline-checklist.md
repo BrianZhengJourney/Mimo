@@ -1,4 +1,7 @@
 > 伴灵模式计划 · 模块文档 — [索引与阅读顺序](README.md)
+>
+> **已归档的 pre-P0 录制清单**：这里的升级/victory walk 和旧 panel 热区
+> 已不存在于正式产品。当前验证入口见 [STATUS.md](STATUS.md)。
 
 # P00 行为基线录制清单
 

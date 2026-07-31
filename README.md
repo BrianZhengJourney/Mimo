@@ -8,7 +8,7 @@ for turning a person, pet, or original character into a custom companion.
 
 ## Status
 
-**v0.2 Alpha · complete working baseline + Starter Actions (2026-07-28).**
+**v0.2 Alpha · complete working baseline + default Starter Actions (2026-07-31).**
 
 The current native app is complete and directly usable. Starter Actions now
 extend this working version without making motion generation a prerequisite
@@ -22,15 +22,15 @@ The repository has moved beyond the original browser concept:
   daily journal, week view, and Markdown/HTML export.
 - Mimo Studio reference preprocessing, canonical character generation,
   expression assets, provider abstraction, generation ledger, and recovery.
-- Mimo Studio creates four durable, independent Starter Action jobs after
-  adoption: cursor gaze, sleep, tennis, and wall stand/sit.
+- Mimo Studio includes four default Starter Actions after adoption: cursor
+  gaze, sleep, tennis, and wall stand/sit. One click runs them in sequence.
 - Each card discloses calls and estimated cost, checkpoints every completed
   three-frame batch, survives restart, and resumes only after an explicit click.
 - Generated strips pass through local shared-scale/baseline processing, desktop
   preview, hard-QA checking, and explicit Accept before manifest installation.
 
-See the [custom pet integration plan](docs/companion/11-custom-pet-integration.md)
-and [current handoff](docs/companion/SESSION-HANDOFF.md).
+See the [current status](docs/companion/STATUS.md) and
+[custom pet integration plan](docs/companion/11-custom-pet-integration.md).
 
 ## Build and test
 
@@ -88,13 +88,14 @@ spends, retries, or installs.
 
 - `mac/` — native app, runtime, Studio, tests, action tooling, and curated assets.
 - `docs/companion/` — architecture decisions, generation research, roadmap,
-  handoff, and integration plan.
+  current status, archived handoff, and integration plan.
+- `mac/evals/` — fixed DIY eval datasets, gates, round records, and runner.
 - `skills/mimo-animate-pet/` — reproducible hybrid action-generation workflow.
 - `artifacts/wan/README.md` — retained-run layout; generated runs stay local and
   are intentionally ignored by Git.
 - `index.html`, `styles.css`, `js/` — original browser concept demo.
 
-Large generated intermediates under `output/`, Wan run outputs, walk experiments,
+Large generated intermediates under `output/`, Wan run outputs, retired walk experiments,
 build products, and raw personal reference images are local-only.
 
 ## Browser concept demo
