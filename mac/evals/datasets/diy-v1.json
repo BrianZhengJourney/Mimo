@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "name": "mimo-diy-v1",
+  "providerCallCostUSD": 0.045,
+  "synthetic": {
+    "casesPerClass": 20,
+    "classes": [
+      {"id": "common_warm_matte", "severity": "S1"},
+      {"id": "light_subject_warm_matte", "severity": "S2"},
+      {"id": "fine_hair_warm_matte", "severity": "S3"},
+      {"id": "variable_warm_matte", "severity": "S2"},
+      {"id": "green_matte", "severity": "S2"},
+      {"id": "green_subject_green_matte", "severity": "S3"}
+    ]
+  },
+  "fieldJobs": [
+    {
+      "id": "157c3e15-bd60-4a07-8526-593c793cc214",
+      "action": "tennis",
+      "keepCounts": [3, 3, 3],
+      "severity": "S3",
+      "historicalError": "subject_clipped_right",
+      "recordSHA256": "93763da53347b8c4e6956840e9b4a14bd6bdaa444af4bdb03ae002d86012955f",
+      "batchSHA256s": [
+        "0c10c3e01bb01351d7bb557d7c542fbb13396769791f69f94d339319aa8476a3",
+        "382ed6ef9d5da9f16e455c5529342f446d703068ed136cf1cdcfd753b85d4859",
+        "a7a9339d610e92b1d5083a16e2ed72adc9c04296662152807df3aea9475c2820"
+      ]
+    },
+    {
+      "id": "2485c563-900c-4ac4-a19f-31ca78bce4de",
+      "action": "wall",
+      "keepCounts": [3, 3],
+      "severity": "S2",
+      "historicalError": "metadata_invalid",
+      "recordSHA256": "4b9502a0e5ca209fafe6b3a37f1d6acdf81163ef92e44183007bf61b9af1a4f2",
+      "batchSHA256s": [
+        "536ce091aca5c5471163996c73c3413577172eed3dea4b33710f8d0aac0f7813",
+        "28ef244aaa1cdfaf63113936a803e980ce04555df743a0d566cf1d44e33490d6"
+      ]
+    },
+    {
+      "id": "4e4e176f-1c13-4e30-be80-ba5e5466fb3f",
+      "action": "gaze",
+      "keepCounts": [3, 3, 2],
+      "severity": "S1",
+      "historicalError": null,
+      "recordSHA256": "1dbca7c3af16cb4e874cc7eb81873a1ff62dcb8a29bc20b782e3e5d7bc164e12",
+      "batchSHA256s": [
+        "8d94ccea481aee5bba2b1ab31201969e3d76de0c51fb9efa65da32444a33a3c3",
+        "86d50914dd50d9a9eb8c2062d38edffa510157cb0d8c029e52b3404e2921c2cb",
+        "423f38d1df5043ee725f2c0cf28e4c4796eb390e08802de4e008bd1e75759be2"
+      ]
+    },
+    {
+      "id": "4f2a34a5-7d5e-46f9-9054-4862595f40c0",
+      "action": "tennis",
+      "keepCounts": [3, 3, 3],
+      "severity": "S1",
+      "historicalError": null,
+      "recordSHA256": "c2ad292dfe5554af2e78b27b4edbcdb7af71203a1eb3e3df8adbeed1316d1640",
+      "batchSHA256s": [
+        "afe131895801c759eb469de3ada453e33ad6977dee1f444150594a1575e10b87",
+        "d7ec8c0c3025e43f4d28b791e19552d0bfea02be3953e41af3e9b06ddc9288e0",
+        "d3749a073a2e343561b38741c728dc9572928e2634326c44ae48d07a3d491086"
+      ]
+    },
+    {
+      "id": "61ba033d-7cf6-4f69-a88e-100c847cda34",
+      "action": "sleep",
+      "keepCounts": [3, 3],
+      "severity": "S3",
+      "historicalError": "subject_clipped_bottom",
+      "recordSHA256": "d073adbd139265eb1c800bd2063118f4d77f033f2532cdb97412803048717714",
+      "batchSHA256s": [
+        "44817c34e25fe919cb94f656d184f81660d800f87ed2ef7b368d12bd02a8fe99",
+        "5f9e453f6c813805a7a3901eb945045222ae08675621ccc4c6aa591cd795c89b"
+      ]
+    },
+    {
+      "id": "6abd86d6-da36-4b79-a220-5e31ca5994ac",
+      "action": "sleep",
+      "keepCounts": [3, 3],
+      "severity": "S2",
+      "historicalError": "metadata_invalid",
+      "recordSHA256": "7df46924c2ae334a584f075195265bee98cc1a3f61f11c6f312eee57efa89dce",
+      "batchSHA256s": [
+        "692c850ef79dfd0b517c22317eb74da8dfc53b40a1ab15d742520572883dcf3e",
+        "cf6993ad62b002dbe03b5548b67fc6c3e30f4c8de535a7d30fec69f549fbf95c"
+      ]
+    },
+    {
+      "id": "73007a38-8a0d-4bc8-9739-baee6fea6c43",
+      "action": "wall",
+      "keepCounts": [3, 3],
+      "severity": "S1",
+      "historicalError": null,
+      "recordSHA256": "53ca9345bc335b53a2c8fca4cc19e63d73a56165882f447ea0a07fc0dd28fd92",
+      "batchSHA256s": [
+        "3ec3b314cef73acf269cf7ba4554bab506884fa3dd53ed5ca892fde071bf2322",
+        "3897f627faba8e2ecf0ddf1adb9deb3306c73f71f9b0457e8850f27dddc14bde"
+      ]
+    },
+    {
+      "id": "a52e5e66-8d1e-4b4d-93ef-be920fe725f4",
+      "action": "wall",
+      "keepCounts": [3, 3],
+      "severity": "S2",
+      "historicalError": "metadata_invalid",
+      "recordSHA256": "aa9a1f3a5414874a868844c11ab5434af76fb7f30d0c3077276ddb8ec8ae2557",
+      "batchSHA256s": [
+        "b31ebd364b6e57e827c2c300cc2f60140ad007917419a265febc4af917b006db",
+        "46012b517e819c3248e2184471d28ee63196fb4210c53eec09a2d2204a23f27b"
+      ]
+    },
+    {
+      "id": "da92214f-844c-4794-9692-56bee48a0ba8",
+      "action": "wall",
+      "keepCounts": [3, 3],
+      "severity": "S2",
+      "historicalError": "metadata_invalid",
+      "recordSHA256": "dacd533002330e49b895cbb9c51cecd4af82430e771a0cdd133b1891ae9ad550",
+      "batchSHA256s": [
+        "dfdfb9017e6f92318f0d1d3ad243dffc619b1fce1ab00ff1a600119301f1c264",
+        "53c20d13ca6fbb1c291c9976e1e07129a8311cdeee621f9fedd7170da109155e"
+      ]
+    },
+    {
+      "id": "fc21ef0f-7a5d-429a-bea0-ee204accfa3d",
+      "action": "sleep",
+      "keepCounts": [3, 3],
+      "severity": "S1",
+      "historicalError": null,
+      "recordSHA256": "b8f548bf560f0002e33d92bb487f6f23085d4acd11da0dadd92550992f857859",
+      "batchSHA256s": [
+        "b5bbf2c5efd2fedc2d2b1561c7be4a1e11cfb8fe91b1bff8d6efee447fec4caf",
+        "add0175e31221a7e05225911ba362ba2fe8fa4bdb422cf70a8dfa866e442c9a1"
+      ]
+    }
+  ],
+  "unknownCases": [
+    {
+      "id": "76fefd86-d060-4b1f-85d2-5f90c58b116c",
+      "source": "ActionGenerationJobs",
+      "severity": "UNKNOWN",
+      "reason": "legacy external walk QA failed several gates and has no single assigned root cause"
+    }
+  ]
+}

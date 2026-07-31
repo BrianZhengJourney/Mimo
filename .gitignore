@@ -1,6 +1,7 @@
 mac/build/
 artifacts/wan/runs/
 artifacts/walk-image-experiments/
+artifacts/evals/runs/
 mac/prototypes/**/output/
 output/
 李解for Mimo/
