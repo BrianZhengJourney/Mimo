@@ -2862,8 +2862,8 @@ extension AppDelegate {
             alert.alertStyle = .warning
             alert.messageText = voice("让「\(name)」离开桌面？", "Remove “\(name)” from Mimo?")
             alert.informativeText = voice(
-                "这会删除它的三段形态。成长等级、活动记录和 API Key 会保留。此操作不能撤销。",
-                "Its three forms will be deleted. Growth level, activity history, and API keys stay. This can’t be undone."
+                "这会删除它的角色图片。活动记录和 API Key 会保留。此操作不能撤销。",
+                "Its character art will be deleted. Activity history and API keys stay. This can’t be undone."
             )
             alert.addButton(withTitle: voice("删除角色", "Delete familiar"))
             alert.addButton(withTitle: voice("取消", "Cancel"))
@@ -2970,8 +2970,8 @@ extension AppDelegate {
             case "all":
                 let a = NSAlert()
                 a.messageText = voice("删除全部历史记录？", "Delete all history?")
-                a.informativeText = voice("所有活动记录和未采用的生成草稿都会消失；XP、等级和已采用的伴灵会保留。此操作无法撤销。",
-                                         "Every day of activity and every unadopted generation draft, gone. XP, level, and adopted familiars stay. No undo.")
+                a.informativeText = voice("所有活动记录和未采用的生成草稿都会消失；已采用的伴灵会保留。此操作无法撤销。",
+                                         "Every day of activity and every unadopted generation draft will be deleted; adopted familiars stay. No undo.")
                 a.addButton(withTitle: voice("全部删除", "Delete Everything"))
                 a.addButton(withTitle: voice("取消", "Cancel"))
                 a.alertStyle = .warning

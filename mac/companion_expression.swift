@@ -89,7 +89,7 @@ struct CompanionVariableSchema {
         // Mimo's semantic layer — the thing Shimeji has no equivalent of.
         // Behaviour can be gated on what the user is actually doing.
         "mimo.mood", "mimo.focusMinutes", "mimo.streakMinutes",
-        "mimo.level", "mimo.isIdle", "mimo.paused",
+        "mimo.isIdle", "mimo.paused",
     ])
 
     func contains(_ name: String) -> Bool { names.contains(name) }
@@ -260,7 +260,7 @@ struct CompanionExpression {
     }
 
     /// Strings compare as strings; everything else numerically. Lets a pack
-    /// write `mimo.mood == 'deepWork'` and `self.level == 3` with one operator.
+    /// write `mimo.mood == 'deepWork'` and compare another typed value with one operator.
     private static func equal(_ lhs: CompanionValue, _ rhs: CompanionValue) -> Bool {
         if case .text(let a) = lhs, case .text(let b) = rhs { return a == b }
         if case .text = lhs { return false }

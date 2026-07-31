@@ -486,7 +486,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
       <div class="quality-label"><b data-zh="下一次生成精度" data-en="Next generation quality">下一次生成精度</b><span data-zh="整套或单段 · 输入另计" data-en="full sheet or one form · input extra">整套或单段 · 输入另计</span></div>
       <div class="quality-grid" id="qualityGrid" role="radiogroup" data-aria-zh="下一次生成精度" data-aria-en="Next generation quality"></div>
     </div>
-    <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="让这个角色成长" data-en="Evolve this character">让这个角色成长</button>
+    <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="生成完整伴灵" data-en="Create complete familiar">生成完整伴灵</button>
   </div>
 
   <div class="sheet-result" id="petSheetResult" aria-live="polite"></div>
@@ -500,7 +500,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
       <div class="api-field"><label><span>OpenAI</span><b id="openAIKeyState">未设置</b></label><input id="openAIKey" type="password" autocomplete="off" placeholder="OpenAI API key"></div>
     </div>
     <div class="api-actions"><button type="button" onclick="savePetKeys()" data-zh="安全保存" data-en="Save securely">安全保存</button><button type="button" onclick="clearPetKey('openai')" data-zh="清除 OpenAI" data-en="Clear OpenAI">清除 OpenAI</button></div>
-    <div class="note" data-zh="GPT Image 2 · Low 草稿 → Medium / High 成长图。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。" data-en="GPT Image 2 · Low drafts → Medium / High evolution. Most waiting is image generation at OpenAI; local matte removal is normally brief.">GPT Image 2 · Low 草稿 → Medium / High 成长图。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。</div>
+    <div class="note" data-zh="GPT Image 2 · Low 草稿 → Medium / High 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。" data-en="GPT Image 2 · Low drafts → Medium / High finals. Most waiting is image generation at OpenAI; local matte removal is normally brief.">GPT Image 2 · Low 草稿 → Medium / High 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。</div>
   </details>
 </div>
 </div>
@@ -535,7 +535,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   <div class="row"><span class="grow" data-zh="伴灵显示大小" data-en="Familiar display size">伴灵显示大小</span>
     <div class="size-control"><input id="companionScale" type="range" min="60" max="140" step="5" value="100"
       oninput="changeCompanionScale(this.value)" aria-label="Familiar display size"><output id="companionScaleValue">100%</output></div></div>
-  <div class="row"><span class="grow" data-zh="声音（升级、连续成长、掉进分心坑）" data-en="Sounds (level-ups, streaks, distractions)">声音（升级、连续成长、掉进分心坑）</span>
+  <div class="row"><span class="grow" data-zh="声音（连续专注、分心提醒）" data-en="Sounds (focus streaks and distraction alerts)">声音（连续专注、分心提醒）</span>
     <label class="toggle"><input type="checkbox" id="sndTog" onchange="send({type:'sounds', on:this.checked})"><i></i></label></div>
   <div class="row"><span class="grow" data-zh="登录时启动" data-en="Start at login">登录时启动</span>
     <label class="toggle"><input type="checkbox" id="loginTog" onchange="send({type:'login', on:this.checked})"><i></i></label></div>

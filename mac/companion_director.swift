@@ -57,7 +57,6 @@ struct CompanionSnapshot: CompanionVariableSource {
     var mood: String = "idle"
     var focusMinutes: Double = 0
     var streakMinutes: Double = 0
-    var level: Double = 1
     var isIdle: Bool = true
     var paused: Bool = false
 
@@ -87,7 +86,6 @@ struct CompanionSnapshot: CompanionVariableSource {
         case "mimo.mood": return .text(mood)
         case "mimo.focusMinutes": return .number(focusMinutes)
         case "mimo.streakMinutes": return .number(streakMinutes)
-        case "mimo.level": return .number(level)
         case "mimo.isIdle": return .boolean(isIdle)
         case "mimo.paused": return .boolean(paused)
         default: return nil

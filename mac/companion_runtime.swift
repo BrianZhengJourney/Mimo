@@ -6,9 +6,7 @@ import QuartzCore
 // Structure follows Shimeji's three-phase tick — sample the world once, advance
 // every companion's logic, then commit presentation — so all companions see an
 // identical world and none observes another mid-update. The clock is a
-// CVDisplayLink rather than a Timer, which removes the two unsynchronised
-// animation clocks the current implementation runs during victoryWalk (a CSS
-// compositor animation plus a 60Hz Timer calling setFrameOrigin).
+// CVDisplayLink rather than a Timer, keeping motion on one synchronized clock.
 //
 // Physics lives in companion_physics.swift and is already unit tested; this
 // file is the part that has to touch AppKit, so it stays as thin as it can.
@@ -237,7 +235,6 @@ final class CompanionRuntime {
     var mood: String = "idle"
     var focusMinutes: Double = 0
     var streakMinutes: Double = 0
-    var level: Double = 1
 
     /// Raised on every click that was a click, not a drag. The behavior pack
     /// still gets the same event, so a tap can be both a pet reaction and a
@@ -796,7 +793,6 @@ final class CompanionRuntime {
         snapshot.mood = mood
         snapshot.focusMinutes = focusMinutes
         snapshot.streakMinutes = streakMinutes
-        snapshot.level = level
         snapshot.isIdle = mood == "idle"
         return snapshot
     }

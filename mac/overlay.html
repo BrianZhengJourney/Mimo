@@ -36,9 +36,6 @@ body.native-hosted .shadow{ visibility:hidden; pointer-events:none; }
 .aura{ position:absolute; inset:-14px; border-radius:50%; pointer-events:none;
   background:radial-gradient(circle, var(--fam-glow) 0%, transparent 66%);
   transition:opacity .8s, transform .8s; opacity:.75; }
-.ring{ position:absolute; inset:8px; border-radius:50%; border:2px solid #ffd76a; opacity:0; pointer-events:none; }
-.ring.burst{ animation:ringBurst 1.1s ease-out forwards; }
-@keyframes ringBurst{ 0%{ transform:scale(.4); opacity:.95;} 100%{ transform:scale(2.4); opacity:0;} }
 .shadow{ position:absolute; bottom:-8px; left:50%; transform:translateX(-50%);
   width:70px; height:12px; border-radius:50%; background:#000; opacity:.28; filter:blur(4px); }
 
@@ -89,7 +86,6 @@ body[data-char="pixel"] .shadow{ display:none; }
 [data-state="dizzy"]{ --fam-glow:rgba(210,215,90,.4); }
 [data-state="poisoned"]{ --fam-glow:rgba(130,200,60,.45); }
 [data-state="ghost"]{ --fam-glow:rgba(160,170,210,.25); }
-[data-state="evolved"]{ --fam-glow:rgba(255,196,90,.6); }
 
 .spark{ position:absolute; width:7px; height:7px; pointer-events:none;
   background:radial-gradient(circle,#fff 0 30%, var(--fam-glow) 70%, transparent);
@@ -118,20 +114,6 @@ body[data-char="pixel"] .shadow{ display:none; }
   background:rgba(20,16,40,.82); border:1px solid #ffffff1a; color:var(--ink);
   font-size:11px; backdrop-filter:blur(8px); box-shadow:0 4px 14px #0006; }
 .chip b{ font-weight:600; font-variant-numeric:tabular-nums; }
-.chip.lvl{ color:#ffd76a; }
-.chip.lvl b{ color:#ffd76a; }
-.xpbar{ display:inline-block; width:30px; height:4px; border-radius:2px; background:#ffffff20;
-  overflow:hidden; vertical-align:1px; margin-left:2px; }
-.xpbar span{ display:block; height:100%; background:linear-gradient(90deg,#f0a832,#ffd76a); border-radius:2px; }
-
-/* milestone walk: Swift sweeps the panel across the screen bottom while
-   the creature waddles */
-.familiar.walking{ animation:waddle .45s ease-in-out infinite !important; }
-@keyframes waddle{ 0%,100%{ transform:rotate(-7deg) translateY(0);} 50%{ transform:rotate(7deg) translateY(-6px);} }
-
-/* evolution art hooks for future mascot upgrades:
-   body[data-fam-level="N"] and .familiar.fam-lvN (e.g. gild the ember,
-   grow the tail). No default visual yet — the level chip carries it. */
 .chip.streak b{ color:#7df0cf; }
 .chip.pop{ animation:chipPop .45s cubic-bezier(.34,1.56,.64,1); }
 @keyframes chipPop{ 50%{ transform:scale(1.2);} }
@@ -477,7 +459,6 @@ body[data-char="pixel"] .shadow{ display:none; }
     <div class="hud-row">
       <span class="chip">🔥 <span class="flamebar"><span class="flamefill" id="flame"></span></span></span>
       <span class="chip streak">◇ <b id="streak">0m</b></span>
-      <span class="chip lvl" id="lvlChip"></span>
     </div>
   </div>
   <div class="pomo-wrap" id="pomoWrap">
@@ -632,7 +613,6 @@ const MASCOTS = {
       dizzy:    { anim: 'ffp-dizzy 1.1s linear infinite', filter: 'none', op: 1, orb: '#cabdff', eye: 'dizzy', mouth: 'squ', aura: 0, auraColor: '#cabdff', motes: 0 },
       poisoned: { anim: 'ffp-queasy 2.1s ease-in-out infinite', filter: 'saturate(.75) brightness(.96)', op: 1, orb: '#8ee07a', eye: 'sick', mouth: 'squ', aura: 0.28, auraColor: '#7cb85c', motes: 0, bubbles: 1, extras: [[4,3,'D'],[5,4,'D'],[10,3,'D'],[9,4,'D']] },
       ghost:    { anim: 'ffp-float 3.6s ease-in-out infinite', filter: 'saturate(.3) hue-rotate(175deg) brightness(1.12)', op: 0.72, orb: '#dfe9ff', eye: 'ghost', mouth: 'w', aura: 0.25, auraColor: '#7fa8ff', motes: 1 },
-      levelUp:  { anim: 'ffp-pop 1.3s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(255,176,46,.55))', op: 1, orb: '#ffe07a', eye: 'star', mouth: 'smile', aura: 0.2, auraColor: '#ffb02e', motes: 0, ring: 1, spark: 1 },
       sleeping: { pose: 'rotate(90deg) translate(0px,1.5px)', anim: 'ffp-sleepbob 4.6s ease-in-out infinite', filter: 'brightness(.9) saturate(.85)', op: 1, orb: '#c9b3ff', eye: 'sleep', mouth: 'o', aura: 0, auraColor: '#c9b3ff', motes: 0, zzz: 1 },
       proud:    { anim: 'ffp-proudhop 1.7s ease-in-out infinite', filter: 'drop-shadow(0 4px 12px rgba(255,176,46,.35))', op: 1, orb: '#ffe28a', eye: 'proud', mouth: 'smile', aura: 0, auraColor: '#ffe28a', motes: 1, spark: 1 }
     },
@@ -755,7 +735,6 @@ const MASCOTS = {
       dizzy:    { anim: 'ffp-dizzy 1.1s linear infinite', filter: 'none', op: 1, orb: '#cabdff', eye: 'dizzy', mouth: 'squ', aura: 0, auraColor: '#cabdff', motes: 0 },
       poisoned: { anim: 'ffp-queasy 2.1s ease-in-out infinite', filter: 'saturate(.75) brightness(.96)', op: 1, orb: '#8ee07a', eye: 'sick', mouth: 'squ', aura: 0.28, auraColor: '#7cb85c', motes: 0, bubbles: 1, extras: [[4,1,'D'],[5,2,'D'],[10,1,'D'],[9,2,'D']] },
       ghost:    { anim: 'ffp-float 3.6s ease-in-out infinite', filter: 'saturate(.3) hue-rotate(175deg) brightness(1.12)', op: 0.72, orb: '#dfe9ff', eye: 'ghost', mouth: 'w', aura: 0.25, auraColor: '#7fa8ff', motes: 1 },
-      levelUp:  { anim: 'ffp-pop 1.3s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(255,176,46,.55))', op: 1, orb: '#ffe07a', eye: 'star', mouth: 'smile', aura: 0.2, auraColor: '#ffb02e', motes: 0, ring: 1, spark: 1 },
       sleeping: { pose: 'rotate(90deg) translate(0px,-1px)', anim: 'ffp-sleepbob 4.6s ease-in-out infinite', filter: 'brightness(.9) saturate(.85)', op: 1, orb: '#c9b3ff', eye: 'sleep', mouth: 'o', aura: 0, auraColor: '#c9b3ff', motes: 0, zzz: 1 },
       proud:    { anim: 'ffp-proudhop 1.7s ease-in-out infinite', filter: 'drop-shadow(0 4px 12px rgba(255,176,46,.35))', op: 1, orb: '#ffe28a', eye: 'proud', mouth: 'smile', aura: 0, auraColor: '#ffe28a', motes: 1, spark: 1 }
     },
@@ -856,7 +835,6 @@ const MASCOTS = {
       dizzy:    { anim: 'ffp-dizzy 1.1s linear infinite', filter: 'none', op: 1, orb: '#cabdff', eye: 'dizzy', mouth: 'squ', aura: 0, auraColor: '#cabdff', motes: 0 },
       poisoned: { anim: 'ffp-queasy 2.1s ease-in-out infinite', filter: 'saturate(.75) brightness(.96)', op: 1, orb: '#8ee07a', eye: 'sick', mouth: 'squ', aura: 0.28, auraColor: '#7cb85c', motes: 0, bubbles: 1, extras: [[4,2,'D'],[5,3,'D'],[10,2,'D'],[9,3,'D']] },
       ghost:    { anim: 'ffp-float 3.6s ease-in-out infinite', filter: 'saturate(.5) hue-rotate(175deg) brightness(1.05)', op: 0.72, orb: '#dfe9ff', eye: 'ghost', mouth: 'w', aura: 0.25, auraColor: '#7fa8ff', motes: 1 },
-      levelUp:  { anim: 'ffp-pop 1.3s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(255,176,46,.55))', op: 1, orb: '#ffe07a', eye: 'star', mouth: 'smile', aura: 0.2, auraColor: '#ffb02e', motes: 0, ring: 1, spark: 1 },
       sleeping: { pose: 'rotate(90deg) translate(0px,1px)', anim: 'ffp-sleepbob 4.6s ease-in-out infinite', filter: 'brightness(.94) saturate(.9)', op: 1, orb: '#c9b3ff', eye: 'sleep', mouth: 'o', aura: 0, auraColor: '#c9b3ff', motes: 0, zzz: 1 },
       proud:    { anim: 'ffp-proudhop 1.7s ease-in-out infinite', filter: 'drop-shadow(0 4px 12px rgba(255,176,46,.35))', op: 1, orb: '#ffe28a', eye: 'proud', mouth: 'smile', aura: 0, auraColor: '#ffe28a', motes: 1, spark: 1 }
     },
@@ -865,7 +843,7 @@ const MASCOTS = {
 MASCOTS.lulu.CFG.focused = MASCOTS.lulu.CFG.focusedA;  // headphones version (design decision)
 
 /* Mimo DNA output. The compiler supplies identity silhouettes + face anchors;
-   the house rig supplies expressions, motion, shadow, focus, and level-ups. */
+   the house rig supplies expressions, motion, shadow, and focus. */
 function prototypeMascotPack(spec){
   const f = spec.face;
   const forms = Array.isArray(spec.EVOLUTION_BASES) ? spec.EVOLUTION_BASES : [spec.BASE];
@@ -926,7 +904,6 @@ function prototypeMascotPack(spec){
       dizzy:{anim:'ffp-dizzy 1.1s linear infinite',filter:'none',op:1,orb:p.L,eye:'dizzy',mouth:'squ',aura:0,auraColor:p.L,motes:0},
       poisoned:{anim:'ffp-queasy 2.1s ease-in-out infinite',filter:'saturate(.72) brightness(.96)',op:1,orb:'#8ee07a',eye:'sick',mouth:'squ',aura:.28,auraColor:'#7cb85c',motes:0,bubbles:1},
       ghost:{anim:'ffp-float 3.6s ease-in-out infinite',filter:'saturate(.3) hue-rotate(175deg) brightness(1.12)',op:.72,orb:'#dfe9ff',eye:'ghost',mouth:'w',aura:.25,auraColor:'#7fa8ff',motes:1},
-      levelUp:{anim:'ffp-pop 1.3s ease-in-out infinite',filter:'drop-shadow(0 0 12px rgba(255,176,46,.55))',op:1,orb:'#ffe07a',eye:'star',mouth:'smile',aura:.2,auraColor:'#ffb02e',motes:0,ring:1,spark:1},
       sleeping:{pose:'rotate(90deg) translate(0px,1.5px)',anim:'ffp-sleepbob 4.6s ease-in-out infinite',filter:'brightness(.9) saturate(.85)',op:1,orb:p.L,eye:'sleep',mouth:'o',aura:0,auraColor:p.L,motes:0,zzz:1},
       proud:{anim:'ffp-proudhop 1.7s ease-in-out infinite',filter:'drop-shadow(0 4px 12px rgba(255,176,46,.35))',op:1,orb:'#ffe28a',eye:'proud',mouth:'smile',aura:0,auraColor:'#ffe28a',motes:1,spark:1}
     }
@@ -970,7 +947,6 @@ function rasterMascotPack(spec){
       dizzy:{anim:'ffp-raster-dizzy 2.2s ease-in-out infinite',filter:'saturate(.82)',op:1,orb:accent,eye:'',mouth:'',aura:0,auraColor:accent,motes:0},
       poisoned:{anim:'ffp-raster-wobble 3.6s ease-in-out infinite',filter:'saturate(.72) brightness(.9)',op:1,orb:'#8ee07a',eye:'',mouth:'',aura:.18,auraColor:'#7cb85c',motes:0,bubbles:1},
       ghost:{anim:'ffp-raster-float 5.2s ease-in-out infinite',filter:'saturate(.5) brightness(1.06)',op:.65,orb:'#dfe9ff',eye:'',mouth:'',aura:.15,auraColor:'#7fa8ff',motes:1},
-      levelUp:{anim:'ffp-raster-celebrate 2.1s ease-in-out infinite',filter:`drop-shadow(0 0 15px ${accent})`,op:1,orb:'#ffe07a',eye:'',mouth:'',aura:.18,auraColor:'#ffb02e',motes:0,ring:1,spark:1,exprFrame:1},
       sleeping:{pose:'translateY(1.5px)',anim:'ffp-raster-breathe 6.4s ease-in-out infinite',filter:'brightness(.9) saturate(.82)',op:1,orb:accent,eye:'',mouth:'',aura:0,auraColor:accent,motes:0,zzz:1,exprFrame:2},
       proud:{anim:proudAnim,filter:`drop-shadow(0 5px 13px ${accent}66)`,op:1,orb:'#ffe28a',eye:'',mouth:'',aura:.08,auraColor:accent,motes:1,spark:1,exprFrame:1}
     }
@@ -999,13 +975,8 @@ const Mascot = (() => {
     });
     return { body, depth };
   };
-  /* Which stage's art to draw.
-     Always the most developed form. Evolution stages were a visual axis that
-     fought the thing that actually matters: for a familiar generated from a
-     person, the earliest stage is the most chibi and therefore the least like
-     them — and it is the first one anyone sees. XP and level survive as a
-     measure of focus; they just no longer change what the familiar looks like.
-     See docs/companion/08-likeness-and-demeanor.md §8.3. */
+  /* Always draw the approved mature take. The other two cells are generation
+     redundancy, not levels the user has to unlock. */
   const MATURE_STAGE = 2;
   const stageForLevel = () => MATURE_STAGE;
 
@@ -1063,8 +1034,7 @@ const Mascot = (() => {
                 by a hardcoded rule in Swift. */
              mood: current || 'idle',
              focusMinutes: Fam.streakMin ? Fam.streakMin() : 0,
-             streakMinutes: Fam.streakMin ? Fam.streakMin() : 0,
-             level: +(document.body.dataset.famLevel || 1) });
+             streakMinutes: Fam.streakMin ? Fam.streakMin() : 0 });
   }
   function stopBlink(){
     clearTimeout(blinkTimer);
@@ -1097,9 +1067,8 @@ const Mascot = (() => {
     if (badge) badge.style.bottom = (displaySize + 8) + 'px';
     const aura=pack.aura || {cx:8,cy:8,rx:9,ry:8};
     const paws=pack.paws || [[3,11],[9,11]];
-    const level=+(document.body.dataset.famLevel||1);
-    const levelRows=pack.RASTER_SHEET?null:rowsForLevel(pack,level);
-    const full=artForLevel(pack,level);
+    const levelRows=pack.RASTER_SHEET?null:rowsForLevel(pack,1);
+    const full=artForLevel(pack,1);
     const walkRows=pack.walk&&levelRows?bodyFor(pack,levelRows.slice(0,pack.walk.rows)):null;
     holder.innerHTML = `
     <div class="ffp-wrap" id="ffpWrap">
@@ -1161,25 +1130,6 @@ const Mascot = (() => {
     reportCompanionArt();
   }
 
-  /* Kept so the level badge and any celebration still fire, but the art it
-     rebuilds is now the same mature form at every level. */
-  function setEvolution(level){
-    if (!refs || !pack) return;
-    const rows=pack.RASTER_SHEET?null:rowsForLevel(pack,level);
-    refs._full=artForLevel(pack,level);
-    refs._walkRows=pack.walk&&rows?bodyFor(pack,rows.slice(0,pack.walk.rows)):null;
-    const c = pack.CFG[current] || pack.CFG.idle;
-    const src = c.walk && refs._walkRows ? refs._walkRows : refs._full;
-    refs.ffpBody.innerHTML = src.body;
-    refs.ffpDepth.innerHTML = src.depth;
-    // the rebuilt raster image starts at frame 0; re-apply the state's face
-    if (pack.RASTER_SHEET) {
-      setExpression(c.exprFrame || 0);
-      scheduleBlink();
-    }
-    reportCompanionArt();
-  }
-
   function setState(s){
     if (!refs || !pack) return;
     if (s === current) return;
@@ -1225,57 +1175,17 @@ const Mascot = (() => {
   }
 
   return {
-    mount, setState, setEvolution,
+    mount, setState,
     has: (s) => !!(pack && pack.CFG[s]),
     id: () => pack ? Object.keys(MASCOTS).find(k => MASCOTS[k] === pack) : null,
   };
 })();
 
-/* evolution preview: briefly walk through Seed → Bloom → Radiant on the
-   desktop, then return to the pet's real level. Menu-triggered from Swift. */
-let evoPreviewTimer = null;
-function famPreviewEvolution(){
-  if (evoPreviewTimer) return;                       // one preview at a time
-  const actualLevel = +(document.body.dataset.famLevel || 1);
-  const steps = [
-    { level: 1, zh: '初生', en: 'Seed' },
-    { level: 2, zh: '绽放', en: 'Bloom' },
-    { level: 4, zh: '发光', en: 'Radiant' },
-  ];
-  let index = 0;
-  const show = () => {
-    if (index >= steps.length) {
-      Mascot.setEvolution(actualLevel);
-      evoPreviewTimer = null;
-      toast(tx('回到现在的它 ✦', 'Back to today ✦'));
-      return;
-    }
-    const step = steps[index++];
-    Mascot.setEvolution(step.level);
-    toast(tx(`成长预览 · ${step.zh}`, `Preview · ${step.en}`));
-    Fam.sparkle(4);
-    evoPreviewTimer = setTimeout(show, 1800);
-  };
-  show();
-}
-
-/* victory walk (Swift moves the panel): Clawd paces with animated legs,
-   the others do the generic waddle */
-let victoryWalking = false;
-function famWalking(on){
-  victoryWalking = on;
-  const holder = document.getElementById('familiar');
-  if (on && !Mascot.has('walking')) holder.classList.add('walking');
-  if (!on) holder.classList.remove('walking');
-  Mascot.setState(mascotStateFor(Fam.state));
-}
-
 /* Fam state → mascot state (design's interaction mapping) */
 function mascotStateFor(s){
-  if (victoryWalking && Mascot.has('walking')) return 'walking';
   if (proudUntil > Date.now()) return 'proud';
   const m = { idle: 'idle', focused: 'focused', scholar: 'focused', dizzy: 'dizzy',
-              poisoned: 'poisoned', ghost: 'ghost', evolved: 'levelUp', sleep: 'sleeping' };
+              poisoned: 'poisoned', ghost: 'ghost', sleep: 'sleeping' };
   let out = m[s] || 'idle';
   // 25+ min single streak upgrades focus to deepWork (2× the calm)
   if (out === 'focused' && Fam.streakMin() >= 25) out = 'deepWork';
@@ -1286,14 +1196,9 @@ function mascotStateFor(s){
 }
 
 /* ═══ creature + state ═══ */
-function xpStorageKeyFor(characterID){
-  return String(characterID||'').startsWith('custom:')?`ff-xp:${characterID}`:'ff-xp';
-}
-
 const Fam = {
   char: 'wisp', state: 'idle',
   focus: 55, streakStart: null,
-  xp: 0, level: 1, _deepXPsec: 0, _xpLoaded: false,
   resources: { protein:0, iron:0, spellbook:0, fragment:0 },
   history: [],          // {app, kind, t0, t1}
   cur: null,            // {app, kind, t0}
@@ -1302,9 +1207,7 @@ const Fam = {
 
   setCharacter(id, persist = true){
     if (!MASCOTS[id]) id = 'lulu';
-    if (this._xpLoaded && id !== this.char) this.saveXP();
     this.char = id;
-    if (this._xpLoaded) this.readXP();
     document.body.dataset.char = 'pixel';
     const holder = document.getElementById('familiar');
     holder.innerHTML = '';
@@ -1312,7 +1215,6 @@ const Fam = {
     Mascot.mount(holder, id);
     Mascot.setState(mascotStateFor(this.state));
     if (persist) localStorage.setItem('ff-char', id);
-    this.applyLevel(); this.renderXP();
   },
 
   setState(s){
@@ -1350,7 +1252,6 @@ const Fam = {
     chip && chip.classList.add('pop');
     chip && setTimeout(() => chip.classList.remove('pop'), 500);
     this.sparkle(3);
-    this.addXP(5);
     sound('gain');
   },
 
@@ -1367,55 +1268,6 @@ const Fam = {
     }
   },
 
-  /* ── persistent XP: slow, earned, survives relaunches ──
-     sources: +1/deep-minute, +5/resource, +25 streak bonus.
-     level n → n+1 costs 250·n XP (lv.2 ≈ one honest deep-work day). */
-  xpToNext(){ return 250 * this.level; },
-  readXP(){
-    let saved = {};
-    try { saved = JSON.parse(localStorage.getItem(xpStorageKeyFor(this.char)) || '{}'); } catch(e) {}
-    this.xp = Number.isFinite(+saved.xp) ? Math.max(0,+saved.xp) : 0;
-    this.level = Number.isFinite(+saved.level) ? Math.max(1,Math.floor(+saved.level)) : 1;
-  },
-  loadXP(){
-    this.readXP(); this._xpLoaded = true;
-    this.applyLevel(); this.renderXP();
-  },
-  saveXP(){ localStorage.setItem(xpStorageKeyFor(this.char), JSON.stringify({ xp: this.xp, level: this.level })); },
-  addXP(n){
-    this.xp += n;
-    while (this.xp >= this.xpToNext()) { this.xp -= this.xpToNext(); this.levelUp(); }
-    this.saveXP(); this.renderXP();
-  },
-  renderXP(){
-    const el = document.getElementById('lvlChip');
-    if (el) el.innerHTML =
-      `✦ lv.<b>${this.level}</b> <span class="xpbar"><span style="width:${Math.min(100, 100 * this.xp / this.xpToNext()).toFixed(0)}%"></span></span>`;
-  },
-  /* evolution art hooks: body[data-fam-level] + .familiar.fam-lvN classes */
-  applyLevel(){
-    document.body.dataset.famLevel = this.level;
-    const holder = document.getElementById('familiar');
-    [...holder.classList].filter(c => c.startsWith('fam-lv')).forEach(c => holder.classList.remove(c));
-    holder.classList.add('fam-lv' + this.level);
-    Mascot.setEvolution(this.level);
-  },
-
-  levelUp(){
-    this.level++;
-    this.applyLevel();
-    const ring = document.getElementById('ring') || (() => {
-      const r = document.createElement('div'); r.className = 'ring'; r.id = 'ring';
-      document.getElementById('stage').appendChild(r); return r;
-    })();
-    ring.classList.remove('burst'); void ring.offsetWidth; ring.classList.add('burst');
-    this.setState('evolved');
-    this.sparkle(9);
-    toast(tx(`✦ 长大了——lv.${this.level} ✦`, `✦ evolved — lv.${this.level} ✦`));
-    bridge({ type: 'levelUp', level: this.level });   // Swift: victory walk + optional chime
-    setTimeout(() => { if (this.state === 'evolved') this.setState('focused'); }, 8000);
-  },
-
   hud(on){ document.getElementById('hud').classList.toggle('on', on); },
 };
 
@@ -1424,7 +1276,6 @@ function statusCopy(state){
     idle:     { cls: '',         label: tx('😐 发发呆', '😐 idle') },
     focused:  { cls: 'focus',    label: tx('🎯 正在成长', '🎯 growing') },
     scholar:  { cls: 'focus',    label: tx('📖 正在成长 · 阅读', '📖 growing · reading') },
-    evolved:  { cls: 'focus',    label: tx('✦ 连续成长中', '✦ growing · on a streak') },
     dizzy:    { cls: 'distract', label: tx('🌀 有点分心', '🌀 getting distracted') },
     poisoned: { cls: 'distract', label: tx('☠️ 掉进分心坑', '☠️ distracted') },
     ghost:    { cls: 'distract', label: tx('👻 飘得很远', '👻 very distracted') },
@@ -1455,9 +1306,8 @@ setInterval(() => {
     if (!Fam.streakStart) Fam.streakStart = Date.now();
     if (Fam.deepSec === 6) Fam.setState(kind === 'paper' ? 'scholar' : 'focused');
     if (Fam.deepSec > 0 && Fam.deepSec % 45 === 0) Fam.gain(RESOURCE_FOR(kind));
-    if (++Fam._deepXPsec >= 60) { Fam._deepXPsec = 0; Fam.addXP(1); }   // +1 XP per deep minute
     const m = Fam.streakMin();
-    if (m === 25 && !Fam._t25) { Fam._t25 = true; toast(tx('🔥 连续成长 25 分钟 · +25 XP','🔥 25-minute growth streak · +25 XP')); Fam.addXP(25); sound('streak'); }
+    if (m === 25 && !Fam._t25) { Fam._t25 = true; toast(tx('🔥 已连续专注 25 分钟','🔥 focused for 25 minutes')); sound('streak'); }
   } else if (kind === 'distraction') {
     Fam.distractSec++; Fam.deepSec = 0; Fam.streakStart = null; Fam._t25 = false;
     Fam.setFocus(Fam.focus - 0.5);
@@ -1471,7 +1321,7 @@ setInterval(() => {
       Fam.distractSec--;
       if (Fam.distractSec <= 30 && ['poisoned','ghost'].includes(Fam.state)) Fam.setState('dizzy');
       if (Fam.distractSec === 0) Fam.setState('idle');
-    } else if (Fam.state !== 'idle' && Fam.state !== 'evolved') {
+    } else if (Fam.state !== 'idle') {
       Fam.setState('idle');
     }
   }
@@ -1586,8 +1436,7 @@ let proudUntil = 0;
 function famProud(label){
   proudUntil = Date.now() + 5000;
   Mascot.setState('proud');
-  toast(label || tx('🎉 做出来了！+10 XP','🎉 shipped! +10 XP'));
-  Fam.addXP(10);
+  toast(label || tx('🎉 做出来了！','🎉 shipped!'));
   sound('streak');
   setTimeout(() => { proudUntil = 0; Mascot.setState(mascotStateFor(Fam.state)); }, 5200);
 }
@@ -1816,7 +1665,7 @@ function renderNow(){
     ? tx(`你在 <b>${Fam.cur.app}</b>——${fmtDur(now - Fam.cur.t0)}`, `You're in <b>${Fam.cur.app}</b> — ${fmtDur(now - Fam.cur.t0)}`)
     : tx('暂时离开','away');
   const streak = Fam.streakMin();
-  el.innerHTML = `<div>${cur}${streak > 0 ? tx(` · 连续成长 <b>${streak} 分钟</b> 🔥`,` · streak <b>${streak}m</b> 🔥`) : ''} · ✦ lv.${Fam.level}</div>` +
+  el.innerHTML = `<div>${cur}${streak > 0 ? tx(` · 连续专注 <b>${streak} 分钟</b> 🔥`,` · focus streak <b>${streak}m</b> 🔥`) : ''}</div>` +
     `<div class="jn-sub">${tx(`过去 25 分钟 ${pc(s25.pct)} 成长 · 过去一小时 ${pc(s60.pct)} 成长`,`last 25 min ${pc(s25.pct)} growth · last hour ${pc(s60.pct)} growth`)}</div>`;
 }
 
@@ -2182,8 +2031,8 @@ function renderQuest(){
     if (neut > 5 * 60000) html += node('🧾', tx('日常杂事','admin tax'), tx(`${fmtDur(neut)}——勉强接受吧`,`${fmtDur(neut)} — tolerated, grudgingly`));
     if (distTotal > 3 * 60000) html += node('🕳️', tx('分心坑','the distraction pit'),
       `−${fmtDur(distTotal)} · ` + distG.slice(0, 2).map(g => `${g.label} (${fmtDur(g.ms)})`).join(' · '), 'bad');
-    html += node('✦', `lv.${Fam.level} · ${Fam.xp}/${Fam.xpToNext()} XP`,
-      best > 60000 ? tx(`最长连续成长：${fmtDur(best)}`,`best growth streak: ${fmtDur(best)} unbroken`) : tx('还没有值得唱出来的连续成长','no streak worth singing about yet'), 'gold');
+    if (best > 60000) html += node('◇', tx('最长连续专注','longest focus streak'),
+      fmtDur(best), 'gold');
     const pct = deepTotal + neut + distTotal > 0 ? Math.round(100 * deepTotal / (deepTotal + neut + distTotal)) : 0;
     const note = J_NOTES.find(n => pct >= n.min);
     html += `<div class="j-note" style="margin-top:8px">${tx(note.zh,note.en)}</div>`;
@@ -2285,8 +2134,8 @@ function pomoTick(){
 function endPomo(success){
   clearInterval(Pomo.timer); Pomo.timer = null;
   document.getElementById('pomoWrap').classList.remove('on');
-  if (success && !Pomo.wounded){ toast(tx('🏹 冒险完成 · +35 XP','🏹 quest complete · +35 XP')); Fam.addXP(35); Fam.sparkle(7); sound('streak'); }
-  else if (success){ toast(tx('🏹 跌跌撞撞，但完成了 · +15 XP','🏹 quest finished — limping, but done · +15 XP')); Fam.addXP(15); }
+  if (success && !Pomo.wounded){ toast(tx('🏹 专注完成','🏹 focus complete')); Fam.sparkle(7); sound('streak'); }
+  else if (success){ toast(tx('🏹 跌跌撞撞，但完成了','🏹 finished — limping, but done')); }
   else toast(tx('🏹 冒险结束','🏹 quest called off'));
 }
 
@@ -2302,8 +2151,8 @@ function famExportMD(){
   };
   const st = windowStats(24 * 60);
   return `# ${tx('Mimo 今日手记','Mimo Journal')} — ${new Date().toDateString()}\n\n` +
-    tx(`**${st.pct}% 成长** · 成长 ${fmtDur(st.deepMin * 60000)} · 米墨 lv.${Fam.level} (${Fam.xp}/${Fam.xpToNext()} XP)`,
-       `**${st.pct}% growth** · ${fmtDur(st.deepMin * 60000)} growth · Mimo lv.${Fam.level} (${Fam.xp}/${Fam.xpToNext()} XP)`) +
+    tx(`**${st.pct}% 成长** · 成长 ${fmtDur(st.deepMin * 60000)}`,
+       `**${st.pct}% growth** · ${fmtDur(st.deepMin * 60000)} growth`) +
     sec(tx('📖 读过','📖 Read'), 'read') + sec(tx('🛠️ 做过','🛠️ Built'), 'built') + sec(tx('🕳️ 分心','🕳️ Distractions'), 'distracted') + '\n';
 }
 
@@ -2361,7 +2210,7 @@ function famExportHTML(){
 </style></head>
 <body><div class="page">
   <h1>✦ ${tx('Mimo 今日手记','Mimo Journal')}</h1>
-  <div class="meta">${new Date().toDateString()} · ${tx(`米墨替你记下 · lv.${Fam.level}`,`recorded by Mimo · lv.${Fam.level}`)} ·
+  <div class="meta">${new Date().toDateString()} · ${tx('米墨替你记下','recorded by Mimo')} ·
     <b style="color:#7df0cf">${st.pct}% ${tx('成长','growth')}</b> · ${fmtDur(st.deepMin * 60000)} ${tx('成长','growth')}</div>
   <h2>${tx('一天留下的纹理','the day, hour by hour')}</h2>
   ${buildStrip(w0, now, labels)}
@@ -2414,7 +2263,6 @@ document.addEventListener('pointerdown',event=>{
 document.addEventListener('DOMContentLoaded', () => {
   Fam.setCharacter(localStorage.getItem('ff-char') || 'lulu');
   Fam.setFocus(55);
-  Fam.loadXP();
 
   // click = complete journal; press-and-move = drag (window moved by Swift).
   const fam = document.getElementById('familiar');
@@ -2517,9 +2365,9 @@ document.addEventListener('DOMContentLoaded', () => {
         Fam.cur = null;
       }
       Fam.streakStart = Fam.cur ? Fam.cur.t0 : null;
-      Fam.level = 4; Fam.xp = 180; Fam.focus = 76;
+      Fam.focus = 76;
       Fam.resources = {protein:7,iron:4,spellbook:3,fragment:6};
-      Fam.renderRes(); Fam.renderXP(); Fam.setFocus(76); Fam.renderStreak();
+      Fam.renderRes(); Fam.setFocus(76); Fam.renderStreak();
       J.view = 'time'; J.openSess = null;
       document.getElementById('journal').classList.add('on');
       document.getElementById('stage').classList.add('journal-open');

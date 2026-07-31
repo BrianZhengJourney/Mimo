@@ -472,7 +472,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         pruneOldLogs()
         startStudioCleanup()
         gitWatcher.onCommit = { [weak self] repo in
-            let message = "🎉 \(repo): commit shipped! +10 XP"
+            let message = "🎉 \(repo): commit shipped!"
             self?.js("famProud(\(jsonStr(message)))")
         }
         gitWatcher.start()
@@ -641,8 +641,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         menu.addItem(huntRoot)
         menu.setSubmenu(huntMenu, for: huntRoot)
 
-        menu.addItem(item(voice("预览成长形态", "Preview evolution"),
-                          #selector(previewEvolution), "", "sparkles"))
         menu.addItem(makeCompanionPreviewRoot())
 
         menu.addItem(NSMenuItem.separator())
@@ -1345,12 +1343,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
-    // walk through Seed → Bloom → Radiant on the desktop without granting XP
-    @objc func previewEvolution() {
-        revealOverlay()
-        js("famPreviewEvolution()")
-        if UserDefaults.standard.bool(forKey: "soundOn") { NSSound(named: "Glass")?.play() }
-    }
     @objc func enableAX() {
         if axTrusted(prompt: true) {
             let a = NSAlert()
@@ -1468,16 +1460,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if let streak = body["streakMinutes"] as? NSNumber {
                 companionRuntime.streakMinutes = streak.doubleValue
             }
-            if let level = body["level"] as? NSNumber {
-                companionRuntime.level = level.doubleValue
-            }
         case "ctxMenu":
             showCompanionMenu()
         case "log":
             if let entry = body["entry"] as? [String: Any] { appendLog(entry) }
-        case "levelUp":
-            victoryWalk()
-            playSound("Glass")
         case "sound":
             // gain = soft tick, streak = bright ping, poison = low thud
             let map = ["gain": "Tink", "streak": "Ping", "poison": "Basso"]
@@ -1490,32 +1476,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func playSound(_ name: String) {
         guard UserDefaults.standard.bool(forKey: "soundOn") else { return }
         NSSound(named: name)?.play()
-    }
-
-    // ── milestone moment: waddle across the screen bottom and back ──
-    var walkTimer: Timer?
-    func victoryWalk() {
-        guard walkTimer == nil, !dragging, !overlayHidden, !hidden else { return }
-        let vf = (panel.screen ?? NSScreen.main!).visibleFrame
-        let home = panel.frame.origin
-        let target = vf.minX + 160 - panel.frame.width   // creature reaches the left screen edge
-        let start = Date()
-        let dur = 10.0
-        js("famWalking(true)")
-        walkTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60, repeats: true) { [weak self] t in
-            guard let self else { t.invalidate(); return }
-            let p = Date().timeIntervalSince(start) / dur
-            if p >= 1 {
-                t.invalidate(); self.walkTimer = nil
-                self.panel.setFrameOrigin(home)
-                self.js("famWalking(false)")
-                return
-            }
-            let tri = p < 0.5 ? p * 2 : (1 - p) * 2       // out and back
-            let eased = tri * tri * (3 - 2 * tri)          // smoothstep
-            self.panel.setFrameOrigin(NSPoint(x: home.x + (target - home.x) * eased, y: home.y))
-        }
-        RunLoop.main.add(walkTimer!, forMode: .common)
     }
 
     // replay today's persisted history once the overlay page is ready,
