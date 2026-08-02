@@ -355,17 +355,30 @@ private struct StarterActionTelemetryLive {
             role: .baseline, configuration: configuration, input: input)
         var candidate = try loadOrCreate(
             role: .candidate, configuration: configuration, input: input)
+        var pairIndex = 0
         for action in StarterActionID.allCases {
             let definition = StarterActionCatalog.definition(action)
             for batch in definition.batches.indices {
-                try checkpointCall(
-                    role: .baseline, action: action, batchIndex: batch,
-                    configuration: configuration, input: input,
-                    coordinator: coordinator, state: &baseline)
-                try checkpointCall(
-                    role: .candidate, action: action, batchIndex: batch,
-                    configuration: configuration, input: input,
-                    coordinator: coordinator, state: &candidate)
+                if pairIndex.isMultiple(of: 2) {
+                    try checkpointCall(
+                        role: .baseline, action: action, batchIndex: batch,
+                        configuration: configuration, input: input,
+                        coordinator: coordinator, state: &baseline)
+                    try checkpointCall(
+                        role: .candidate, action: action, batchIndex: batch,
+                        configuration: configuration, input: input,
+                        coordinator: coordinator, state: &candidate)
+                } else {
+                    try checkpointCall(
+                        role: .candidate, action: action, batchIndex: batch,
+                        configuration: configuration, input: input,
+                        coordinator: coordinator, state: &candidate)
+                    try checkpointCall(
+                        role: .baseline, action: action, batchIndex: batch,
+                        configuration: configuration, input: input,
+                        coordinator: coordinator, state: &baseline)
+                }
+                pairIndex += 1
             }
             try finishAction(action, state: &baseline)
             try finishAction(action, state: &candidate)

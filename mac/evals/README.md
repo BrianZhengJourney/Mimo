@@ -65,7 +65,9 @@ an isolated local directory: they are never installed and never modify a pet or
 its Studio jobs. The harness checkpoints after every paid call, performs the
 same coherent-batch normalization/QA locally, and writes one validated
 `telemetry.json` per cohort. A complete cohort is exactly 10 calls and four
-passing action results.
+passing action results. Pair order is counterbalanced across the ten calls, so
+baseline and candidate each run first five times instead of assigning queue
+delay to one role.
 
 ```bash
 ./mac/evals/telemetry.sh \
