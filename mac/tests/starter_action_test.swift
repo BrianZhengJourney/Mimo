@@ -31,8 +31,8 @@ struct StarterActionTests {
                "sleep no longer spends a third call drawing an unwanted rise")
         expect(sleep.segments.map(\.name) == ["lie-down", "breathing-loop"],
                "sleep settles once and then exposes only its breathing loop")
-        expect(sleep.contractRevision == 2,
-               "the prone no-rise sleep contract can migrate durable jobs")
+        expect(sleep.contractRevision == 3,
+               "the sleep safe-zone contract can migrate clipped durable jobs")
         let sleepPoses = sleep.batches.flatMap(\.poses).joined(separator: " ")
         expect(sleepPoses.contains("head resting sideways on folded hands")
                && sleepPoses.contains("tiny relaxed pout"),

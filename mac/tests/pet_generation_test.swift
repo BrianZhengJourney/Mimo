@@ -169,6 +169,31 @@ struct PetGenerationTests {
         expect(breathe.contains("After FRAME 03 the character never rises")
                && !breathe.contains("back to standing"),
                "the final sleep family remains prone and only breathes")
+        for prompt in [settle, breathe] {
+            expect(prompt.contains("one shared scale")
+                   && prompt.contains("central 384px horizontal safe zone")
+                   && prompt.contains("outer 64px side bands")
+                   && prompt.contains("pure #F1ECE2")
+                   && prompt.contains("never resize frames independently"),
+                   "every sleep family reserves one explicit horizontal safe zone")
+            expectOrdered(
+                ["OUTPUT", "POSES", "POSE CONSTRUCTION",
+                 "central 384px horizontal safe zone", "MOTION"],
+                in: prompt,
+                "sleep safe-zone remains a pose construction invariant")
+        }
+        expectOrdered(
+            ["PREVIOUS APPROVED THREE-FRAME BATCH", "LAYOUT GUIDE"],
+            in: breathe,
+            "continued sleep keeps continuity before layout guidance")
+        let tennis = flattened(PetGenerationCoordinator.starterActionBatchPrompt(
+            actionID: .tennis,
+            batchIndex: 0,
+            personalityVisual: "Soft and cozy",
+            hasStyleBoard: true,
+            hasPreviousBatch: false))
+        expect(!tennis.contains("central 384px horizontal safe zone"),
+               "the experimental safe-zone changes only sleep")
     }
 
     /// Poses are described physically rather than labelled. A model follows

@@ -214,10 +214,10 @@ struct StarterActionJobTests {
         let sleep = current.first { $0.actionID == .sleep }!
         expect(current.count == 4 && sleep.id != legacyID,
                "a changed paid sleep contract receives one fresh current card")
-        expect(sleep.contractRevision == 2
+        expect(sleep.contractRevision == 3
                && sleep.estimatedProviderCalls == 2
                && sleep.completedBatches == 0,
-               "the replacement card uses the two-batch prone sleep contract")
+               "the replacement card uses the safe-zone prone sleep contract")
         let preserved = try store.record(jobID: legacyID)
         expect(preserved.state == .awaitingReview
                && preserved.usedProviderCalls == 3

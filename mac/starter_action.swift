@@ -103,7 +103,7 @@ struct StarterActionDefinition: Equatable, Sendable {
     /// Durable generation contract revision. Increment only when retained
     /// provider batches are no longer semantically reusable.
     var contractRevision: Int {
-        id == .sleep ? 2 : 1
+        id == .sleep ? 3 : 1
     }
 
     /// Constant-FPS fallback for contact-sheet preview only. Runtime behavior
@@ -172,6 +172,11 @@ enum StarterActionCatalog {
                     + "prone on the front / stomach, with the head resting sideways on "
                     + "folded hands. Keep the eyes peacefully closed, cheeks softly rounded, "
                     + "and a tiny relaxed pout: cute and content, never sad or angry. "
+                    + "Choose one shared scale for all three sleep frames, small enough that "
+                    + "the widest prone silhouette fits inside each panel's central 384px "
+                    + "horizontal safe zone. Keep both outer 64px side bands uninterrupted "
+                    + "pure #F1ECE2 matte, including FRAME 03's outer canvas-right edge. "
+                    + "Never crop or continue the body beyond a panel, and never resize frames independently. "
                     + "After FRAME 03 the character never rises, kneels, wakes, or returns "
                     + "to standing. Frames 4–6 preserve the exact head, hands, face, hair, "
                     + "and body construction and change only the slow breathing volume.",
