@@ -67,31 +67,55 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .pet-library-filter{ min-height:25px; padding:3px 8px; border-radius:999px;
   color:var(--dim); font-size:9.5px; }
 .pet-library-filter.sel{ color:var(--ink); background:var(--accent-soft); border-color:var(--accent); }
-.cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-.card{ position:relative; min-width:0; background:#1c173a; border:2px solid var(--line); border-radius:14px;
-  padding:12px 8px 10px; text-align:center; cursor:pointer; transition:border-color .2s, transform .15s; }
+.cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+.card{ position:relative; min-width:0; border:1px solid var(--line); border-radius:14px;
+  padding:11px 8px 10px; text-align:center; cursor:pointer; transition:border-color .16s,background .16s; }
 .card.archived{ opacity:.72; cursor:default; }
-.card:hover{ transform:translateY(-2px); }
-.card.sel{ border-color:var(--accent); box-shadow:0 0 18px #cabcf533; }
+.card.sel{ border-color:var(--accent); }
 .card svg{ width:72px; height:72px; overflow:visible; }
 .card-sheet{ width:72px; height:72px; margin:auto; overflow:hidden; }
 .card-sheet img{ display:block; width:216px; height:72px; max-width:none; image-rendering:auto; }
-.card-library-action{ position:absolute; z-index:2; right:4px; top:4px; min-width:28px;
-  height:28px; padding:0 6px;
-  display:grid; place-items:center; border-radius:8px; border:1px solid #ffffff16; color:#c9c3dc;
-  background:#14102bcf; font-size:9px; opacity:.68; }
-.card-rename{ position:absolute; z-index:2; left:4px; top:4px; width:28px; height:28px; padding:0;
-  display:grid; place-items:center; border-radius:8px; border:1px solid #ffffff16; color:#c9c3dc;
-  background:#14102bcf; font-size:11px; opacity:.68; }
-.card:hover .card-library-action,.card-library-action:focus{ opacity:1; color:var(--ink); border-color:var(--accent); }
-.card:hover .card-rename,.card-rename:focus{ opacity:1; color:#d9fff2; border-color:#7df0cf66; }
+.card-manage{ position:absolute; z-index:2; right:6px; top:6px; width:29px; height:27px; padding:0;
+  display:grid; place-items:center; border-radius:9px; color:var(--dim); background:var(--surface-raised);
+  font-size:15px; line-height:1; letter-spacing:.04em; opacity:.82; }
+.card:hover .card-manage,.card-manage:focus-visible{ opacity:1; color:var(--accent); border-color:var(--accent); }
 .card .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:600; margin-top:5px; }
 .card .ds{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:var(--dim); margin-top:2px; }
-.card-category{ max-width:100%; min-height:22px; margin-top:6px; padding:2px 7px;
-  border-radius:999px; color:var(--dim); font-size:8.5px; overflow:hidden;
-  text-overflow:ellipsis; white-space:nowrap; }
 .pet-library-empty{ padding:13px; color:var(--dim); text-align:center; font-size:10px;
   border:1px dashed var(--line); border-radius:12px; }
+.pet-manager-overlay{ position:fixed; z-index:1200; inset:0; display:grid; place-items:center; padding:24px;
+  background:#352c2540; backdrop-filter:blur(5px); }
+.pet-manager-overlay[hidden]{ display:none; }
+.pet-manager-sheet{ width:min(390px,calc(100vw - 32px)); max-height:calc(100vh - 48px); overflow:auto;
+  padding:18px; border:1px solid var(--line); border-radius:18px; color:var(--ink);
+  background:var(--surface-raised); box-shadow:0 22px 70px #352c2533; }
+.pet-manager-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px; }
+.pet-manager-head small{ display:block; margin-bottom:3px; color:var(--dim); font-size:10px; }
+.pet-manager-head h3{ max-width:290px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-size:17px; font-weight:var(--ui-strong-weight); }
+.pet-manager-close{ flex:none; width:30px; height:30px; padding:0; border-radius:50%; font-size:17px; }
+.pet-manager-form{ display:grid; gap:12px; }
+.pet-manager-form[inert]{ opacity:.56; }
+.pet-manager-field{ display:grid; gap:5px; color:var(--dim); font-size:10.5px; }
+.pet-manager-field input{ width:100%; min-height:38px; padding:8px 10px; border:1px solid var(--line);
+  border-radius:10px; color:var(--ink); background:var(--surface); font-size:12px; outline:none; }
+.pet-manager-field input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.pet-manager-hint{ margin-top:-7px; color:var(--dim); font-size:9.5px; }
+.pet-manager-status{ min-height:16px; color:var(--bad); font-size:10px; line-height:1.5; }
+.pet-manager-status[data-tone="busy"]{ color:var(--dim); }
+.pet-manager-actions{ display:flex; align-items:center; gap:7px; padding-top:2px; }
+.pet-manager-actions button{ min-height:34px; }
+.pet-manager-actions .pet-manager-save{ flex:1; color:#fffaf3; background:var(--accent); border-color:var(--accent); }
+.pet-manager-actions .pet-manager-save:hover{ background:#7f5844; }
+.pet-manager-archive{ color:var(--dim); }
+.pet-manager-delete{ color:var(--bad); border-color:#a45f5d55; background:transparent; }
+.pet-delete-confirm{ margin-top:13px; padding:12px; border:1px solid #a45f5d55; border-radius:12px;
+  background:#f5e5e1; }
+.pet-delete-confirm[hidden]{ display:none; }
+.pet-delete-confirm b{ display:block; margin-bottom:4px; color:var(--bad); font-size:11.5px; }
+.pet-delete-confirm p{ color:#76514f; font-size:10px; line-height:1.5; }
+.pet-delete-confirm-actions{ display:flex; justify-content:flex-end; gap:7px; margin-top:10px; }
+.pet-delete-confirm-actions .confirm{ color:#fffaf3; background:var(--bad); border-color:var(--bad); }
 
 /* Mimo Studio — a visible three-step path: sketch, choose, evolve. */
 .proto-tag{ margin-left:auto; color:#15112b; background:#ffd479; border-radius:9px;
@@ -513,7 +537,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .diag,.warning-list,.generation-details,.generation-details summary,.recovery-copy,
 .pet-privacy,.pet-privacy summary,.recovery-archive{ color:var(--dim); }
 .proto-tag{ color:#fffaf3; background:var(--warn); }
-.card-library-action,.card-rename{ border-color:#ffffff30; color:#fffaf3; background:#352c25cc; }
+.card-manage{ border-color:var(--line); color:var(--dim); background:var(--surface-raised); }
 .style-tuning-chip.applied{ color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
 .api-field input:focus,.style-tuning-input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 </style>
@@ -703,6 +727,40 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 </div>
 </main>
 
+<div class="pet-manager-overlay" id="petManagerOverlay" hidden
+  onclick="if(event.target===this)closePetManager()">
+  <section class="pet-manager-sheet" role="dialog" aria-modal="true" aria-labelledby="petManagerTitle">
+    <header class="pet-manager-head">
+      <div><small data-zh="管理伴灵" data-en="Manage familiar">管理伴灵</small><h3 id="petManagerTitle"></h3></div>
+      <button class="pet-manager-close" type="button" onclick="closePetManager()"
+        data-aria-zh="关闭伴灵管理" data-aria-en="Close familiar manager">×</button>
+    </header>
+    <form class="pet-manager-form" id="petManagerForm" onsubmit="savePetManager(event)">
+      <label class="pet-manager-field"><span data-zh="名称" data-en="Name">名称</span>
+        <input id="petManagerName" maxlength="28" autocomplete="off" required></label>
+      <label class="pet-manager-field"><span data-zh="分类" data-en="Category">分类</span>
+        <input id="petManagerCategory" maxlength="40" list="petManagerCategoryOptions" autocomplete="off"
+          data-placeholder-zh="输入新分类，或选择已有分类" data-placeholder-en="Type or choose a category"></label>
+      <datalist id="petManagerCategoryOptions"></datalist>
+      <div class="pet-manager-hint" data-zh="留空即不分类" data-en="Leave blank for no category">留空即不分类</div>
+      <div class="pet-manager-status" id="petManagerStatus" role="status" aria-live="polite"></div>
+      <div class="pet-manager-actions">
+        <button class="pet-manager-save" type="submit" data-zh="保存" data-en="Save">保存</button>
+        <button class="pet-manager-archive" id="petManagerArchive" type="button" onclick="toggleManagedPetArchive()"></button>
+        <button class="pet-manager-delete" id="petManagerDelete" type="button" onclick="beginPetDelete()"></button>
+      </div>
+    </form>
+    <div class="pet-delete-confirm" id="petDeleteConfirm" hidden>
+      <b id="petDeleteConfirmTitle"></b>
+      <p id="petDeleteConfirmCopy"></p>
+      <div class="pet-delete-confirm-actions">
+        <button id="petDeleteCancelButton" type="button" onclick="cancelPetDelete()" data-zh="取消" data-en="Cancel">取消</button>
+        <button class="confirm" id="petDeleteConfirmButton" type="button" onclick="confirmPetDelete()"></button>
+      </div>
+    </div>
+  </section>
+</div>
+
 <script>
 let LANG = 'zh';
 let activeSettingsTab = 'pet';
@@ -748,6 +806,9 @@ function applyLanguage(){
   document.querySelectorAll('[data-aria-zh][data-aria-en]').forEach(el => {
     el.setAttribute('aria-label', LANG === 'zh' ? el.dataset.ariaZh : el.dataset.ariaEn);
   });
+  document.querySelectorAll('[data-placeholder-zh][data-placeholder-en]').forEach(el => {
+    el.setAttribute('placeholder', LANG === 'zh' ? el.dataset.placeholderZh : el.dataset.placeholderEn);
+  });
   const input = document.getElementById('petName');
   if (input && (input.value === '我的小伴灵' || input.value === 'My little familiar')) {
     input.value = tx('我的小伴灵', 'My little familiar');
@@ -758,6 +819,7 @@ function applyLanguage(){
     petLab.styleTuningNote=localizedStylePresetNote(preset)||defaultStyleTuning();
   }
   syncLanguageChoices();
+  syncPetManagerLanguage();
 }
 function changeLanguage(lang){
   LANG = lang === 'en' ? 'en' : 'zh';
@@ -856,7 +918,7 @@ const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],pri
   warnings:[],partialImage:null,providerCompleted:false,rawPreview:null,recoveryDraftID:null,
   recoveryRequestID:null,recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,
   model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,
-  startedAt:null,finishedElapsed:null,cancelArmedUntil:0,adoptedName:'',referenceNoticeZh:'',referenceNoticeEn:'',
+  startedAt:null,finishedElapsed:null,cancelArmedUntil:0,adoptedCharacterID:null,adoptedName:'',referenceNoticeZh:'',referenceNoticeEn:'',
   importing:0,
   expr:null};
 
@@ -1051,7 +1113,7 @@ function invalidatePetDraft(){
     localSeconds:null,providerCompleted:false,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,
     recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,
     model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,
-    startedAt:null,finishedElapsed:null,adoptedName:''});closeCandidateLightbox();renderPetLab();
+    startedAt:null,finishedElapsed:null,adoptedCharacterID:null,adoptedName:''});closeCandidateLightbox();renderPetLab();
 }
 function selectTemperament(id){if(!studioBusy()&&!referencesImporting()&&TEMPERAMENTS.some(t=>t.id===id)&&id!==petLab.temperamentID){invalidatePetDraft();petLab.temperamentID=id;renderPetLab()}}
 function renderKeyState(){
@@ -1125,7 +1187,12 @@ function closeCandidateLightbox(){
   const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');
   if(box)box.hidden=true;if(preview)preview.removeAttribute('src');
 }
-document.addEventListener('keydown',event=>{if(event.key==='Escape')closeCandidateLightbox()});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){
+    const manager=document.getElementById('petManagerOverlay');
+    if(manager&&!manager.hidden)closePetManager();else closeCandidateLightbox();
+  }
+});
 function errorHTML(){
   const local=petLab.errorKind==='local',setup=petLab.errorKind==='setup',installFailure=petLab.operation==='install'&&petLab.errorCode==='install_failed';
   const title=installFailure?tx('角色还在，但没有保存成功','The character is intact, but was not saved'):setup?tx('开始生成前还差一步','One thing is needed before generation'):local?tx('图片到了，但本机处理没通过','Image arrived; local processing failed'):tx('OpenAI 生成没有完成','OpenAI generation did not complete');
@@ -1239,7 +1306,7 @@ function beginStudioOperation(operation,stageIndex=null){
     localSeconds:null,providerCompleted:false,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,
     recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,startedAt:now,finishedElapsed:null,
     stageBusyIndex:stageIndex,model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,
-    usage:null,providerDetail:null,cancelArmedUntil:0,adoptedName:'',referencePreview:null,referenceMode:null,
+    usage:null,providerDetail:null,cancelArmedUntil:0,adoptedCharacterID:null,adoptedName:'',referencePreview:null,referenceMode:null,
     referenceEvidenceCount:0,referenceUsedCount:0,referenceAmbiguous:false,
     referenceReviewMessageZh:'',referenceReviewMessageEn:''});
   renderPetLab();return petLab.requestID;
@@ -1411,7 +1478,7 @@ function petInstallError(event){
 }
 function customPetAdopted(event){
   const spec=event.spec;if(!spec)return;S.customPets=(S.customPets||[]).filter(p=>p.characterID!==spec.characterID).concat([spec]);S.character=spec.characterID;
-  petLab.status='adopted';petLab.requestID=null;petLab.draftID=null;petLab.preservedResult=false;petLab.adoptedName=spec.name||tx('新伴灵','New familiar');petLab.sheet=spec.assetURL||petLab.sheet;petLab.startedAt=null;renderCards();renderPetLab();
+  petLab.status='adopted';petLab.requestID=null;petLab.draftID=null;petLab.preservedResult=false;petLab.adoptedCharacterID=spec.characterID;petLab.adoptedName=spec.name||tx('新伴灵','New familiar');petLab.sheet=spec.assetURL||petLab.sheet;petLab.startedAt=null;renderCards();renderPetLab();
 }
 /* Expression sheets: post-adoption blink/joy/rest frames, one run per pet. */
 function petExpressionProgress(event){
@@ -1426,6 +1493,8 @@ function petExpressionResult(event){
   renderPetLab();
 }
 function petExpressionCancelled(event){
+  const currentID=petLab.expr?.characterID||petLab.adoptedCharacterID;
+  if(event?.characterID&&currentID&&event.characterID!==currentID)return;
   petLab.expr=null;renderPetLab();
 }
 function petExpressionError(event){
@@ -1457,33 +1526,61 @@ function expressionStatusHTML(){
   }
   return '';
 }
-function removeCustomPet(characterID){send({type:'petDelete',characterID})}
-function petDeleteFailed(event){petLab.error=event.message||tx('无法删除角色','Could not delete familiar');petLab.errorKind='setup';petLab.status='error';renderPetLab()}
-function renamePet(characterID){
-  const pet=petLibraryItem(characterID);if(!pet)return;
-  const current=S.petLibrary?.metadata?.[characterID]?.displayName||pet.m.name||'';
-  const name=window.prompt(tx('给这只伴灵改名（1–28 个字）','Rename this familiar (1–28 characters)'),current);
-  if(name===null)return;send({type:'petLibraryRename',characterID,name});
+function showPetManagerError(message){
+  const status=document.getElementById('petManagerStatus');
+  if(status){status.dataset.tone='error';status.textContent=message||tx('这次更改没有保存。','This change was not saved.')}
 }
-function renameCustomPet(characterID){renamePet(characterID)}
-function petRenamed(event){
+function showPetManagerProgress(message){
+  const status=document.getElementById('petManagerStatus');if(status){status.dataset.tone='busy';status.textContent=message}
+}
+function petDeleteFailed(event){
+  petManagerUI.pendingDelete=false;setPetManagerBusy(false);
+  setPetManagerFormDisabled(true);
+  showPetManagerError(event?.message||tx('无法删除伴灵。','Could not delete familiar.'));
+}
+function petLibraryDeleteFailed(event){petDeleteFailed(event)}
+function petLibraryDeleted(event){
+  if(!event?.characterID||event.characterID===petManagerUI.characterID)closePetManager();
+  if(event?.characterID&&event.characterID===petLab.adoptedCharacterID){
+    Object.assign(petLab,{adoptedCharacterID:null,adoptedName:'',status:'idle',operation:null,
+      requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
+      sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],stageBusyIndex:null,
+      preservedResult:false,expr:null,error:'',errorKind:'',errorCode:'',phase:'',phaseMessage:'',
+      partialImage:null,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,recoveryUntil:null,
+      canRetryLocally:false,providerCompleted:false,startedAt:null,finishedElapsed:null});
+    closeCandidateLightbox();renderPetLab();
+  }
+}
+function applyPetLibraryUpdate(event){
   if(event?.spec)S.customPets=(S.customPets||[]).filter(
     item=>item.characterID!==event.spec.characterID).concat([event.spec]);
-  if(event?.characterID&&event?.displayName){
+  if(event?.petLibrary)S.petLibrary=event.petLibrary;
+  if(event?.characterID&&(event?.displayName!==undefined||event?.category!==undefined)){
     S.petLibrary=S.petLibrary||{};S.petLibrary.metadata=S.petLibrary.metadata||{};
-    S.petLibrary.metadata[event.characterID]={...(S.petLibrary.metadata[event.characterID]||{}),displayName:event.displayName};
+    const metadata={...(S.petLibrary.metadata[event.characterID]||{})};
+    if(event.displayName!==undefined)metadata.displayName=event.displayName;
+    if(event.category!==undefined){if(event.category)metadata.category=event.category;else delete metadata.category}
+    S.petLibrary.metadata[event.characterID]=metadata;
   }
   renderCards();
 }
-function petRenameFailed(event){window.alert(event?.message||tx('改名失败','Could not rename'))}
-function editPetCategory(characterID){
-  const current=S.petLibrary?.metadata?.[characterID]?.category||'';
-  const category=window.prompt(tx('分类 / 文件夹名称（留空即取消分类）','Category / filing label (leave empty to clear)'),current);
-  if(category===null)return;send({type:'petLibraryCategory',characterID,category});
+function petRenamed(event){applyPetLibraryUpdate(event)}
+function petLibraryUpdated(event){
+  applyPetLibraryUpdate(event);
+  if(!event?.characterID||event.characterID===petManagerUI.characterID)closePetManager();
 }
-function archivePet(characterID){send({type:'petLibraryArchive',characterID})}
-function unarchivePet(characterID){send({type:'petLibraryUnarchive',characterID})}
-function petLibraryError(event){window.alert((LANG==='zh'?event?.messageZh:event?.messageEn)||event?.message||tx('伴灵库没有保存这次更改。','The familiar library could not save this change.'))}
+function petRenameFailed(event){
+  petManagerUI.pendingSave=null;setPetManagerBusy(false);
+  showPetManagerError(event?.message||tx('请输入 1–28 个字的名称。','Use a name between 1 and 28 characters.'));
+}
+function petLibraryUpdateFailed(event){petRenameFailed(event)}
+function petLibraryError(event){
+  if(event?.characterID&&event.characterID!==petManagerUI.characterID)return;
+  const wasDeleting=petManagerUI.pendingDelete;
+  petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingDelete=false;setPetManagerBusy(false);
+  if(wasDeleting&&!document.getElementById('petDeleteConfirm')?.hidden)setPetManagerFormDisabled(true);
+  showPetManagerError((LANG==='zh'?event?.messageZh:event?.messageEn)||event?.message||tx('伴灵库没有保存这次更改。','The familiar library could not save this change.'));
+}
 function decodePetReference(url,sourceName){
   return new Promise((resolve,reject)=>{
     const img=new Image();img.onload=()=>{
@@ -1608,6 +1705,7 @@ function changeCompanionScale(value){
 
 let S = { character: 'lulu' };
 const petLibraryUI={expanded:false,view:'active',category:null};
+const petManagerUI={characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingDelete:false,deletePermanent:false};
 // Keep harmless global receivers while older native builds can still deliver
 // action-job events to an already-open Settings web view.
 function starterActionJobUpdated(){}
@@ -1624,6 +1722,104 @@ function petLibraryItem(characterID){
   if(characterID==='prototype'&&S.customPet)return {characterID,m:{...S.customPet,name:S.customPet.name||tx('我的伴灵','My familiar')},custom:true,legacy:true};
   const custom=(S.customPets||[]).find(item=>item.characterID===characterID);
   return custom?{characterID,m:custom,custom:true,legacy:false}:null;
+}
+function managedPet(){return petManagerUI.characterID?petLibraryItem(petManagerUI.characterID):null}
+function managedPetMetadata(){return S.petLibrary?.metadata?.[petManagerUI.characterID]||{}}
+function managedPetName(){
+  const pet=managedPet(),metadata=managedPetMetadata();
+  return metadata.displayName||pet?.m?.name||tx('伴灵','Familiar');
+}
+function setPetManagerFormDisabled(disabled){
+  const form=document.getElementById('petManagerForm');if(form)form.inert=!!disabled;
+  document.querySelectorAll('#petManagerForm button,#petManagerForm input').forEach(el=>el.disabled=!!disabled);
+}
+function setPetManagerBusy(busy){
+  setPetManagerFormDisabled(busy);
+  const confirm=document.getElementById('petDeleteConfirmButton');if(confirm)confirm.disabled=!!busy;
+  const cancel=document.getElementById('petDeleteCancelButton');if(cancel)cancel.disabled=!!busy;
+}
+function syncPetManagerLanguage(){
+  const overlay=document.getElementById('petManagerOverlay');if(!overlay||overlay.hidden||!petManagerUI.characterID)return;
+  const metadata=managedPetMetadata(),archived=metadata.archived===true,permanent=petManagerUI.deletePermanent;
+  const archive=document.getElementById('petManagerArchive'),remove=document.getElementById('petManagerDelete');
+  if(archive){archive.hidden=!permanent&&!archived;archive.textContent=archived?tx('恢复','Restore'):tx('隐藏','Hide')}
+  if(remove){remove.hidden=!permanent&&archived;remove.textContent=permanent?tx('删除','Delete'):tx('移出资料库','Remove from library')}
+  const title=document.getElementById('petDeleteConfirmTitle'),copy=document.getElementById('petDeleteConfirmCopy');
+  if(title)title.textContent=permanent
+    ?tx(`确定永久删除「${managedPetName()}」？`,`Permanently delete “${managedPetName()}”?`)
+    :tx(`将「${managedPetName()}」移出资料库？`,`Remove “${managedPetName()}” from the library?`);
+  if(copy)copy.textContent=permanent
+    ?tx('它会从你的伴灵库中永久删除，且无法撤销。','It will be permanently removed from your familiar library. This cannot be undone.')
+    :tx('这只内置伴灵会被隐藏，之后可以在「已隐藏」中恢复。','This built-in familiar will be hidden. You can restore it later from Hidden.');
+  const confirm=document.getElementById('petDeleteConfirmButton');
+  if(confirm)confirm.textContent=permanent?tx('确认永久删除','Delete permanently'):tx('确认移出','Remove');
+}
+function openPetManager(characterID,trigger){
+  const pet=petLibraryItem(characterID);if(!pet)return;
+  const metadata=S.petLibrary?.metadata?.[characterID]||{},overlay=document.getElementById('petManagerOverlay');
+  petManagerUI.characterID=characterID;petManagerUI.returnFocus=trigger||document.activeElement;
+  petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingDelete=false;petManagerUI.deletePermanent=pet.custom===true;
+  document.getElementById('petManagerTitle').textContent=metadata.displayName||pet.m.name||tx('伴灵','Familiar');
+  document.getElementById('petManagerName').value=metadata.displayName||pet.m.name||'';
+  document.getElementById('petManagerCategory').value=metadata.category||'';
+  const options=document.getElementById('petManagerCategoryOptions');options.replaceChildren();
+  (S.petLibrary?.categories||[]).forEach(category=>{const option=document.createElement('option');option.value=category;options.appendChild(option)});
+  const status=document.getElementById('petManagerStatus');status.textContent='';delete status.dataset.tone;
+  document.getElementById('petDeleteConfirm').hidden=true;
+  setPetManagerBusy(false);overlay.hidden=false;syncPetManagerLanguage();
+  requestAnimationFrame(()=>document.getElementById('petManagerName')?.focus());
+}
+function closePetManager(){
+  const overlay=document.getElementById('petManagerOverlay');if(overlay)overlay.hidden=true;
+  const focus=petManagerUI.returnFocus;
+  Object.assign(petManagerUI,{characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingDelete:false,deletePermanent:false});
+  if(focus&&document.contains(focus))focus.focus();
+}
+function savePetManager(event){
+  event?.preventDefault();const characterID=petManagerUI.characterID,pet=managedPet();if(!characterID||!pet)return;
+  const name=document.getElementById('petManagerName').value.trim();
+  const category=document.getElementById('petManagerCategory').value.trim();
+  if(!name||Array.from(name).length>28){showPetManagerError(tx('请输入 1–28 个字的名称。','Use a name between 1 and 28 characters.'));return}
+  if(Array.from(category).length>40){showPetManagerError(tx('分类最多 40 个字。','Categories can contain up to 40 characters.'));return}
+  const metadata=managedPetMetadata(),currentName=metadata.displayName||pet.m.name||'';
+  if(name===currentName&&category===(metadata.category||'')){closePetManager();return}
+  petManagerUI.pendingSave={name,category};setPetManagerBusy(true);
+  showPetManagerProgress(tx('正在保存…','Saving…'));
+  send({type:'petLibraryUpdate',characterID,name,category});
+}
+function toggleManagedPetArchive(){
+  const characterID=petManagerUI.characterID;if(!characterID)return;
+  const archived=managedPetMetadata().archived===true;
+  petManagerUI.pendingArchive=!archived;setPetManagerBusy(true);
+  showPetManagerProgress(archived?tx('正在恢复…','Restoring…'):tx('正在隐藏…','Hiding…'));
+  send({type:archived?'petLibraryUnarchive':'petLibraryArchive',characterID});
+}
+function beginPetDelete(){
+  document.getElementById('petDeleteConfirm').hidden=false;setPetManagerFormDisabled(true);syncPetManagerLanguage();
+  const confirm=document.getElementById('petDeleteConfirmButton'),cancel=document.getElementById('petDeleteCancelButton');
+  if(cancel)cancel.disabled=false;if(confirm){confirm.disabled=false;confirm.focus()}
+}
+function cancelPetDelete(){
+  document.getElementById('petDeleteConfirm').hidden=true;setPetManagerFormDisabled(false);
+  document.querySelector('.pet-manager-delete')?.focus();
+}
+function confirmPetDelete(){
+  const characterID=petManagerUI.characterID;if(!characterID)return;
+  petManagerUI.pendingDelete=true;setPetManagerBusy(true);
+  showPetManagerProgress(tx('正在删除…','Deleting…'));
+  send({type:'petLibraryDelete',characterID});
+}
+function reconcilePetManagerState(){
+  const characterID=petManagerUI.characterID;if(!characterID)return;
+  if(petManagerUI.pendingDelete&&(
+    (petManagerUI.deletePermanent&&!petLibraryItem(characterID))||
+    (!petManagerUI.deletePermanent&&managedPetMetadata().archived===true))){closePetManager();return}
+  const metadata=managedPetMetadata(),pet=managedPet();
+  if(petManagerUI.pendingSave&&pet){
+    const currentName=metadata.displayName||pet.m.name||'';
+    if(currentName===petManagerUI.pendingSave.name&&(metadata.category||'')===petManagerUI.pendingSave.category){closePetManager();return}
+  }
+  if(petManagerUI.pendingArchive!==null&&metadata.archived===petManagerUI.pendingArchive)closePetManager();
 }
 function petLibraryIDs(){
   const library=S.petLibrary||{};
@@ -1668,9 +1864,8 @@ function renderCards(){
     const art=legacy?miniSVG(m):custom?`<div class="card-sheet"><img src="${esc(m.assetURL)}" alt=""></div>`:miniSVG(m);
     const temperament=TEMPERAMENTS.find(t=>t.id===m.temperamentID);
     const desc=custom?(legacy?tx('旧版像素 DNA','legacy pixel DNA'):(temperament?(LANG==='zh'?temperament.zh:temperament.en):tx('DIY 伴灵','DIY familiar'))):(LANG==='zh'?m.descZh:m.desc);
-    const rename=`<button type="button" class="card-rename" aria-label="${esc(tx(`给 ${displayName} 改名`,`Rename ${displayName}`))}" onclick="event.preventDefault();event.stopPropagation();renamePet('${characterID}')">✎</button>`;
-    const visibility=archived?`<button type="button" class="card-library-action" onclick="event.preventDefault();event.stopPropagation();unarchivePet('${characterID}')">${tx('恢复','Restore')}</button>`:`<button type="button" class="card-library-action" onclick="event.preventDefault();event.stopPropagation();archivePet('${characterID}')">${tx('隐藏','Hide')}</button>`;
-    return `<div class="card ${archived?'archived':''} ${S.character===characterID?'sel':''}" ${archived?'':`onclick="pick('${characterID}')"`}>${rename}${visibility}${art}<div class="nm">${esc(displayName)}</div><div class="ds">${esc(desc)}</div><button type="button" class="card-category" onclick="event.preventDefault();event.stopPropagation();editPetCategory('${characterID}')">${esc(category||tx('＋ 分类','＋ Category'))}</button></div>`;
+    const manage=`<button type="button" class="card-manage" aria-label="${esc(tx(`管理 ${displayName}`,`Manage ${displayName}`))}" onclick="event.preventDefault();event.stopPropagation();openPetManager('${characterID}',this)">···</button>`;
+    return `<div class="card ${archived?'archived':''} ${S.character===characterID?'sel':''}" ${archived?'':`onclick="pick('${characterID}')"`}>${manage}${art}<div class="nm">${esc(displayName)}</div><div class="ds">${esc(category||desc)}</div></div>`;
   }).join('')||`<div class="pet-library-empty">${archivedView?tx('没有隐藏的伴灵','No hidden familiars'):tx('这个分类还是空的','This category is empty')}</div>`;
 }
 function pick(id){ S.character = id; renderCards(); send({ type: 'pick', id }); }
@@ -1714,6 +1909,7 @@ function renderRules(){
 /* Swift pushes the whole state here */
 function initSettings(state){
   S = state;
+  reconcilePetManagerState();
   LANG = state.language === 'en' ? 'en' : 'zh';
   applySettingsTypography(state.settingsFontFamily,state.settingsFontWeight);
   installDIYStylePresets(state.diyStylePresets);

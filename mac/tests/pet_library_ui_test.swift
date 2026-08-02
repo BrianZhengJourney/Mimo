@@ -73,29 +73,91 @@ struct PetLibraryUITests {
                libraryRendering.contains("setPetLibraryView('archived')"),
                "expanded library should expose compact category and hidden filters")
 
-        expect(settings.contains("function renamePet(") &&
-               settings.contains("type:'petLibraryRename'") &&
-               libraryRendering.contains("const rename=`") &&
-               libraryRendering.contains("renamePet('") &&
-               libraryRendering.contains("metadata.displayName||m.name"),
-               "every built-in, legacy, and DIY familiar should expose its alias and rename action")
-        expect(settings.contains("function editPetCategory(") &&
-               settings.contains("type:'petLibraryCategory'") &&
-               libraryRendering.contains("card-category"),
-               "every pet should support a free-text category filing label")
-        expect(settings.contains("type:'petLibraryArchive'") &&
-               settings.contains("type:'petLibraryUnarchive'") &&
-               libraryRendering.contains("tx('隐藏','Hide')") &&
-               libraryRendering.contains("tx('恢复','Restore')"),
-               "cards should offer reversible Hide and Restore")
-        expect(!settings.contains("class=\"card-delete\"") &&
-               !libraryRendering.contains("removeCustomPet("),
-               "permanent deletion should not be a visible card action")
+        expect(libraryRendering.contains("const manage=`") &&
+               libraryRendering.contains("class=\"card-manage\"") &&
+               libraryRendering.contains("openPetManager('") &&
+               libraryRendering.contains("metadata.displayName||m.name") &&
+               libraryRendering.contains("onclick=\"pick('") &&
+               !libraryRendering.contains("card-rename") &&
+               !libraryRendering.contains("card-library-action") &&
+               !libraryRendering.contains("card-category"),
+               "cards should remain selectable while exposing exactly one compact management entry")
+
+        expect(settings.contains("id=\"petManagerOverlay\"") &&
+               settings.contains("role=\"dialog\" aria-modal=\"true\"") &&
+               settings.contains("onclick=\"if(event.target===this)closePetManager()\"") &&
+               settings.contains("if(manager&&!manager.hidden)closePetManager()") &&
+               !settings.contains("window.prompt(") &&
+               !settings.contains("window.confirm(") &&
+               !settings.contains("window.alert("),
+               "familiar management should use an in-page sheet that dismisses outside or with Escape")
+        expect(settings.contains("id=\"petManagerName\"") &&
+               settings.contains("function savePetManager(") &&
+               settings.contains("id=\"petManagerCategory\"") &&
+               settings.contains("list=\"petManagerCategoryOptions\"") &&
+               settings.contains("S.petLibrary?.categories||[]") &&
+               settings.contains("type:'petLibraryUpdate',characterID,name,category") &&
+               settings.contains("function petLibraryUpdated(event)") &&
+               settings.contains("function petRenamed(event)") &&
+               settings.contains("function petRenameFailed(event)") &&
+               settings.contains("if(event?.characterID&&event.characterID!==petManagerUI.characterID)return") &&
+               !settings.contains("send({type:'petLibraryRename'") &&
+               !settings.contains("send({type:'petLibraryCategory'"),
+               "one atomic manager update should persist names and typed or existing categories without partial saves")
+        expect(settings.contains("type:archived?'petLibraryUnarchive':'petLibraryArchive'") &&
+               settings.contains("archive.textContent=archived?tx('恢复','Restore'):tx('隐藏','Hide')"),
+               "the manager should preserve reversible Hide and Restore")
+        expect(settings.contains("id=\"petDeleteConfirm\"") &&
+               settings.contains("确认永久删除") &&
+               settings.contains("无法撤销") &&
+               settings.contains("tx('移出资料库','Remove from library')") &&
+               settings.contains("之后可以在「已隐藏」中恢复") &&
+               settings.contains("!petManagerUI.deletePermanent&&managedPetMetadata().archived===true") &&
+               settings.contains("function setPetManagerFormDisabled(disabled)") &&
+               settings.contains("form.inert=!!disabled") &&
+               settings.contains("hidden=false;setPetManagerFormDisabled(true)") &&
+               settings.contains("hidden=true;setPetManagerFormDisabled(false)") &&
+               settings.contains("confirm.disabled=false;confirm.focus()") &&
+               settings.contains("function confirmPetDelete(") &&
+               settings.contains("function petLibraryDeleted(event)") &&
+               settings.contains("function petLibraryDeleteFailed(event)") &&
+               settings.contains("type:'petLibraryDelete'") &&
+               !settings.contains("type:'petDelete'"),
+               "DIY deletion should be irreversible while built-ins clearly use recoverable removal")
+
+        let adoption = section(
+            settings, from: "function customPetAdopted(",
+            to: "/* Expression sheets:")
+        let deletionReceiver = section(
+            settings, from: "function petLibraryDeleted(",
+            to: "function applyPetLibraryUpdate(")
+        expect(adoption.contains("petLab.adoptedCharacterID=spec.characterID") &&
+               deletionReceiver.contains("event.characterID===petLab.adoptedCharacterID") &&
+               deletionReceiver.contains("adoptedCharacterID:null,adoptedName:'',status:'idle'") &&
+               deletionReceiver.contains("candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{}") &&
+               deletionReceiver.contains("sheet:null,sheetQuality:null") &&
+               deletionReceiver.contains("preservedResult:false,expr:null") &&
+               deletionReceiver.contains("partialImage:null,rawPreview:null") &&
+               deletionReceiver.contains("closeCandidateLightbox();renderPetLab()") &&
+               !deletionReceiver.contains("references:[]") &&
+               !deletionReceiver.contains("source:null") &&
+               !deletionReceiver.contains("primaryReferenceID:null"),
+               "deleting the adopted DIY should clear stale Studio output while retaining uploaded references")
+        let expressionCancellation = section(
+            settings, from: "function petExpressionCancelled(",
+            to: "function petExpressionError(")
+        expect(expressionCancellation.contains("petLab.expr?.characterID||petLab.adoptedCharacterID") &&
+               expressionCancellation.contains("event.characterID!==currentID)return"),
+               "a late expression cancellation should not clear a newer familiar's expression state")
 
         expect(product.contains("case \"petLibraryRename\", \"petRename\"") &&
                product.contains("customPetStore.rename(") &&
                product.contains("setDisplayName(displayName, for: characterID)"),
                "native rename should persist every alias, sync DIY manifests, and retain compatibility")
+        expect(product.contains("case \"petLibraryUpdate\"") &&
+               product.contains("updatePetLibraryCharacter(") &&
+               product.contains("settingsCall(\"petLibraryUpdated\", event)"),
+               "native should apply the manager form atomically and acknowledge the matching sheet")
         expect(product.contains("case \"petLibraryCategory\"") &&
                product.contains("case \"petLibraryArchive\"") &&
                product.contains("case \"petLibraryUnarchive\"") &&
