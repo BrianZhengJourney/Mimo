@@ -247,6 +247,10 @@ final class CompanionRuntime {
 
     var isEmpty: Bool { companions.isEmpty }
     var previewActionName: String? { companions.first?.previewActionName }
+    /// Only strips that survived manifest loading and sprite slicing reach this
+    /// map. UI callers use it as the playback allow-list; generation jobs and
+    /// unaccepted Studio previews deliberately live elsewhere.
+    var availableActionNames: Set<String> { Set(actionSprites.keys) }
 
     // MARK: - Lifecycle
 
@@ -807,6 +811,108 @@ final class CompanionRuntime {
                 CompanionDirector(pack: $0, availableStrips: Set(actionSprites.keys))
             }
         }
+    }
+
+    /// Plays one already-installed strip from a desktop affordance. This path
+    /// is intentionally runtime-only: it never creates a Studio job, calls a
+    /// provider, or mutates the pet manifest.
+    ///
+    /// Gaze is directional rather than an animation loop, so choosing it means
+    /// returning to ordinary cursor-following behavior. Wall art is most
+    /// convincing when the existing attached behavior can own it; otherwise
+    /// the accepted strip is previewed in place like the other gestures.
+    @discardableResult
+    func playInstalledAction(named name: String) -> Bool {
+        guard actionSprites[name] != nil, let companion = companions.first else {
+            return false
+        }
+        if name == "gaze" { return previewAction(named: nil) }
+        if name == "wall", beginWallBehaviorIfSafe(for: companion) { return true }
+        return previewAction(named: name)
+    }
+
+    /// Moves to the closest real vertical edge only when the current behavior
+    /// pack can deterministically choose an installed wall-strip behavior from
+    /// there. Custom packs with ambiguous attached actions fall back to an
+    /// on-the-spot preview instead of teleporting the companion unpredictably.
+    private func beginWallBehaviorIfSafe(for companion: Companion) -> Bool {
+        guard let pack = behaviorPack, companion.director != nil else { return false }
+        let world = worldSurfaces().set
+        guard let placement = nearestWallPlacement(to: companion.anchor, in: world) else {
+            return false
+        }
+
+        var attachedSnapshot = snapshot(for: companion, world: world)
+        attachedSnapshot.state = "attached"
+        attachedSnapshot.surface = "wall"
+        attachedSnapshot.anchorX = Double(placement.anchor.x)
+        attachedSnapshot.anchorY = Double(placement.anchor.y)
+        let installed = Set(actionSprites.keys)
+        let eligibleActions = pack.behaviorOrder.compactMap { name -> CompanionAction? in
+            guard let behavior = pack.behavior(named: name), behavior.frequency > 0,
+                  behavior.isEffective(for: attachedSnapshot),
+                  let action = pack.action(named: behavior.actionName),
+                  action.requiredStrips.isSubset(of: installed) else { return nil }
+            return action
+        }
+        guard !eligibleActions.isEmpty,
+              eligibleActions.allSatisfy({
+                  $0.requires == .attached && $0.requiredStrips.contains("wall")
+              }) else { return false }
+
+        let oldAnchor = companion.anchor
+        let oldState = companion.state
+        let oldVelocity = companion.integrator.velocity
+        companion.previewActionName = nil
+        companion.transientPreviewSprite = nil
+        companion.previewElapsed = 0
+        companion.activeActionStripName = nil
+        companion.gazeFrameIndex = nil
+        companion.gazeEngaged = false
+        companion.walkSpeed = 0
+        companion.anchor = placement.anchor
+        companion.state = .attached(placement.surface.id)
+        companion.integrator.velocity = .zero
+        companion.attachedSeconds = 0
+        companion.director?.reset()
+
+        // Select immediately so the first committed frame is registered to the
+        // edge; otherwise the centred base sprite flashes half off-screen for a
+        // display-link tick before the wall strip takes over.
+        cling(companion, to: placement.surface, dt: 0, world: world)
+        guard case .attached = companion.state,
+              companion.activeActionStripName == "wall" else {
+            companion.anchor = oldAnchor
+            companion.state = oldState
+            companion.integrator.velocity = oldVelocity
+            companion.activeActionStripName = nil
+            companion.director?.reset()
+            reattachLayers()
+            return false
+        }
+        reattachLayers()
+        commit(companion)
+        return true
+    }
+
+    private func nearestWallPlacement(to anchor: CGPoint, in world: SurfaceSet)
+        -> (surface: Surface, anchor: CGPoint)? {
+        let placements = world.surfaces.compactMap { surface
+            -> (surface: Surface, anchor: CGPoint, distance: CGFloat)? in
+            guard surface.kind == .wall else { return nil }
+            let inset = min(CGFloat(4), max(0, (surface.span.upperBound
+                                               - surface.span.lowerBound) / 2))
+            let lower = surface.span.lowerBound + inset
+            let upper = surface.span.upperBound - inset
+            guard lower <= upper else { return nil }
+            let y = min(max(anchor.y, lower), upper)
+            let target = CGPoint(x: surface.position, y: y)
+            return (surface, target, hypot(target.x - anchor.x, target.y - anchor.y))
+        }
+        guard let nearest = placements.min(by: { $0.distance < $1.distance }) else {
+            return nil
+        }
+        return (nearest.surface, nearest.anchor)
     }
 
     /// Loops one installed action for visual acceptance, or nil to return to

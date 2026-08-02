@@ -1080,10 +1080,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         syncNativeHosting()
     }
 
-    /// The familiar's compact right-click menu. Generated actions are reviewed
-    /// in Studio, which owns preview/accept state and avoids a second debug UI.
+    /// The familiar's compact right-click menu. It can only play strips already
+    /// accepted into the active pet; generation and review remain in Studio.
     func showCompanionMenu() {
         let m = NSMenu()
+
+        let actionsMenu = NSMenu(title: voice("动作", "Actions"))
+        // AppKit's automatic validation would re-enable any item whose selector
+        // exists. Preserve our stricter installed-strip allow-list instead.
+        actionsMenu.autoenablesItems = false
+        let installed = companionRuntime.availableActionNames
+        for definition in StarterActionCatalog.all {
+            let actionItem = NSMenuItem(
+                title: voice(definition.titleZh, definition.titleEn),
+                action: #selector(playCompanionAction(_:)), keyEquivalent: "")
+            actionItem.target = self
+            actionItem.representedObject = definition.manifestActionName
+            actionItem.isEnabled = installed.contains(definition.manifestActionName)
+            actionsMenu.addItem(actionItem)
+        }
+        actionsMenu.addItem(NSMenuItem.separator())
+        let resumeItem = NSMenuItem(
+            title: voice("回到自动", "Resume Automatic"),
+            action: #selector(resumeAutomaticCompanion(_:)), keyEquivalent: "")
+        resumeItem.target = self
+        resumeItem.isEnabled = companionRuntime.previewActionName != nil
+        actionsMenu.addItem(resumeItem)
+
+        let actionsRoot = NSMenuItem(title: voice("动作", "Actions"),
+                                     action: nil, keyEquivalent: "")
+        actionsRoot.image = NSImage(systemSymbolName: "figure.play",
+                                    accessibilityDescription: nil)
+        m.addItem(actionsRoot)
+        m.setSubmenu(actionsMenu, for: actionsRoot)
+        m.addItem(NSMenuItem.separator())
+
         let hideIt = NSMenuItem(title: overlayHidden ? voice("显示米墨", "Show Mimo") : voice("藏起米墨", "Hide Mimo"),
                                 action: #selector(toggleOverlay(_:)), keyEquivalent: "")
         hideIt.target = self
@@ -1098,6 +1129,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         quitIt.target = self
         m.addItem(quitIt)
         m.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    /// A defensive catalog check keeps arbitrary representedObject values from
+    /// becoming runtime commands. CompanionRuntime performs the second check:
+    /// the strip must also be loaded and validated for the active pet.
+    @objc func playCompanionAction(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String,
+              StarterActionCatalog.definition(manifestActionName: name) != nil else { return }
+        _ = companionRuntime.playInstalledAction(named: name)
+    }
+
+    @objc func resumeAutomaticCompanion(_ sender: NSMenuItem) {
+        _ = companionRuntime.previewAction(named: nil)
     }
 
     // ── hover hot-zone: click-through everywhere except over the creature ──
