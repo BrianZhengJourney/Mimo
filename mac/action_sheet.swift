@@ -37,7 +37,7 @@ struct ActionSheetLayout: Equatable {
     static let threeByThree = ActionSheetLayout(rows: 3, columns: 3)
 }
 
-enum ActionSheetError: Error, CustomStringConvertible {
+enum ActionSheetError: LocalizedError, CustomStringConvertible {
     case notPNG
     case unreadableImage
     case dimensionsNotDivisible(width: Int, height: Int, layout: ActionSheetLayout)
@@ -67,6 +67,8 @@ enum ActionSheetError: Error, CustomStringConvertible {
                  + "(median heights \(inbetweenMedian)px vs \(keyframeMedian)px)"
         }
     }
+
+    var errorDescription: String? { description }
 }
 
 struct ActionSheetFrameMetrics: Equatable {

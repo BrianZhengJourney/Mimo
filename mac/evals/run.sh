@@ -35,6 +35,7 @@ swiftc -module-cache-path "$MODULE_CACHE" \
   mac/character_sheet.swift \
   mac/action_sheet.swift \
   mac/action_generation_job.swift \
+  mac/evals/field_fixture_identity.swift \
   mac/evals/provider_telemetry.swift \
   mac/evals/diy_eval.swift \
   -o "$BINARY" "${frameworks[@]}"

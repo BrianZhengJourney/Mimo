@@ -17,7 +17,7 @@ private struct Dataset: Decodable {
         let keepCounts: [Int]
         let severity: String
         let historicalError: String?
-        let recordSHA256: String
+        let recordIdentity: DIYFieldFixtureIdentity
         let batchSHA256s: [String]
     }
     struct UnknownCase: Decodable {
@@ -380,7 +380,11 @@ private func validateFixtures(_ dataset: Dataset, arguments: Arguments) throws {
         let directory = jobsRoot.appendingPathComponent(item.id)
         let recordURL = directory.appendingPathComponent("job.json")
         guard let record = try? Data(contentsOf: recordURL),
-              sha256(record) == item.recordSHA256 else {
+              let identity = try? DIYFieldFixtureIdentity(recordData: record),
+              identity == item.recordIdentity,
+              identity.id == item.id,
+              identity.actionID == item.action,
+              identity.estimatedProviderCalls == item.keepCounts.count else {
             throw EvalError.invalidFixture("\(item.id)/job.json")
         }
         for index in item.keepCounts.indices {
@@ -448,8 +452,8 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
         let started = CFAbsoluteTimeGetCurrent()
         var preview: CharacterSheetRGBAImage?
         var occupancy: Double?
-        var calls = item.keepCounts.count
-        var providerDurations: [Double] = []
+        let calls = item.keepCounts.count
+        let providerDurations: [Double] = []
         do {
             let recordData = try Data(contentsOf: recordURL)
             guard let record = try JSONSerialization.jsonObject(with: recordData)
@@ -457,14 +461,6 @@ private func runField(_ dataset: Dataset, arguments: Arguments) -> [FieldResult]
                   let characterID = record["characterID"] as? String,
                   let actionID = StarterActionID(rawValue: item.action) else {
                 throw EvalError.invalidDataset
-            }
-            calls = record["estimatedProviderCalls"] as? Int ?? calls
-            providerDurations = (record["providerCallMetrics"]
-                as? [[String: Any]] ?? []).compactMap {
-                guard let seconds = ($0["durationSeconds"] as? NSNumber)?
-                        .doubleValue,
-                      seconds.isFinite, seconds >= 0 else { return nil }
-                return seconds
             }
             let batches = try item.keepCounts.indices.map { index in
                 try Data(contentsOf: directory.appendingPathComponent(
@@ -788,7 +784,7 @@ private struct DIYEval {
             at: arguments.output, withIntermediateDirectories: true)
         let dataset = try JSONDecoder().decode(
             Dataset.self, from: Data(contentsOf: arguments.dataset))
-        guard dataset.schemaVersion == 1,
+        guard dataset.schemaVersion == 2,
               dataset.synthetic.casesPerClass > 0,
               !dataset.synthetic.classes.isEmpty,
               !dataset.fieldJobs.isEmpty else { throw EvalError.invalidDataset }

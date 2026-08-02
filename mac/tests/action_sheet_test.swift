@@ -681,6 +681,13 @@ struct ActionSheetTests {
                "cross-batch scale remains physically proportional, got \(ratio)")
     }
 
+    static func testTypeErasedErrorsKeepActionableClippingDetails() {
+        let error: Error = ActionSheetError.subjectClipped(index: 2, edge: "right")
+        expect(error.localizedDescription.contains("cell 2")
+               && error.localizedDescription.contains("right edge"),
+               "telemetry must retain the clipped cell and edge after type erasure")
+    }
+
     static func main() throws {
         try testSlicesEveryCell()
         try testStripGeometryMatchesTheRuntimeContract()
@@ -708,6 +715,7 @@ struct ActionSheetTests {
         testSparseRepairRejectsDifferentScale()
         try testSparseRepairCanSafelyNormalizeUniformlySmallFrames()
         try testCoherentBatchesShareOneFinalRegistration()
+        testTypeErasedErrorsKeepActionableClippingDetails()
         print("action sheet: all assertions passed")
     }
 }

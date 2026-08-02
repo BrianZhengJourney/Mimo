@@ -15,9 +15,10 @@ It never calls an image provider.
    copied into the repository. A processed frame occupying more than `75%` of
    its alpha canvas is rejected as `field_matte_opaque`; this catches a framed
    presentation background that structural strip validation alone misses.
-   SHA-256 pins every retained input, so a missing
-   or changed field fixture invalidates the run instead of becoming a fake
-   product failure.
+   A stable generation identity pins the job's character, action contract,
+   quality, and call count; SHA-256 pins every retained batch. Mutable review
+   state and timestamps cannot invalidate unchanged art, while a missing or
+   changed provider input still fails closed.
 
 Two `UNKNOWN` field artifacts remain in the triage queue until one root cause
 is assigned. `diy-v3` also pins the newly discovered framed S2 and near-edge S3
