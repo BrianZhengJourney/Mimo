@@ -381,6 +381,82 @@ extension AppDelegate {
         return spec
     }
 
+    private func petLibraryValidIDs(customPets: [[String: Any]]) -> Set<String> {
+        var ids: Set<String> = ["lulu", "clawd", "nat"]
+        ids.formUnion(customPets.compactMap { $0["characterID"] as? String })
+        if storedCustomPetSpec() != nil { ids.insert("prototype") }
+        return ids
+    }
+
+    private func petLibraryPayload(customPets: [[String: Any]]) -> [String: Any] {
+        let validIDs = petLibraryValidIDs(customPets: customPets)
+        let library = (try? PetLibraryStateStore.shared.load()) ?? PetLibraryState()
+        var metadata: [String: [String: Any]] = [:]
+        let formatter = ISO8601DateFormatter()
+        for characterID in validIDs {
+            let value = library.metadata(for: characterID)
+            var row: [String: Any] = ["archived": value?.archivedAt != nil]
+            if let displayName = value?.displayName { row["displayName"] = displayName }
+            if let category = value?.category { row["category"] = category }
+            if let lastUsedAt = value?.lastUsedAt {
+                row["lastUsedAt"] = formatter.string(from: lastUsedAt)
+            }
+            metadata[characterID] = row
+        }
+        return [
+            "recentIDs": library.recentCharacterIDs(validIDs: validIDs),
+            "activeIDs": library.libraryCharacterIDs(
+                validIDs: validIDs, archive: .active, expanded: true),
+            "archivedIDs": library.libraryCharacterIDs(
+                validIDs: validIDs, archive: .archived, expanded: true),
+            "categories": library.categories(validIDs: validIDs, archive: .all),
+            "metadata": metadata,
+        ]
+    }
+
+    private func markPetLibraryUsed(_ characterID: String, at date: Date = Date()) {
+        _ = try? PetLibraryStateStore.shared.update {
+            try $0.markUsed(characterID, at: date)
+        }
+    }
+
+    /// Persists an alias for every familiar. Modern DIY pets mirror that name
+    /// into their manifest; built-ins and the legacy prototype use only the
+    /// library alias. A failed metadata write rolls the manifest back.
+    private func renamePetLibraryCharacter(_ characterID: String, name: String)
+        throws -> (displayName: String, customSpec: [String: Any]?) {
+        var validator = PetLibraryState()
+        try validator.setDisplayName(name, for: characterID)
+        guard let displayName = validator.metadata(for: characterID)?.displayName else {
+            throw PetLibraryStateError.invalidDisplayName
+        }
+
+        let previousSpec = try? customPetStore.runtimeSpec(characterID: characterID)
+        let previousName = previousSpec?["name"] as? String
+        let customSpec = try previousSpec.map { _ in
+            try customPetStore.rename(characterID: characterID, name: displayName)
+        }
+        do {
+            _ = try PetLibraryStateStore.shared.update {
+                try $0.setDisplayName(displayName, for: characterID)
+            }
+        } catch {
+            if let previousName {
+                _ = try? customPetStore.rename(
+                    characterID: characterID, name: previousName)
+            }
+            throw error
+        }
+        return (displayName, customSpec)
+    }
+
+    private func reportPetLibraryError(_ error: Error) {
+        settingsCall("petLibraryError", [
+            "messageZh": "伴灵库没有保存这次更改：\(error.localizedDescription)",
+            "messageEn": "The familiar library could not save this change: \(error.localizedDescription)",
+        ])
+    }
+
     func restoreCustomPetIfNeeded() {
         // Repair legacy sheets once, off the main thread, instead of letting
         // every image load rewrite them from inside the store lock.
@@ -400,12 +476,19 @@ extension AppDelegate {
         }
         let builtins: Set<String> = ["lulu", "clawd", "nat"]
         let customIDs = Set(customPets.compactMap { $0["characterID"] as? String })
+        let validIDs = petLibraryValidIDs(customPets: customPets)
+        let library = (try? PetLibraryStateStore.shared.load()) ?? PetLibraryState()
         let requested = UserDefaults.standard.string(forKey: "character") ?? "lulu"
         let valid = builtins.contains(requested)
             || (requested == "prototype" && storedCustomPetSpec() != nil)
             || customIDs.contains(requested)
-        let selected = valid ? requested : "lulu"
+        let fallback = library.recentCharacterIDs(validIDs: validIDs).first
+            ?? (library.isArchived("lulu") ? validIDs.sorted().first ?? "lulu" : "lulu")
+        let selected = valid && !library.isArchived(requested) ? requested : fallback
         if selected != requested { UserDefaults.standard.set(selected, forKey: "character") }
+        if library.metadata(for: selected)?.lastUsedAt == nil {
+            markPetLibraryUsed(selected)
+        }
         js("famSetCharacter(\(jsonStr(selected)))")
     }
 
@@ -530,6 +613,7 @@ extension AppDelegate {
         if let customPet = storedCustomPetSpec() { state["customPet"] = customPet }
         let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
         state["customPets"] = customPets
+        state["petLibrary"] = petLibraryPayload(customPets: customPets)
         for characterID in customPets.compactMap({ $0["characterID"] as? String }) {
             _ = try? starterActionJobStore.ensureJobs(characterID: characterID)
         }
@@ -2345,7 +2429,9 @@ extension AppDelegate {
                 if allowed {
                     js("famSetCharacter(\(jsonStr(id)))")
                     d.set(id, forKey: "character")
+                    markPetLibraryUsed(id)
                     refreshNativeCompanion()
+                    pushSettingsState()
                 }
             }
         case "petPrototype":
@@ -2356,8 +2442,10 @@ extension AppDelegate {
                let json = String(data: data, encoding: .utf8) {
                 d.set(json, forKey: "customPetSpec")
                 d.set("prototype", forKey: "character")
+                markPetLibraryUsed("prototype")
                 js("famSetPrototypePet(\(json))")
                 refreshNativeCompanion()
+                pushSettingsState()
                 revealOverlay()
             }
         case "petUpload":
@@ -2845,6 +2933,7 @@ extension AppDelegate {
                     throw CustomPetStoreError.corruptManifest
                 }
                 d.set(characterID, forKey: "character")
+                markPetLibraryUsed(characterID)
                 _ = try starterActionJobStore.ensureJobs(characterID: characterID)
                 js("famSetCustomPet(\(json))")
                 refreshNativeCompanion()
@@ -2902,6 +2991,67 @@ extension AppDelegate {
                     "messageEn": "Could not prepare expression generation: \(error.localizedDescription)",
                 ])
             }
+        case "petLibraryCategory":
+            guard let characterID = body["characterID"] as? String,
+                  petLibraryValidIDs(
+                    customPets: (try? customPetStore.listRuntimeSpecs()) ?? [])
+                    .contains(characterID) else { return }
+            let raw = (body["category"] as? String) ?? ""
+            do {
+                _ = try PetLibraryStateStore.shared.update {
+                    try $0.setCategory(
+                        raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? nil : raw,
+                        for: characterID)
+                }
+                pushSettingsState()
+            } catch {
+                reportPetLibraryError(error)
+            }
+        case "petLibraryArchive":
+            guard let characterID = body["characterID"] as? String else { return }
+            let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
+            let validIDs = petLibraryValidIDs(customPets: customPets)
+            guard validIDs.contains(characterID) else { return }
+            do {
+                let current = try PetLibraryStateStore.shared.load()
+                let remaining = current.libraryCharacterIDs(
+                    validIDs: validIDs, archive: .active, expanded: true)
+                    .filter { $0 != characterID }
+                guard !remaining.isEmpty else {
+                    settingsCall("petLibraryError", [
+                        "messageZh": "至少保留一只可见伴灵。",
+                        "messageEn": "Keep at least one familiar visible.",
+                    ])
+                    return
+                }
+                let updated = try PetLibraryStateStore.shared.update {
+                    try $0.archive(characterID)
+                }
+                if d.string(forKey: "character") == characterID,
+                   let replacement = updated.recentCharacterIDs(
+                    validIDs: validIDs).first {
+                    d.set(replacement, forKey: "character")
+                    js("famSetCharacter(\(jsonStr(replacement)))")
+                    refreshNativeCompanion()
+                }
+                pushSettingsState()
+            } catch {
+                reportPetLibraryError(error)
+            }
+        case "petLibraryUnarchive":
+            guard let characterID = body["characterID"] as? String,
+                  petLibraryValidIDs(
+                    customPets: (try? customPetStore.listRuntimeSpecs()) ?? [])
+                    .contains(characterID) else { return }
+            do {
+                _ = try PetLibraryStateStore.shared.update {
+                    try $0.unarchive(characterID)
+                }
+                pushSettingsState()
+            } catch {
+                reportPetLibraryError(error)
+            }
         case "petDelete":
             guard let characterID = body["characterID"] as? String else { return }
             let runtime = try? customPetStore.runtimeSpec(characterID: characterID)
@@ -2928,6 +3078,9 @@ extension AppDelegate {
                     try customPetStore.delete(characterID: characterID)
                     js("famUnregisterCustomPet(\(jsonStr(characterID)))")
                 }
+                _ = try? PetLibraryStateStore.shared.update {
+                    try $0.removeMetadata(for: characterID)
+                }
                 if d.string(forKey: "character") == characterID {
                     d.set("lulu", forKey: "character")
                     js("famSetCharacter('lulu')")
@@ -2937,13 +3090,16 @@ extension AppDelegate {
             } catch {
                 settingsCall("petDeleteFailed", ["message": error.localizedDescription])
             }
-        case "petRename":
+        case "petLibraryRename", "petRename":
             guard let characterID = body["characterID"] as? String,
                   let name = body["name"] as? String else { return }
+            let validIDs = petLibraryValidIDs(
+                customPets: (try? customPetStore.listRuntimeSpecs()) ?? [])
+            guard validIDs.contains(characterID) else { return }
             do {
-                let spec = try customPetStore.rename(
-                    characterID: characterID, name: name)
-                if JSONSerialization.isValidJSONObject(spec),
+                let result = try renamePetLibraryCharacter(characterID, name: name)
+                if let spec = result.customSpec,
+                   JSONSerialization.isValidJSONObject(spec),
                    let data = try? JSONSerialization.data(withJSONObject: spec),
                    let json = String(data: data, encoding: .utf8) {
                     js("famSetCustomPet(\(json), false)")
@@ -2951,13 +3107,18 @@ extension AppDelegate {
                 if d.string(forKey: "character") == characterID {
                     refreshNativeCompanion()
                 }
-                settingsCall("petRenamed", ["spec": spec])
+                var event: [String: Any] = [
+                    "characterID": characterID,
+                    "displayName": result.displayName,
+                ]
+                if let spec = result.customSpec { event["spec"] = spec }
+                settingsCall("petRenamed", event)
                 pushSettingsState()
             } catch {
                 settingsCall("petRenameFailed", [
                     "message": voice(
-                        "改名失败：请输入 1–60 个字符。",
-                        "Could not rename: use 1–60 characters."),
+                        "改名失败：请输入 1–28 个字符。",
+                        "Could not rename: use 1–28 characters."),
                 ])
             }
         case "grant":

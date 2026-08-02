@@ -56,24 +56,42 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .note{ font-size:11px; color:var(--dim); margin-top:8px; line-height:1.5; }
 
 /* mascot cards */
-.cards{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.pet-library-head{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-bottom:10px; }
+.pet-library-head h2{ margin:0; }
+.pet-library-toggle{ flex:none; min-height:28px; padding:4px 10px; border-radius:999px;
+  color:var(--dim); font-size:10px; }
+.pet-library-filters{ display:none; align-items:center; gap:5px; flex-wrap:wrap;
+  margin:-2px 0 10px; }
+.pet-library-filters.show{ display:flex; }
+.pet-library-filter{ min-height:25px; padding:3px 8px; border-radius:999px;
+  color:var(--dim); font-size:9.5px; }
+.pet-library-filter.sel{ color:var(--ink); background:var(--accent-soft); border-color:var(--accent); }
+.cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
 .card{ position:relative; min-width:0; background:#1c173a; border:2px solid var(--line); border-radius:14px;
   padding:12px 8px 10px; text-align:center; cursor:pointer; transition:border-color .2s, transform .15s; }
+.card.archived{ opacity:.72; cursor:default; }
 .card:hover{ transform:translateY(-2px); }
 .card.sel{ border-color:var(--accent); box-shadow:0 0 18px #cabcf533; }
 .card svg{ width:72px; height:72px; overflow:visible; }
 .card-sheet{ width:72px; height:72px; margin:auto; overflow:hidden; }
 .card-sheet img{ display:block; width:216px; height:72px; max-width:none; image-rendering:auto; }
-.card-delete{ position:absolute; z-index:2; right:4px; top:4px; width:28px; height:28px; padding:0;
+.card-library-action{ position:absolute; z-index:2; right:4px; top:4px; min-width:28px;
+  height:28px; padding:0 6px;
   display:grid; place-items:center; border-radius:8px; border:1px solid #ffffff16; color:#c9c3dc;
-  background:#14102bcf; font-size:11px; opacity:.68; }
+  background:#14102bcf; font-size:9px; opacity:.68; }
 .card-rename{ position:absolute; z-index:2; left:4px; top:4px; width:28px; height:28px; padding:0;
   display:grid; place-items:center; border-radius:8px; border:1px solid #ffffff16; color:#c9c3dc;
   background:#14102bcf; font-size:11px; opacity:.68; }
-.card:hover .card-delete,.card-delete:focus{ opacity:1; color:#ffd4df; border-color:#e88fae55; }
+.card:hover .card-library-action,.card-library-action:focus{ opacity:1; color:var(--ink); border-color:var(--accent); }
 .card:hover .card-rename,.card-rename:focus{ opacity:1; color:#d9fff2; border-color:#7df0cf66; }
 .card .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:600; margin-top:5px; }
 .card .ds{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:var(--dim); margin-top:2px; }
+.card-category{ max-width:100%; min-height:22px; margin-top:6px; padding:2px 7px;
+  border-radius:999px; color:var(--dim); font-size:8.5px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.pet-library-empty{ padding:13px; color:var(--dim); text-align:center; font-size:10px;
+  border:1px dashed var(--line); border-radius:12px; }
 
 /* Mimo Studio — a visible three-step path: sketch, choose, evolve. */
 .proto-tag{ margin-left:auto; color:#15112b; background:#ffd479; border-radius:9px;
@@ -473,7 +491,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .diag,.warning-list,.generation-details,.generation-details summary,.recovery-copy,
 .pet-privacy,.pet-privacy summary,.recovery-archive{ color:var(--dim); }
 .proto-tag{ color:#fffaf3; background:var(--warn); }
-.card-delete,.card-rename{ border-color:#ffffff30; color:#fffaf3; background:#352c25cc; }
+.card-library-action,.card-rename{ border-color:#ffffff30; color:#fffaf3; background:#352c25cc; }
 .api-field input:focus,.style-tuning-input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 </style>
 </head>
@@ -492,7 +510,8 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 <div class="tab-panel cur" data-panel="pet">
 
 <div class="sec">
-  <h2><span class="ico">🐾</span><span data-zh="你的伴灵" data-en="Your familiar">你的伴灵</span></h2>
+  <div class="pet-library-head"><h2><span class="ico">🐾</span><span data-zh="你的伴灵" data-en="Your familiar">你的伴灵</span></h2><button class="pet-library-toggle" id="petLibraryToggle" type="button" onclick="togglePetLibrary()" data-zh="展开" data-en="Expand">展开</button></div>
+  <div class="pet-library-filters" id="petLibraryFilters" aria-label="Familiar library filters"></div>
   <div class="cards" id="cards"></div>
 </div>
 
@@ -1519,16 +1538,31 @@ function expressionStatusHTML(){
 }
 function removeCustomPet(characterID){send({type:'petDelete',characterID})}
 function petDeleteFailed(event){petLab.error=event.message||tx('无法删除角色','Could not delete familiar');petLab.errorKind='setup';petLab.status='error';renderPetLab()}
-function renameCustomPet(characterID){
-  const pet=(S.customPets||[]).find(item=>item.characterID===characterID);if(!pet)return;
-  const name=window.prompt(tx('给这只伴灵改名','Rename this familiar'),pet.name||'');
-  if(name===null)return;send({type:'petRename',characterID,name});
+function renamePet(characterID){
+  const pet=petLibraryItem(characterID);if(!pet)return;
+  const current=S.petLibrary?.metadata?.[characterID]?.displayName||pet.m.name||'';
+  const name=window.prompt(tx('给这只伴灵改名（1–28 个字）','Rename this familiar (1–28 characters)'),current);
+  if(name===null)return;send({type:'petLibraryRename',characterID,name});
 }
+function renameCustomPet(characterID){renamePet(characterID)}
 function petRenamed(event){
-  if(!event?.spec)return;S.customPets=(S.customPets||[]).filter(
-    item=>item.characterID!==event.spec.characterID).concat([event.spec]);renderCards();
+  if(event?.spec)S.customPets=(S.customPets||[]).filter(
+    item=>item.characterID!==event.spec.characterID).concat([event.spec]);
+  if(event?.characterID&&event?.displayName){
+    S.petLibrary=S.petLibrary||{};S.petLibrary.metadata=S.petLibrary.metadata||{};
+    S.petLibrary.metadata[event.characterID]={...(S.petLibrary.metadata[event.characterID]||{}),displayName:event.displayName};
+  }
+  renderCards();
 }
 function petRenameFailed(event){window.alert(event?.message||tx('改名失败','Could not rename'))}
+function editPetCategory(characterID){
+  const current=S.petLibrary?.metadata?.[characterID]?.category||'';
+  const category=window.prompt(tx('分类 / 文件夹名称（留空即取消分类）','Category / filing label (leave empty to clear)'),current);
+  if(category===null)return;send({type:'petLibraryCategory',characterID,category});
+}
+function archivePet(characterID){send({type:'petLibraryArchive',characterID})}
+function unarchivePet(characterID){send({type:'petLibraryUnarchive',characterID})}
+function petLibraryError(event){window.alert((LANG==='zh'?event?.messageZh:event?.messageEn)||event?.message||tx('伴灵库没有保存这次更改。','The familiar library could not save this change.'))}
 function decodePetReference(url,sourceName){
   return new Promise((resolve,reject)=>{
     const img=new Image();img.onload=()=>{
@@ -1647,6 +1681,7 @@ function changeCompanionScale(value){
 }
 
 let S = { character: 'lulu' };
+const petLibraryUI={expanded:false,view:'active',category:null};
 let selectedActionJobID = null;
 let actionJobBusy = false;
 let actionJobNotice = '';
@@ -1812,16 +1847,59 @@ function actionJobAccepted(event){
 }
 function actionJobError(event){actionJobBusy=false;actionJobNotice=(LANG==='zh'?event.messageZh:event.messageEn)||event.message||tx('动作结果处理失败。','Could not process the action result.');renderActionReview()}
 
+function petLibraryItem(characterID){
+  if(MINI[characterID])return {characterID,m:MINI[characterID],custom:false,legacy:false};
+  if(characterID==='prototype'&&S.customPet)return {characterID,m:{...S.customPet,name:S.customPet.name||tx('我的伴灵','My familiar')},custom:true,legacy:true};
+  const custom=(S.customPets||[]).find(item=>item.characterID===characterID);
+  return custom?{characterID,m:custom,custom:true,legacy:false}:null;
+}
+function petLibraryIDs(){
+  const library=S.petLibrary||{};
+  if(!petLibraryUI.expanded)return Array.isArray(library.recentIDs)?library.recentIDs.slice(0,3):[];
+  const source=petLibraryUI.view==='archived'?library.archivedIDs:library.activeIDs;
+  const ordered=Array.isArray(source)?source:[];
+  if(!petLibraryUI.category)return ordered;
+  return ordered.filter(id=>library.metadata?.[id]?.category===petLibraryUI.category);
+}
+function togglePetLibrary(){
+  petLibraryUI.expanded=!petLibraryUI.expanded;
+  if(!petLibraryUI.expanded){petLibraryUI.view='active';petLibraryUI.category=null}
+  renderCards();
+}
+function setPetLibraryView(view){petLibraryUI.view=view==='archived'?'archived':'active';renderCards()}
+function setPetLibraryCategory(index){
+  const categories=S.petLibrary?.categories||[];
+  petLibraryUI.category=index<0?null:(categories[index]||null);renderCards();
+}
+function renderPetLibraryFilters(){
+  const box=document.getElementById('petLibraryFilters'),toggle=document.getElementById('petLibraryToggle');
+  if(!box||!toggle)return;
+  toggle.textContent=petLibraryUI.expanded?tx('收起','Collapse'):tx('展开','Expand');
+  toggle.setAttribute('aria-expanded',String(petLibraryUI.expanded));
+  box.classList.toggle('show',petLibraryUI.expanded);
+  if(!petLibraryUI.expanded){box.innerHTML='';return}
+  const library=S.petLibrary||{},categories=Array.isArray(library.categories)?library.categories:[];
+  if(petLibraryUI.category&&!categories.includes(petLibraryUI.category))petLibraryUI.category=null;
+  const active=petLibraryUI.view==='active',all=petLibraryUI.category===null;
+  const categoryButtons=categories.map((category,index)=>`<button type="button" class="pet-library-filter ${petLibraryUI.category===category?'sel':''}" onclick="setPetLibraryCategory(${index})">${esc(category)}</button>`).join('');
+  box.innerHTML=`<button type="button" class="pet-library-filter ${active&&all?'sel':''}" onclick="setPetLibraryView('active');setPetLibraryCategory(-1)">${tx('全部','All')}</button>${categoryButtons}<button type="button" class="pet-library-filter ${!active?'sel':''}" onclick="setPetLibraryView('archived')">${tx(`已隐藏 ${library.archivedIDs?.length||0}`,`Hidden ${library.archivedIDs?.length||0}`)}</button>`;
+}
 function renderCards(){
-  const builtins=Object.entries(MINI).map(([characterID,m])=>({characterID,m,custom:false}));
-  const legacy=S.customPet?[{characterID:'prototype',m:{...S.customPet,name:S.customPet.name||tx('我的伴灵','My familiar')},custom:true,legacy:true}]:[];
-  const customs=(S.customPets||[]).map(m=>({characterID:m.characterID,m,custom:true,legacy:false}));
-  document.getElementById('cards').innerHTML=[...builtins,...legacy,...customs].map(({characterID,m,custom,legacy})=>{
+  renderPetLibraryFilters();
+  const library=S.petLibrary||{},archivedView=petLibraryUI.expanded&&petLibraryUI.view==='archived';
+  const items=petLibraryIDs().map(petLibraryItem).filter(Boolean);
+  document.getElementById('cards').innerHTML=items.map(({characterID,m,custom,legacy})=>{
+    const metadata=library.metadata?.[characterID]||{};
+    const archived=metadata.archived===true;
+    const category=metadata.category||'';
+    const displayName=metadata.displayName||m.name;
     const art=legacy?miniSVG(m):custom?`<div class="card-sheet"><img src="${esc(m.assetURL)}" alt=""></div>`:miniSVG(m);
     const temperament=TEMPERAMENTS.find(t=>t.id===m.temperamentID);
     const desc=custom?(legacy?tx('旧版像素 DNA','legacy pixel DNA'):(temperament?(LANG==='zh'?temperament.zh:temperament.en):tx('DIY 伴灵','DIY familiar'))):(LANG==='zh'?m.descZh:m.desc);
-    return `<div class="card ${S.character===characterID?'sel':''}" onclick="pick('${characterID}')">${custom&&!legacy?`<button type="button" class="card-rename" aria-label="${esc(tx(`给 ${m.name} 改名`,`Rename ${m.name}`))}" onclick="event.preventDefault();event.stopPropagation();renameCustomPet('${characterID}')">✎</button>`:''}${custom?`<button type="button" class="card-delete" aria-label="${esc(tx(`删除 ${m.name}`,`Delete ${m.name}`))}" onclick="event.preventDefault();event.stopPropagation();removeCustomPet('${characterID}')">⌫</button>`:''}${art}<div class="nm">${esc(m.name)}</div><div class="ds">${esc(desc)}</div></div>`;
-  }).join('');
+    const rename=`<button type="button" class="card-rename" aria-label="${esc(tx(`给 ${displayName} 改名`,`Rename ${displayName}`))}" onclick="event.preventDefault();event.stopPropagation();renamePet('${characterID}')">✎</button>`;
+    const visibility=archived?`<button type="button" class="card-library-action" onclick="event.preventDefault();event.stopPropagation();unarchivePet('${characterID}')">${tx('恢复','Restore')}</button>`:`<button type="button" class="card-library-action" onclick="event.preventDefault();event.stopPropagation();archivePet('${characterID}')">${tx('隐藏','Hide')}</button>`;
+    return `<div class="card ${archived?'archived':''} ${S.character===characterID?'sel':''}" ${archived?'':`onclick="pick('${characterID}')"`}>${rename}${visibility}${art}<div class="nm">${esc(displayName)}</div><div class="ds">${esc(desc)}</div><button type="button" class="card-category" onclick="event.preventDefault();event.stopPropagation();editPetCategory('${characterID}')">${esc(category||tx('＋ 分类','＋ Category'))}</button></div>`;
+  }).join('')||`<div class="pet-library-empty">${archivedView?tx('没有隐藏的伴灵','No hidden familiars'):tx('这个分类还是空的','This category is empty')}</div>`;
 }
 function pick(id){ S.character = id; selectedActionJobID=null; actionJobNotice=''; renderCards(); renderActionReview(); send({ type: 'pick', id }); }
 

@@ -21,6 +21,7 @@ APP_SOURCES=(
   activity_log.swift
   app_menu.swift
   custom_pet.swift
+  pet_library.swift
   action_generation_job.swift
   character_sheet.swift
   action_sheet.swift
