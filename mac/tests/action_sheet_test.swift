@@ -681,6 +681,40 @@ struct ActionSheetTests {
                "cross-batch scale remains physically proportional, got \(ratio)")
     }
 
+    /// Provider batches are independent images and their warm mattes can
+    /// drift. Cleaning only after concatenation estimates one global matte;
+    /// the other batch then survives as an opaque box and looks like a subject
+    /// touching every panel edge.
+    static func testCoherentBatchesRemoveTheirOwnMattesBeforeAssembly() throws {
+        let layout = ActionSheetLayout(rows: 1, columns: 3)
+        let first = makeSheet(
+            cell: 128, layout: layout,
+            blobs: (0..<3).map { _ in bounds(42, 26, 44, 82) },
+            matte: (241, 236, 226, 255))
+        let second = makeSheet(
+            cell: 128, layout: layout,
+            blobs: (0..<3).map { _ in bounds(43, 25, 46, 83) },
+            matte: (241, 236, 226, 255))
+        let third = makeSheet(
+            cell: 128, layout: layout,
+            blobs: (0..<3).map { _ in bounds(40, 24, 48, 84) },
+            matte: (190, 205, 220, 255))
+
+        let result = try ActionSheetProcessor.processCoherentBatches(
+            pngDatas: [png(first), png(second), png(third)],
+            keepCounts: [3, 3, 3])
+        expect(result.frames.count == 9,
+               "all independently-matted families must survive coherent assembly")
+        let strip = try CharacterSheetProcessor.decodePNG(result.pngData)
+        for frame in 0..<9 {
+            let image = ActionSheetProcessor.crop(
+                strip, x: frame * result.cellSize, y: 0,
+                width: result.cellSize, height: result.cellSize)
+            expect(image.rgba(x: 2, y: 2).3 == 0,
+                   "batch matte must be transparent in output frame \(frame)")
+        }
+    }
+
     static func testTypeErasedErrorsKeepActionableClippingDetails() {
         let error: Error = ActionSheetError.subjectClipped(index: 2, edge: "right")
         expect(error.localizedDescription.contains("cell 2")
@@ -715,6 +749,7 @@ struct ActionSheetTests {
         testSparseRepairRejectsDifferentScale()
         try testSparseRepairCanSafelyNormalizeUniformlySmallFrames()
         try testCoherentBatchesShareOneFinalRegistration()
+        try testCoherentBatchesRemoveTheirOwnMattesBeforeAssembly()
         testTypeErasedErrorsKeepActionableClippingDetails()
         print("action sheet: all assertions passed")
     }

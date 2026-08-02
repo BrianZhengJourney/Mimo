@@ -140,11 +140,61 @@ enum ActionSheetProcessor {
                 reason: "coherent batches must use one source geometry")
         }
 
+        // Every provider call estimates its own warm field, and that field can
+        // drift between chained calls. Concatenating the opaque batches first
+        // makes the matte remover choose one majority color; a minority batch
+        // then survives as a full opaque panel and is misreported as artwork
+        // touching an edge. Remove a batch's own matte first only when the
+        // result is unambiguously complete. Ambiguous gradients or real edge
+        // contact retain the old whole-family cleanup below as their fallback.
+        let preparedBatches = zip(batches, keepCounts).map { batch, keepCount in
+            let batchLayout = ActionSheetLayout(rows: 1, columns: batchColumns)
+            let inset = min(12, max(0, min(batch.width, batch.height) / 2 - 1))
+            let samplePoints = [0, inset].flatMap { value -> [(Int, Int)] in
+                let left = value, right = batch.width - 1 - value
+                let top = value, bottom = batch.height - 1 - value
+                return [
+                    (left, top), (batch.width / 2, top), (right, top),
+                    (left, batch.height / 2), (right, batch.height / 2),
+                    (left, bottom), (batch.width / 2, bottom), (right, bottom),
+                ]
+            }
+            let warmOpaqueSamples = samplePoints.filter { x, y in
+                let color = batch.rgba(x: x, y: y)
+                let channels = [Int(color.0), Int(color.1), Int(color.2)]
+                return color.3 >= 200
+                    && channels[0] >= 180 && channels[1] >= 170
+                    && channels[2] >= 160
+                    && channels.max()! - channels.min()! <= 60
+            }.count
+            guard warmOpaqueSamples * 4 >= samplePoints.count * 3,
+                  detectDrawnGrid(batch, layout: batchLayout) == nil else {
+                return batch
+            }
+            var cleaned = batch
+            CharacterSheetProcessor.removeBorderConnectedMatte(from: &cleaned)
+            CharacterSheetProcessor.removeSmallSpecks(from: &cleaned)
+            let ranges = transparentGutterColumnRanges(cleaned, count: batchColumns)
+                ?? uniformRanges(total: cleaned.width, count: batchColumns)
+            let retainedCellsAreSafe = (0..<keepCount).allSatisfy { index in
+                let range = ranges[index]
+                let cell = crop(
+                    cleaned, x: range.lowerBound, y: 0,
+                    width: range.count, height: cleaned.height)
+                guard clippedEdge(of: cell) == nil,
+                      let bounds = CharacterSheetProcessor.alphaBounds(of: cell) else {
+                    return false
+                }
+                return bounds.height >= minimumSubjectHeight
+            }
+            return retainedCellsAreSafe ? cleaned : batch
+        }
+
         let retainedCount = keepCounts.reduce(0, +)
         var combined = CharacterSheetRGBAImage(
             width: sourceCellWidth * retainedCount, height: first.height)
         var destinationCell = 0
-        for (batchIndex, batch) in batches.enumerated() {
+        for (batchIndex, batch) in preparedBatches.enumerated() {
             for sourceCell in 0..<keepCounts[batchIndex] {
                 for y in 0..<batch.height {
                     let sourceStart = (y * batch.width + sourceCell * sourceCellWidth) * 4
