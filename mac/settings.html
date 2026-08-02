@@ -1,37 +1,48 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-font-family="pingfang" data-font-weight="regular">
 <head>
 <meta charset="UTF-8">
 <title>Mimo 米墨 — 设置</title>
 <style>
 :root{
-  --ink:#e9e6f7; --dim:#9d97b8; --card:#241f42; --line:#ffffff14;
-  --accent:#cabcf5; --good:#7df0cf; --warn:#ffd479; --bad:#e88fae;
+  --paper:#f6f1e8; --surface:#fffaf3; --surface-raised:#fffdf8;
+  --surface-muted:#eee3d5; --ink:#352c25; --dim:#786b60; --card:var(--surface);
+  --line:#d9ccba; --accent:#91664f; --accent-soft:#ead8c7;
+  --good:#668470; --warn:#a4743f; --bad:#a45f5d; --shadow:#6e514118;
+  --ui-font-family:'PingFang SC','PingFang TC','Hiragino Sans GB',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+  --ui-font-weight:400; --ui-strong-weight:500;
 }
+:root[data-font-family="pingfang"]{ --ui-font-family:'PingFang SC','PingFang TC','Hiragino Sans GB',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif; }
+:root[data-font-family="system"]{ --ui-font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif; }
+:root[data-font-family="rounded"]{ --ui-font-family:ui-rounded,'SF Pro Rounded','PingFang SC','PingFang TC',sans-serif; }
+:root[data-font-weight="regular"]{ --ui-font-weight:400; --ui-strong-weight:500; }
+:root[data-font-weight="medium"]{ --ui-font-weight:500; --ui-strong-weight:600; }
+:root[data-font-weight="semibold"]{ --ui-font-weight:600; --ui-strong-weight:700; }
 *{ margin:0; padding:0; box-sizing:border-box; }
 html,body{ height:100%; }
 body{
-  font-family:-apple-system,'Inter',sans-serif; color:var(--ink);
-  background:linear-gradient(165deg,#1d1838 0%,#191534 55%,#141d33 100%);
+  font-family:var(--ui-font-family); font-weight:var(--ui-font-weight); color:var(--ink);
+  background:var(--paper);
   overflow-y:auto; padding:22px 30px 40px; -webkit-user-select:none;
 }
+button,input,select,textarea{ font-family:var(--ui-font-family); }
 input,textarea,[contenteditable="true"]{
   -webkit-user-select:text; user-select:text;
 }
-h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
-.tagline{ color:var(--dim); font-size:13px; margin:4px 0 15px; }
+h1{ font-weight:var(--ui-strong-weight); font-size:26px; margin-bottom:14px; letter-spacing:-.025em; }
+b,strong,h2{ font-weight:var(--ui-strong-weight); }
 
 /* Settings is intentionally shallow: four obvious destinations, with
    Language promoted out of the bottom of General. */
 .settings-tabs{ position:sticky; z-index:20; top:0; display:grid;
   grid-template-columns:repeat(4,1fr); gap:5px; margin:0 -4px 14px; padding:8px 4px;
-  background:linear-gradient(180deg,#1d1838 70%,#1d183800); }
+  background:linear-gradient(180deg,var(--paper) 76%,#f6f1e800); }
 .settings-tab{ display:flex; align-items:center; justify-content:center; gap:6px; min-width:0;
   padding:8px 5px; border-radius:11px; border:1px solid var(--line); color:var(--dim);
-  background:#18132fba; font-size:11px; backdrop-filter:blur(12px); }
-.settings-tab:hover{ background:#2a234c; }
-.settings-tab.cur{ color:#17122d; border-color:#cabcf5; background:linear-gradient(120deg,#cabcf5,#a9e7d7);
-  box-shadow:0 8px 22px #0e0a2155; font-weight:700; }
+  background:#fffaf3dd; font-size:11px; backdrop-filter:blur(12px); }
+.settings-tab:hover{ background:var(--surface-muted); }
+.settings-tab.cur{ color:#fffaf3; border-color:var(--accent); background:var(--accent);
+  box-shadow:0 6px 18px var(--shadow); font-weight:var(--ui-strong-weight); }
 .settings-tab .tab-ico{ font-size:13px; }
 .tab-panel{ display:none; }
 .tab-panel.cur{ display:block; animation:panel-in .18s ease-out; }
@@ -76,7 +87,7 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .pet-source small{ position:absolute; inset:auto 3px 3px; padding:2px 3px; border-radius:5px;
   color:#fff; background:#15112bbd; font-size:10px; text-align:center; }
 .petlab-copy{ min-width:0; flex:1; }
-.petlab-copy b{ display:block; font-family:Georgia,serif; font-size:14px; margin-bottom:3px; }
+.petlab-copy b{ display:block; font-size:14px; margin-bottom:3px; }
 .petlab-copy span{ display:block; color:var(--dim); font-size:10.5px; line-height:1.4; }
 .petlab-actions{ display:flex; align-items:center; gap:8px; margin-top:7px; }
 .pet-name{ width:145px; color:var(--ink); background:#17132f; border:1px solid var(--line);
@@ -188,7 +199,7 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .sheet-result{ min-height:184px; padding:11px; border:1px solid #7df0cf32; border-radius:15px;
   background:linear-gradient(155deg,#1c1738,#15122c); }
 .sheet-result-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.sheet-result-head b{ font:600 12px Georgia,serif; }.sheet-meta{ color:var(--good); font-size:9.5px; }
+.sheet-result-head b{ font-size:12px; font-weight:var(--ui-strong-weight); }.sheet-meta{ color:var(--good); font-size:9.5px; }
 .sheet-empty{ min-height:76px; display:grid; place-items:center; text-align:center; color:var(--dim);
   border:1px dashed var(--line); border-radius:11px; font-size:9.5px; line-height:1.55; padding:16px; }
 .candidate-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
@@ -208,7 +219,7 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .batch-results{ display:grid; gap:10px; }.batch-result{ padding:9px; border:1px solid #ffffff13;
   border-radius:12px; background:#ffffff04; }.batch-result-head{ display:flex; align-items:center;
   justify-content:space-between; gap:8px; margin-bottom:7px; color:#aaa3ba; font-size:9.5px; }
-.batch-result-head b{ color:var(--ink); font:600 11px Georgia,serif; }.batch-result .sheet-actions{ margin-top:7px; }
+.batch-result-head b{ color:var(--ink); font-size:11px; font-weight:var(--ui-strong-weight); }.batch-result .sheet-actions{ margin-top:7px; }
 .sheet-stages{ display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }
 .sheet-stage.frames-soon{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
   color:var(--dim); text-align:center; }
@@ -232,7 +243,7 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .sheet-actions{ display:flex; gap:7px; margin-top:9px; }.sheet-actions button{ flex:1; }
 .sheet-adopt{ color:#15112b; border:0; background:linear-gradient(120deg,#cabcf5,#7df0cf); font-weight:750; }
 .preserved-result{ margin-top:10px; padding-top:9px; border-top:1px dashed #ffd47930; }
-.preserved-result > b{ display:block; margin-bottom:7px; color:var(--warn); font:600 10.5px Georgia,serif; }
+.preserved-result > b{ display:block; margin-bottom:7px; color:var(--warn); font-size:10.5px; font-weight:var(--ui-strong-weight); }
 .form-quality{ display:block; margin-top:2px; color:#77718e; font:8px ui-monospace,monospace; }
 .sheet-meta.err{ color:var(--bad); }
 .expr-status{ display:flex; align-items:center; gap:7px; margin-top:9px; padding-top:8px;
@@ -259,7 +270,7 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .reference-review-preview{ display:block; width:100%; max-height:330px; object-fit:contain; border-radius:12px;
   background:#f1ece2; border:1px solid #7df0cf44; }
 .reference-review-copy{ color:var(--dim); font-size:10.5px; line-height:1.5; }
-.reference-review-copy strong{ display:block; color:var(--ink); margin-bottom:3px; font:600 12px Georgia,serif; }
+.reference-review-copy strong{ display:block; color:var(--ink); margin-bottom:3px; font-size:12px; font-weight:var(--ui-strong-weight); }
 .reference-review-tuning{ padding:7px 9px; color:#b9b2ca; border-left:2px solid #7df0cf88;
   border-radius:0 8px 8px 0; background:#7df0cf08; font-size:9.5px; line-height:1.4; }
 .reference-review-tuning b{ color:#9ee9d4; margin-right:6px; font-weight:600; }
@@ -316,7 +327,15 @@ h1{ font-family:Georgia,serif; font-weight:600; font-size:26px; }
 .language-card.sel{ border-color:var(--good); box-shadow:0 0 0 1px #7df0cf55,0 12px 30px #0c091b66; }
 .language-card.sel::after{ content:'✓'; position:absolute; right:10px; top:9px; width:20px; height:20px;
   display:grid; place-items:center; border-radius:50%; color:#122a23; background:var(--good); font-size:11px; }
-.language-card .lang-glyph{ font:600 36px Georgia,'Songti SC',serif; }.language-card b{font-size:13px}.language-card small{color:var(--dim);font-size:9px}
+.language-card .lang-glyph{ font-size:36px; font-weight:var(--ui-strong-weight); }.language-card b{font-size:13px}.language-card small{color:var(--dim);font-size:9px}
+.typography-block{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
+.typography-block h3{ font-size:12px; font-weight:var(--ui-strong-weight); margin-bottom:4px; }
+.typography-lead{ color:var(--dim); font-size:10.5px; line-height:1.45; }
+.typography-controls{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:11px; }
+.typography-field{ display:grid; gap:5px; color:var(--dim); font-size:10px; }
+.typography-field select{ width:100%; min-height:32px; }
+.typography-sample{ margin-top:10px; padding:10px 12px; color:var(--ink); background:var(--surface-muted);
+  border-radius:10px; font-size:13px; line-height:1.5; }
 
 /* permission pill */
 .permrow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -411,12 +430,56 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .kbd{ font-family:ui-monospace,monospace; background:#ffffff12; border-radius:5px;
   padding:1px 6px; font-size:11px; }
 .cheats{ display:grid; grid-template-columns:auto 1fr; gap:5px 12px; font-size:12px; color:var(--dim); }
+
+/* Warm minimalist surface. Artwork wells stay neutral so generated pixels remain honest. */
+.sec{ box-shadow:0 10px 30px var(--shadow); }
+.card,.pet-source,.pet-name,.reference-set,.reference-card,.reference-add,.studio-step,
+.pet-controls,.temperament-tile,.style-tuning,.style-tuning-input,.style-tuning-chip,
+.final-controls,.quality-tile,.sheet-result,.candidate,.batch-result,.stage-redo,
+.progress-cancel,.diag,.recovery-row,.api-field,.api-field input,.language-card,
+.starter-actions-pack,.starter-action-card,button,select,.kbd{
+  color:var(--ink); background:var(--surface-raised); border-color:var(--line);
+}
+.reference-tools button{ color:var(--dim); background:var(--surface-muted); }
+.card:hover,.pet-source:hover,.reference-add:hover,.temperament-tile:hover,.quality-tile:hover,
+.candidate:hover,.language-card:hover,button:hover{ background:var(--surface-muted); }
+.reference-set.drag,.studio-step.cur,.temperament-tile.sel,.quality-tile.sel{
+  color:var(--ink); background:var(--accent-soft); border-color:var(--accent); box-shadow:none;
+}
+.candidate.sel,.language-card.sel{ color:var(--ink); background:var(--surface-raised);
+  border-color:var(--good); box-shadow:0 7px 20px var(--shadow); }
+.card.sel{ border-color:var(--accent); box-shadow:0 7px 20px var(--shadow); }
+.settings-tab.cur,.generate-both,.sheet-adopt,.reference-confirm,button.primary{
+  color:#fffaf3; background:var(--accent); border-color:var(--accent); box-shadow:none;
+}
+.settings-tab.cur:hover,.generate-both:hover,.sheet-adopt:hover,.reference-confirm:hover,button.primary:hover{
+  background:#7f5844;
+}
+.chip{ background:var(--surface-raised); }.chip.cur{ color:#fffaf3; background:var(--accent); border-color:var(--accent); }
+.toggle i{ background:#cbbdaf; }.toggle i::after{ background:#fffdf8; box-shadow:0 1px 4px var(--shadow); }
+.toggle input:checked + i{ background:var(--good); }
+.pill.ok{ background:#dce8df; }.pill.ask{ background:#efe2c8; }.pill.no{ background:#f0d7d5; }
+.starter-action-meter,.phase-track i{ background:#ded2c4; }
+.starter-action-meter i{ background:var(--good); }
+.action-review-preview,.reference-image-button img{ background:#2a2521; }
+.action-review-qa{ color:#805f34; background:#f4e5cd; border-color:#d2ae7d; }
+.action-review-qa.ok{ color:#496b56; background:#e2ece4; border-color:#9fbaa6; }
+.action-review-error{ color:var(--bad); }
+.reference-set-head span,.reference-note,.reference-note strong,.studio-step,.studio-step small,
+.studio-price,.studio-price small,.style-tuning-title > span + span,.style-tuning-count,
+.style-tuning-input::placeholder,.style-tuning-suggestions::before,.style-tuning-chip,
+.style-tuning-disclosure,.quality-tile small,.candidate-confirm,.batch-result-head,
+.stage-redo,.stage-cost,.form-quality,.expr-note,.progress-cancel,.reference-review-tuning,
+.diag,.warning-list,.generation-details,.generation-details summary,.recovery-copy,
+.pet-privacy,.pet-privacy summary,.recovery-archive{ color:var(--dim); }
+.proto-tag{ color:#fffaf3; background:var(--warn); }
+.card-delete,.card-rename{ border-color:#ffffff30; color:#fffaf3; background:#352c25cc; }
+.api-field input:focus,.style-tuning-input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 </style>
 </head>
 <body>
 
-<h1>🐾 Mimo <span style="font-size:.62em;color:var(--dim)">米墨</span> <span id="betaBadge" style="font-size:.5em;vertical-align:middle;color:var(--dim);background:#ffffff12;border-radius:5px;padding:2px 8px">Beta</span></h1>
-<div class="tagline" data-zh="住在桌面角落，陪你一起专注。活动记录只留在这台 Mac；DIY 图片只在你点击生成时发送。" data-en="A tiny familiar who keeps you company while you focus. Activity stays on this Mac; DIY images leave only when you choose Generate.">住在桌面角落，陪你一起专注。活动记录只留在这台 Mac；DIY 图片只在你点击生成时发送。</div>
+<h1>🐾 Mimo <span style="font-size:.62em;color:var(--dim)">米墨</span> <span id="betaBadge" style="font-size:.5em;vertical-align:middle;color:var(--dim);background:var(--surface-muted);border-radius:5px;padding:2px 8px">Beta</span></h1>
 
 <nav class="settings-tabs" aria-label="Settings sections">
   <button class="settings-tab cur" type="button" data-tab="pet" onclick="setSettingsTab('pet')"><span class="tab-ico">🐾</span><span data-zh="伴灵" data-en="Familiar">伴灵</span></button>
@@ -581,6 +644,27 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
       <button class="language-card" type="button" data-language="zh" role="radio" onclick="changeLanguage('zh')"><span class="lang-glyph">米墨</span><b>中文</b><small>简体中文</small></button>
       <button class="language-card" type="button" data-language="en" role="radio" onclick="changeLanguage('en')"><span class="lang-glyph">Mimo</span><b>English</b><small>English</small></button>
     </div>
+    <div class="typography-block">
+      <h3 data-zh="字体" data-en="Typography">字体</h3>
+      <div class="typography-lead" data-zh="选择设置页的阅读风格；只保存预设，不接受任意字体代码。" data-en="Choose how Settings reads. Only these safe presets are saved.">选择设置页的阅读风格；只保存预设，不接受任意字体代码。</div>
+      <div class="typography-controls">
+        <label class="typography-field"><span data-zh="字体家族" data-en="Font family">字体家族</span>
+          <select id="settingsFontFamily" onchange="changeSettingsTypography()">
+            <option value="pingfang" data-zh="苹方（默认）" data-en="PingFang (default)">苹方（默认）</option>
+            <option value="system" data-zh="系统字体" data-en="System">系统字体</option>
+            <option value="rounded" data-zh="圆体" data-en="Rounded">圆体</option>
+          </select>
+        </label>
+        <label class="typography-field"><span data-zh="字重" data-en="Weight">字重</span>
+          <select id="settingsFontWeight" onchange="changeSettingsTypography()">
+            <option value="regular">Regular</option>
+            <option value="medium">Medium</option>
+            <option value="semibold">Semibold</option>
+          </select>
+        </label>
+      </div>
+      <div class="typography-sample" data-zh="米墨陪你慢慢专注 · Mimo keeps you company" data-en="Mimo keeps you company · 米墨陪你慢慢专注">米墨陪你慢慢专注 · Mimo keeps you company</div>
+    </div>
   </div>
 </div>
 </main>
@@ -589,6 +673,24 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 let LANG = 'zh';
 let activeSettingsTab = 'pet';
 const tx = (zh, en) => LANG === 'zh' ? zh : en;
+function applySettingsTypography(family,weight){
+  const families = ['pingfang','system','rounded'];
+  const weights = ['regular','medium','semibold'];
+  family = families.includes(family) ? family : 'pingfang';
+  weight = weights.includes(weight) ? weight : 'regular';
+  document.documentElement.dataset.fontFamily = family;
+  document.documentElement.dataset.fontWeight = weight;
+  const familySelect = document.getElementById('settingsFontFamily');
+  const weightSelect = document.getElementById('settingsFontWeight');
+  if(familySelect) familySelect.value = family;
+  if(weightSelect) weightSelect.value = weight;
+}
+function changeSettingsTypography(){
+  const family = document.getElementById('settingsFontFamily').value;
+  const weight = document.getElementById('settingsFontWeight').value;
+  applySettingsTypography(family,weight);
+  send({type:'settingsTypography',family,weight});
+}
 function setSettingsTab(tab){
   const next = ['pet','focus','general','language'].includes(tab) ? tab : 'pet';
   const changed = activeSettingsTab !== next;
@@ -1763,6 +1865,7 @@ function renderRules(){
 function initSettings(state){
   S = state;
   LANG = state.language === 'en' ? 'en' : 'zh';
+  applySettingsTypography(state.settingsFontFamily,state.settingsFontWeight);
   if(IMAGE_QUALITIES.some(q=>q.id===state.imageQuality))petLab.quality=state.imageQuality;
   applyLanguage();
   renderCards();
@@ -1786,6 +1889,7 @@ function initSettings(state){
   if(beta && state.appVersion) beta.textContent = `Beta v${state.appVersion}`;
   setSettingsTab(activeSettingsTab);
 }
+applySettingsTypography('pingfang','regular');
 applyLanguage();
 renderCards();
 renderActionReview();

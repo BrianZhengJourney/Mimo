@@ -30,6 +30,7 @@ APP_SOURCES=(
   pet_reference_import.swift
   style_reference.swift
   reference_preprocessor.swift
+  settings_typography.swift
   main.swift
   product.swift
   consistency_metric.swift

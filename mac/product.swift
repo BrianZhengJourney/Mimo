@@ -492,6 +492,9 @@ extension AppDelegate {
 
     func pushSettingsState() {
         let d = UserDefaults.standard
+        let typography = MimoSettingsTypography(
+            family: d.string(forKey: MimoSettingsTypography.familyDefaultsKey),
+            weight: d.string(forKey: MimoSettingsTypography.weightDefaultsKey))
         let bid = defaultBrowserBundleId()
         let code = bid.map { automationStatus($0) } ?? OSStatus(-1)
         var rules: [[String: Any]] = []
@@ -522,6 +525,8 @@ extension AppDelegate {
             "generationRecoveryCount": generationDraftStore.recoverableDraftCount(),
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
         ]
+        state["settingsFontFamily"] = typography.family.rawValue
+        state["settingsFontWeight"] = typography.weight.rawValue
         if let customPet = storedCustomPetSpec() { state["customPet"] = customPet }
         let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
         state["customPets"] = customPets
@@ -2977,6 +2982,18 @@ extension AppDelegate {
             }
         case "sounds":
             d.set(body["on"] as? Bool ?? false, forKey: "soundOn")
+        case "settingsTypography":
+            let current = MimoSettingsTypography(
+                family: d.string(forKey: MimoSettingsTypography.familyDefaultsKey),
+                weight: d.string(forKey: MimoSettingsTypography.weightDefaultsKey))
+            let typography = MimoSettingsTypography(
+                family: body["family"] as? String ?? current.family.rawValue,
+                weight: body["weight"] as? String ?? current.weight.rawValue)
+            d.set(typography.family.rawValue,
+                  forKey: MimoSettingsTypography.familyDefaultsKey)
+            d.set(typography.weight.rawValue,
+                  forKey: MimoSettingsTypography.weightDefaultsKey)
+            pushSettingsState()
         case "language":
             let lang = body["language"] as? String == "en" ? "en" : "zh"
             d.set(lang, forKey: "voiceLanguage")
