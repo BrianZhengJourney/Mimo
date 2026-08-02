@@ -429,6 +429,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var starterActionPackActiveJobID: String?
     var starterActionPackCharacterID: String?
     var starterActionPackQuality: PetFinalGenerationQuality = .medium
+    /// Durable hand-off from post-adoption expressions to the internal
+    /// starter-action pack. Only one simplified DIY install is active at once.
+    var postInstallStarterActionCharacterID: String?
     var activeStageParents: [String: String] = [:]
     var backgroundStudioRequests: Set<String> = []
     var visibleEvolutionDraftID: String?
@@ -437,7 +440,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var pendingCandidateBoards: [String: PendingCandidateBoardDraft] = [:]
     var pendingEvolutionSheets: [String: PendingEvolutionSheetDraft] = [:]
     var pendingLocalRecoveries: [String: PendingLocalGenerationRecovery] = [:]
-    var pendingReferencePreflights: [String: PendingReferencePreflight] = [:]
     /// Retained until every selected photo has crossed the WKWebView bridge.
     var petReferenceImportQueue: PetReferenceImportQueue<URL>?
     /// Character currently receiving post-adoption expression sheets (one
@@ -471,6 +473,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         startNativeCompanionIfAvailable()
         pruneOldLogs()
         startStudioCleanup()
+        DispatchQueue.main.async { [weak self] in
+            self?.resumePostInstallStarterActions()
+        }
         gitWatcher.onCommit = { [weak self] repo in
             let message = "🎉 \(repo): commit shipped!"
             self?.js("famProud(\(jsonStr(message)))")

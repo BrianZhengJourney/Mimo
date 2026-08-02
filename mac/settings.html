@@ -231,6 +231,26 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
   white-space:nowrap; font-size:8px; }
 .candidate.sel::after{ content:'✓'; position:absolute; right:7px; top:7px; width:16px; height:16px;
   display:grid; place-items:center; border-radius:50%; color:#122a23; background:var(--good); font-size:8px; }
+.candidate-select{ display:block; width:100%; padding:0; border:0; background:transparent; }
+.candidate-select:hover{ background:transparent; }
+.candidate-tools{ display:flex; justify-content:flex-end; margin:3px 0; }
+.candidate-zoom{ padding:3px 7px; color:var(--dim); font-size:9px; }
+.candidate-feedback-label{ display:grid; gap:3px; padding:3px; color:var(--dim); text-align:left; font-size:8.5px; }
+.candidate-feedback{ width:100%; min-height:42px; resize:vertical; padding:6px; color:var(--ink);
+  background:var(--surface); border:1px solid var(--line); border-radius:7px; font:9.5px/1.35 var(--ui-font-family); }
+.candidate-feedback:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.candidate-lightbox{ position:fixed; z-index:1000; inset:0; display:grid; place-items:center; padding:28px;
+  background:#352c25a8; backdrop-filter:blur(8px); }
+.candidate-lightbox[hidden]{ display:none; }
+.candidate-lightbox-dialog{ position:relative; width:min(620px,92vw); max-height:88vh; padding:16px;
+  border:1px solid var(--line); border-radius:18px; background:var(--surface); box-shadow:0 24px 70px #352c2555; }
+.candidate-lightbox-dialog img{ display:block; width:100%; max-height:calc(88vh - 32px); object-fit:contain;
+  border-radius:12px; background:#2a2521; }
+.candidate-lightbox-close{ position:absolute; z-index:1; right:22px; top:22px; width:30px; height:30px;
+  display:grid; place-items:center; padding:0; border-radius:50%; color:#fffaf3; background:#352c25cc; }
+.studio-actions{ display:flex; justify-content:flex-end; margin:0 0 9px; }
+.studio-actions .generate-both,.final-controls .generate-both{ width:100%; }
+.final-controls.show{ display:flex; padding:0; border:0; background:transparent; }
 .candidate-confirm{ display:flex; align-items:center; justify-content:space-between; gap:7px; margin-top:8px;
   padding:7px 9px; color:#aaa3ba; border:1px solid #7df0cf28; border-radius:9px; background:#7df0cf08; font-size:9.5px; }
 .candidate-confirm b{ color:var(--good); font-weight:650; }.candidate-confirm button{ padding:3px 7px; font-size:9px; }
@@ -250,6 +270,8 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .sheet-frame img{ display:block; height:100%; width:300%; max-width:none; image-rendering:auto; }
 .sheet-frame.s1 img{ transform:translateX(-33.3333%); }.sheet-frame.s2 img{ transform:translateX(-66.6666%); }
 .sheet-frame img.single{ width:100%; object-fit:contain; transform:none; }
+.final-preview{ width:min(260px,100%); margin:0 auto; color:var(--dim); text-align:center; font-size:10px; }
+.final-preview .sheet-frame{ margin-bottom:6px; }
 .stage-tools{ display:flex; align-items:center; justify-content:center; gap:3px; margin-top:3px; }
 .stage-redo{ padding:3px 6px; color:#aaa4bf; border-color:#ffffff12; border-radius:6px;
   background:#ffffff08; font-size:9.5px; }
@@ -516,16 +538,11 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   <div class="cards" id="cards"></div>
 </div>
 
-<div class="sec" id="actionImportSection">
-  <h2><span class="ico">🎞</span><span data-zh="Starter Actions · DIY 动作" data-en="Starter Actions · DIY motion">Starter Actions · DIY 动作</span> <span class="proto-tag">4 ACTIONS</span></h2>
-  <div class="action-review" id="actionReview"></div>
-</div>
-
 <div class="sec" id="petLab">
-  <h2><span class="ico">✦</span><span data-zh="Mimo Studio · DIY 伴灵" data-en="Mimo Studio · DIY familiar">Mimo Studio · DIY 伴灵</span> <span class="proto-tag">3 STEPS</span></h2>
+  <h2><span class="ico">✦</span><span data-zh="Mimo Studio · DIY 伴灵" data-en="Mimo Studio · DIY familiar">Mimo Studio · DIY 伴灵</span></h2>
   <div class="petlab-intro">
     <button type="button" class="pet-source" id="petSourceDrop" data-pet-upload onclick="requestPetReference()" data-aria-zh="添加伴灵参考图片" data-aria-en="Add a familiar reference image"><span id="petSourceGlyph">＋</span><img id="petSourceImg" alt=""><small data-zh="添加图片" data-en="add image">添加图片</small></button>
-    <div class="petlab-copy"><b data-zh="上传 → 自动选主角 → 定稿" data-en="Upload → auto-pick → finalize">上传 → 自动选主角 → 定稿</b>
+    <div class="petlab-copy"><b data-zh="添加图片 → 自动生成草稿 → 选一个定稿" data-en="Add images → automatic drafts → pick one final">添加图片 → 自动生成草稿 → 选一个定稿</b>
       <div class="petlab-actions">
         <button type="button" data-pet-upload onclick="requestPetReference()" data-zh="添加参考图…" data-en="Add references…">添加参考图…</button>
         <input class="pet-name" id="petName" value="我的小伴灵" maxlength="28"
@@ -538,7 +555,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   <section class="reference-set" id="petReferenceSet" aria-labelledby="petReferenceTitle">
     <div class="reference-set-head"><b id="petReferenceTitle" data-zh="主角参考集" data-en="Subject reference set">主角参考集</b><span id="petReferenceCount">0 / 8</span></div>
     <div class="reference-tray" id="petReferenceTray" role="list"></div>
-    <p class="reference-note" id="petReferenceNote" data-zh="截图、拼图都可以。点一下设为<strong>主参考</strong>；生成前会先让你确认。" data-en="Screenshots and collages are welcome. Click to set the <strong>primary</strong> reference; you confirm before generation.">截图、拼图都可以。点一下设为<strong>主参考</strong>；生成前会先让你确认。</p>
+    <p class="reference-note" id="petReferenceNote" data-zh="最多 8 张。米墨会在本机自动找出人物；图片全部就绪后直接生成 3 个草稿。" data-en="Up to 8 images. Mimo finds the subject locally and makes 3 drafts once every image is ready.">最多 8 张。米墨会在本机自动找出人物；图片全部就绪后直接生成 3 个草稿。</p>
     <div class="reference-status" id="petReferenceStatus" aria-live="polite"></div>
   </section>
 
@@ -558,33 +575,30 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
     <div class="style-tuning-disclosure" data-zh="下一次生成生效 · 不会清掉已有结果" data-en="Applies to the next generation · existing results stay">下一次生成生效 · 不会清掉已有结果</div>
   </div>
 
-  <div class="studio-steps" id="studioSteps" role="list" aria-label="Mimo Studio progress"></div>
-  <div class="studio-price"><span data-zh="预计完整生成" data-en="Estimated full creation">预计完整生成</span><b id="studioTotalPrice">~$0.100</b><small id="studioPriceBreakdown">Low + Medium + 表情</small></div>
-  <div class="pet-controls">
-    <div class="pet-control"><label for="petLikeness" data-zh="更像谁？" data-en="What should it resemble?">更像谁？</label><div class="likeness-row"><span data-zh="伴灵" data-en="Mimo">伴灵</span><input id="petLikeness" type="range" min="0" max="100" value="58" data-aria-zh="主角与主参考的相似程度" data-aria-en="Likeness to the primary reference" onchange="invalidatePetDraft()"><span data-zh="主参考" data-en="primary">主参考</span></div></div>
-    <button class="generate-both" id="petGenerate" type="button" onclick="generateCandidates()" data-zh="画 3 个 Low 草稿" data-en="Make 3 Low drafts">画 3 个 Low 草稿</button>
-  </div>
+  <div class="studio-actions"><button class="generate-both" id="petGenerate" type="button" onclick="generateCandidates()" data-zh="生成 3 个草稿" data-en="Generate 3 drafts">生成 3 个草稿</button></div>
   <div class="final-controls" id="finalControls">
-    <div class="final-choice">
-      <div class="quality-label"><b data-zh="下一次生成精度" data-en="Next generation quality">下一次生成精度</b><span data-zh="整套或单段 · 输入另计" data-en="full sheet or one form · input extra">整套或单段 · 输入另计</span></div>
-      <div class="quality-grid" id="qualityGrid" role="radiogroup" data-aria-zh="下一次生成精度" data-aria-en="Next generation quality"></div>
-    </div>
-    <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="生成完整伴灵" data-en="Create complete familiar">生成完整伴灵</button>
+    <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="生成 Medium 定稿" data-en="Create Medium final">生成 Medium 定稿</button>
   </div>
 
   <div class="sheet-result" id="petSheetResult" aria-live="polite"></div>
   <div class="petlab-state" id="petLabState" aria-live="polite"><span class="dot"></span>
     先添加一组参考图，其余交给米墨自动完成
   </div>
-  <details class="pet-privacy"><summary data-zh="隐私说明" data-en="Privacy">隐私说明</summary><p data-zh="原图留在本机。确认后只发送整理过的身份板、风格板和你的风格文字。" data-en="Originals stay local. After confirmation, only the prepared identity board, style board, and your tuning note are sent.">原图留在本机。确认后只发送整理过的身份板、风格板和你的风格文字。</p></details>
+  <details class="pet-privacy"><summary data-zh="隐私说明" data-en="Privacy">隐私说明</summary><p data-zh="人物识别和整理先在本机完成；只发送整理过的身份板、风格板和你的风格文字。" data-en="Subject detection and preparation happen locally; only the prepared identity board, style board, and your tuning note are sent.">人物识别和整理先在本机完成；只发送整理过的身份板、风格板和你的风格文字。</p></details>
   <div class="recovery-archive" id="generationRecoveryArchive"><span id="generationRecoveryText"></span><button type="button" onclick="send({type:'petRevealGenerationDrafts'})" data-zh="在 Finder 查看" data-en="Show in Finder">在 Finder 查看</button></div>
   <details class="api-setup" id="apiSetup"><summary data-zh="API 连接 · Key 只存进这台 Mac 的 Keychain" data-en="API connections · keys stay in this Mac's Keychain">API 连接 · Key 只存进这台 Mac 的 Keychain</summary>
     <div class="api-grid">
       <div class="api-field"><label><span>OpenAI</span><b id="openAIKeyState">未设置</b></label><input id="openAIKey" type="password" autocomplete="off" placeholder="OpenAI API key"></div>
     </div>
     <div class="api-actions"><button type="button" onclick="savePetKeys()" data-zh="安全保存" data-en="Save securely">安全保存</button><button type="button" onclick="clearPetKey('openai')" data-zh="清除 OpenAI" data-en="Clear OpenAI">清除 OpenAI</button></div>
-    <div class="note" data-zh="GPT Image 2 · Low 草稿 → Medium / High 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。" data-en="GPT Image 2 · Low drafts → Medium / High finals. Most waiting is image generation at OpenAI; local matte removal is normally brief.">GPT Image 2 · Low 草稿 → Medium / High 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。</div>
+    <div class="note" data-zh="GPT Image 2 · Low 草稿 → Medium 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。" data-en="GPT Image 2 · Low drafts → Medium final. Most waiting is image generation at OpenAI; local matte removal is normally brief.">GPT Image 2 · Low 草稿 → Medium 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。</div>
   </details>
+</div>
+<div class="candidate-lightbox" id="candidateLightbox" hidden onclick="if(event.target===this)closeCandidateLightbox()">
+  <div class="candidate-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Draft preview">
+    <button class="candidate-lightbox-close" type="button" onclick="closeCandidateLightbox()" data-aria-zh="关闭草稿预览" data-aria-en="Close draft preview">×</button>
+    <img id="candidateLightboxImage" alt="">
+  </div>
 </div>
 </div>
 
@@ -747,7 +761,7 @@ function applyLanguage(){
 }
 function changeLanguage(lang){
   LANG = lang === 'en' ? 'en' : 'zh';
-  applyLanguage(); renderCards(); renderActionReview(); renderPetLab(); renderChips(); renderRules();
+  applyLanguage(); renderCards(); renderPetLab(); renderChips(); renderRules();
   send({type:'language', language:LANG});
 }
 
@@ -808,13 +822,8 @@ const TEMPERAMENTS=[
   {id:'odd-whimsical',ico:'⌁',zh:'古怪可爱',en:'Odd & whimsical',subZh:'偏斜 · 轻轻摇摆',subEn:'offbeat · wobbles'}
 ];
 const IMAGE_QUALITIES=[
-  {id:'medium',name:'Medium',zh:'推荐平衡',en:'recommended',cost:'$0.045',stageCost:'$0.057'},
-  {id:'high',name:'High',zh:'最终精修',en:'final detail',cost:'$0.169',stageCost:'$0.215'}
-];
-const STUDIO_STAGES=[
-  {zh:'自动找出人物',en:'Find the subject',subZh:'本机识别 · 你确认',subEn:'local detection · you confirm'},
-  {zh:'3 个 Low 草稿',en:'3 Low drafts',subZh:'生成后手动选择',subEn:'choose manually after generation'},
-  {zh:'Medium / High 定稿',en:'Medium / High final',subZh:'确认后才生成',subEn:'generated only after confirmation'}
+  {id:'medium',name:'Medium'},
+  {id:'high',name:'High'}
 ];
 const MAX_STYLE_TUNING=160;
 // The default rendering language comes from the approved white-outfit Mimo v2
@@ -838,7 +847,7 @@ const defaultStylePreset=()=>DIY_STYLE_PRESETS.find(preset=>preset.default)||DIY
 const localizedStylePresetNote=preset=>preset?(LANG==='en'?preset.tuningNoteEn:preset.tuningNoteZh):'';
 const defaultStyleTuning=()=>localizedStylePresetNote(defaultStylePreset())||(LANG==='zh'?STYLE_TUNING_MIMO_V2.zh:STYLE_TUNING_MIMO_V2.en);
 const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],primaryReferenceID:null,requestID:null,draftID:null,
-  candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],
+  candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
   temperamentID:'quiet-curious',quality:'medium',
   stylePresetID:'mimo-v2',styleTuningNote:STYLE_TUNING_MIMO_V2.zh,styleTuningCustomized:false,
   sheetQuality:null,stageQualities:[null,null,null],preservedResult:false,
@@ -848,13 +857,12 @@ const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],pri
   recoveryRequestID:null,recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,
   model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,
   startedAt:null,finishedElapsed:null,cancelArmedUntil:0,adoptedName:'',referenceNoticeZh:'',referenceNoticeEn:'',
-  importing:0,referencePreview:null,referenceMode:null,referenceEvidenceCount:0,referenceUsedCount:0,
-  referenceAmbiguous:false,referenceReviewMessageZh:'',referenceReviewMessageEn:'',
-  evolutionQueue:[],activeCandidateIndex:null,batchTotal:0,batchCompleted:0,batchResults:[],installingBatchIndex:null,
+  importing:0,
   expr:null};
 
 const studioBusy=()=>petLab.status==='busy'||petLab.status==='installing';
-const referencesImporting=()=>Math.max(0,+petLab.importing||0)>0;
+let referenceBatchDepth=0;
+const referencesImporting=()=>Math.max(0,+petLab.importing||0)>0||referenceBatchDepth>0;
 const elapsedSeconds=()=>petLab.startedAt?((petLab.finishedElapsed??((Date.now()-petLab.startedAt)/1000))):0;
 function durationText(value){
   if(value===null||value===undefined||!Number.isFinite(+value))return null;
@@ -865,37 +873,27 @@ function recoveryDate(value){
   if(typeof value==='number'||/^\d+(\.\d+)?$/.test(String(value))){let epoch=+value;if(epoch>0&&epoch<1e12)epoch*=1000;parsed=new Date(epoch)}else parsed=new Date(value);
   return Number.isNaN(parsed.getTime())?null:parsed;
 }
-function operationCost(operation=petLab.operation){
-  if(petLab.localRetry)return '$0';
-  const quality=IMAGE_QUALITIES.find(q=>q.id===petLab.quality)||IMAGE_QUALITIES[0];
-  return operation==='candidates'?'~$0.010':operation==='stage'?`~${quality.stageCost}`:`~${quality.cost}`;
-}
-function renderStudioPrice(){
-  const quality=IMAGE_QUALITIES.find(q=>q.id===petLab.quality)||IMAGE_QUALITIES[0];
-  const selected=Math.max(1,petLab.candidateIndices.length||0);
-  // The honest full path: Low drafts + the final sheet + the expression sheet
-  // that rides along automatically after adoption (one Medium call for the
-  // mature form). The old figure quietly omitted the expressions.
-  const expressions=0.045;
-  const total=(0.010+selected*Number(quality.cost.replace('$',''))+expressions).toFixed(3);
-  const price=document.getElementById('studioTotalPrice'),breakdown=document.getElementById('studioPriceBreakdown');
-  if(price)price.textContent=`~$${total}`;
-  if(breakdown)breakdown.textContent=`Low $0.010 + ${selected>1?`${selected} × `:''}${quality.name} ${quality.cost} + ${tx('表情','faces')} $0.045`;
-}
-function currentStudioStep(){
-  if(petLab.operation==='evolution'||petLab.operation==='stage'||petLab.status==='adopted')return 2;
-  if(petLab.candidates.length||petLab.candidateIndex!==null)return 1;
-  if(petLab.sheet)return 2;
-  return 0;
-}
-function renderStudioSteps(){
-  const box=document.getElementById('studioSteps');if(!box)return;const current=currentStudioStep();
-  box.innerHTML=STUDIO_STAGES.map((s,i)=>`<div role="listitem" data-step="${i+1}" class="studio-step ${i<current?'done':i===current?'cur':''}"><b>${esc(LANG==='zh'?s.zh:s.en)}</b><small>${esc(LANG==='zh'?s.subZh:s.subEn)}</small></div>`).join('');
-}
-
 const MAX_PET_REFERENCES=8;
+let candidateAutoGenerateTimer=null;
+let candidateAutoGenerateSignature='';
+function candidateReferenceSignature(){
+  syncPrimaryReference();
+  return petLab.references.map(ref=>`${ref.id}:${ref.width||0}x${ref.height||0}`).join('|')+`@${petLab.primaryReferenceID||''}`;
+}
+function scheduleCandidateAutoGeneration(){
+  clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;
+  if(!S.openAIConfigured||referenceBatchDepth>0||referencesImporting()||studioBusy()||!petLab.source||petLab.candidates.length||petLab.candidateDraftID)return;
+  const signature=candidateReferenceSignature();
+  if(!signature||signature===candidateAutoGenerateSignature)return;
+  candidateAutoGenerateTimer=setTimeout(()=>{
+    candidateAutoGenerateTimer=null;
+    if(!S.openAIConfigured||referenceBatchDepth>0||referencesImporting()||studioBusy()||petLab.candidates.length||petLab.candidateDraftID)return;
+    if(candidateReferenceSignature()!==signature)return;
+    candidateAutoGenerateSignature=signature;generateCandidates();
+  },320);
+}
 function requestPetReference(){
-  if(studioBusy()||petLab.status==='review'||referencesImporting())return;
+  if(studioBusy()||referencesImporting())return;
   if(petLab.references.length>=MAX_PET_REFERENCES){
     setupStudioError(tx('最多可以添加 8 张参考图。','You can add up to 8 reference images.'));return;
   }
@@ -922,7 +920,7 @@ function referenceBadges(ref,isPrimary){
 function renderReferenceSet(){
   syncPrimaryReference();
   const tray=document.getElementById('petReferenceTray'),count=document.getElementById('petReferenceCount'),status=document.getElementById('petReferenceStatus');if(!tray||!count)return;
-  const refs=petLab.references,busy=studioBusy()||petLab.status==='review'||referencesImporting();count.textContent=`${refs.length} / ${MAX_PET_REFERENCES}`;
+  const refs=petLab.references,busy=studioBusy()||referencesImporting();count.textContent=`${refs.length} / ${MAX_PET_REFERENCES}`;
   const cards=refs.map((ref,index)=>{
     const primary=ref.id===petLab.primaryReferenceID,badges=referenceBadges(ref,primary);
     const name=ref.name||tx(`参考图 ${index+1}`,`Reference ${index+1}`);
@@ -948,21 +946,21 @@ function renderReferenceSet(){
 function referenceSetChanged(){
   syncPrimaryReference();
   petLab.references.forEach(ref=>{ref.analysis={status:'pending'}});
-  petLab.referenceNoticeZh=petLab.references.length?`已在本机准备 ${petLab.references.length} 张参考图；点击生成前不会发送。`:'参考集已清空；请添加至少一张图片。';
-  petLab.referenceNoticeEn=petLab.references.length?`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; nothing is sent before Generate.`:'Reference set cleared; add at least one image.';
-  invalidatePetDraft();
+  petLab.referenceNoticeZh=petLab.references.length?`已在本机准备 ${petLab.references.length} 张参考图；全部就绪后自动生成草稿。`:'参考集已清空；请添加至少一张图片。';
+  petLab.referenceNoticeEn=petLab.references.length?`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; drafts start when all are ready.`:'Reference set cleared; add at least one image.';
+  invalidatePetDraft();scheduleCandidateAutoGeneration();
 }
 function setPrimaryReference(id){
-  if(studioBusy()||petLab.status==='review'||referencesImporting()||id===petLab.primaryReferenceID||!petLab.references.some(ref=>ref.id===id))return;
+  if(studioBusy()||referencesImporting()||id===petLab.primaryReferenceID||!petLab.references.some(ref=>ref.id===id))return;
   petLab.primaryReferenceID=id;referenceSetChanged();
 }
 function movePetReference(id,direction){
-  if(studioBusy()||petLab.status==='review'||referencesImporting())return;const index=petLab.references.findIndex(ref=>ref.id===id),next=index+direction;
+  if(studioBusy()||referencesImporting())return;const index=petLab.references.findIndex(ref=>ref.id===id),next=index+direction;
   if(index<0||next<0||next>=petLab.references.length)return;
   [petLab.references[index],petLab.references[next]]=[petLab.references[next],petLab.references[index]];referenceSetChanged();
 }
 function removePetReference(id){
-  if(studioBusy()||petLab.status==='review'||referencesImporting())return;const before=petLab.references.length;
+  if(studioBusy()||referencesImporting())return;const before=petLab.references.length;
   petLab.references=petLab.references.filter(ref=>ref.id!==id);if(petLab.references.length===before)return;
   if(petLab.primaryReferenceID===id)petLab.primaryReferenceID=petLab.references[0]?.id||null;referenceSetChanged();
 }
@@ -973,8 +971,9 @@ function petReferenceAnalysis(event){
   updates.forEach(update=>{const ref=petLab.references.find(item=>item.id===update.id);if(ref)ref.analysis={...ref.analysis,...update}});
   renderReferenceSet();
 }
-// Bridge contract. Nothing in this object leaves the web view until Generate.
-// `source` remains the primary data URI for older native builds.
+// Bridge contract. Nothing in this object leaves the web view until the settled
+// reference set starts draft generation. `source` remains the primary data URI
+// for older native builds.
 function buildReferenceBridgePayload(){
   syncPrimaryReference();
   return {referenceSetVersion:1,primaryReferenceID:petLab.primaryReferenceID,
@@ -983,7 +982,7 @@ function buildReferenceBridgePayload(){
 }
 
 function renderTemperaments(){
-  const grid=document.getElementById('temperamentGrid');if(!grid)return;const busy=studioBusy()||petLab.status==='review'||referencesImporting();
+  const grid=document.getElementById('temperamentGrid');if(!grid)return;const busy=studioBusy()||referencesImporting();
   grid.setAttribute('aria-label',tx('伴灵气质','Familiar temperament'));
   grid.innerHTML=TEMPERAMENTS.map(t=>`<button type="button" role="radio" aria-checked="${petLab.temperamentID===t.id}" class="temperament-tile ${petLab.temperamentID===t.id?'sel':''}" ${busy?'disabled':''} onclick="selectTemperament('${t.id}')"><span class="temperament-ico">${t.ico}</span><span><b>${esc(LANG==='zh'?t.zh:t.en)}</b><small>${esc(LANG==='zh'?t.subZh:t.subEn)}</small></span></button>`).join('');
 }
@@ -1044,7 +1043,7 @@ function invalidatePetDraft(){
   const keep=!!petLab.draftID&&!!petLab.sheet;
   const accepted=keep?{draftID:petLab.draftID,sheet:petLab.sheet,sheetQuality:petLab.sheetQuality,
     stageImages:[...petLab.stageImages],stageQualities:[...petLab.stageQualities]}:null;
-  Object.assign(petLab,{requestID:null,draftID:accepted?.draftID||null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],
+  Object.assign(petLab,{requestID:null,draftID:accepted?.draftID||null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
     sheet:accepted?.sheet||null,sheetQuality:accepted?.sheetQuality||null,
     stageImages:accepted?.stageImages||[null,null,null],stageQualities:accepted?.stageQualities||[null,null,null],
     preservedResult:keep,stageBusyIndex:null,error:'',errorKind:'',errorCode:'',outputRetained:false,
@@ -1052,21 +1051,9 @@ function invalidatePetDraft(){
     localSeconds:null,providerCompleted:false,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,
     recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,
     model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,
-    startedAt:null,finishedElapsed:null,adoptedName:'',evolutionQueue:[],activeCandidateIndex:null,
-    batchTotal:0,batchCompleted:0,batchResults:[],installingBatchIndex:null});renderPetLab();
+    startedAt:null,finishedElapsed:null,adoptedName:''});closeCandidateLightbox();renderPetLab();
 }
-function selectTemperament(id){if(!studioBusy()&&petLab.status!=='review'&&!referencesImporting()&&TEMPERAMENTS.some(t=>t.id===id)&&id!==petLab.temperamentID){invalidatePetDraft();petLab.temperamentID=id;renderPetLab()}}
-function renderImageQualities(){
-  const grid=document.getElementById('qualityGrid');if(!grid)return;
-  const busy=studioBusy();
-  grid.setAttribute('aria-label',tx('下一次生成精度','Next generation quality'));
-  grid.innerHTML=IMAGE_QUALITIES.map(q=>`<button type="button" role="radio" class="quality-tile ${petLab.quality===q.id?'sel':''}" aria-checked="${petLab.quality===q.id}" ${busy?'disabled':''} onclick="selectImageQuality('${q.id}')"><span><b>${q.name}</b><small>${esc(LANG==='zh'?q.zh:q.en)}</small></span><span class="quality-price">${q.cost}</span></button>`).join('');
-}
-function selectImageQuality(id){
-  if(!IMAGE_QUALITIES.some(q=>q.id===id)||id===petLab.quality||studioBusy())return;
-  petLab.quality=id;
-  send({type:'petQuality',quality:id});renderPetLab();
-}
+function selectTemperament(id){if(!studioBusy()&&!referencesImporting()&&TEMPERAMENTS.some(t=>t.id===id)&&id!==petLab.temperamentID){invalidatePetDraft();petLab.temperamentID=id;renderPetLab()}}
 function renderKeyState(){
   const openai=document.getElementById('openAIKeyState');if(!openai)return;
   /* The environment wins over the Keychain, so "clear key" can leave the app
@@ -1083,7 +1070,6 @@ function diagnosticsHTML(){
   if(provider)items.push(`<span class="diag good">OpenAI ${provider}</span>`);
   else if(total)items.push(`<span class="diag">${tx('耗时','time')} ${total}</span>`);
   if(local&&+petLab.localSeconds>=1)items.push(`<span class="diag">${tx('本机','local')} ${local}</span>`);
-  if(petLab.operation)items.push(`<span class="diag">${esc(operationCost())}</span>`);
   const warnings=(petLab.warnings||[]).filter(Boolean);
   const details=[];
   if(petLab.model)details.push(`${petLab.model}${petLab.size?` · ${petLab.size}`:''}`);
@@ -1097,23 +1083,15 @@ function diagnosticsHTML(){
   const disclosure=(details.length||warnings.length)?`<details class="generation-details"><summary>${summary}</summary>${warnings.length?`<div class="warning-list">${warnings.map(w=>`⚠ ${esc(typeof w==='string'?w:(LANG==='zh'?(w.zh||w.message):(w.en||w.message)))}`).join('<br>')}</div>`:''}${details.length?`<div>${details.map(esc).join('<br>')}</div>`:''}</details>`:'';
   return `${items.length?`<div class="diagnostics">${items.join('')}</div>`:''}${disclosure}`;
 }
-function sheetStages(sheet,allowRedo=true,state=petLab){
-  const quality=IMAGE_QUALITIES.find(q=>q.id===petLab.quality)||IMAGE_QUALITIES[0];
-  // The sheet still carries three slices (three independent draws of the same
-  // form — redundancy for the consistency gate), but the product has one look:
-  // the runtime always draws the mature form, so that is all we show. The
-  // second panel is where action frames (gaze, play) will land once the
-  // action-sheet pipeline runs.
+function finalPreviewHTML(sheet,state=petLab){
   const i=2;
   const override=(state.stageImages||[])[i],source=override||sheet;
-  const img=override?`<img class="single" src="${esc(source)}" alt="Final form">`:`<img src="${esc(source)}" alt="Final form">`;
-  const busy=petLab.status==='busy'&&petLab.operation==='stage'&&petLab.stageBusyIndex===i;
-  const currentQuality=(state.stageQualities||[])[i]||(!state.sheetQuality||state.sheetQuality==='mixed'?null:state.sheetQuality);
-  return `<div class="sheet-stages"><div class="sheet-stage ${busy?'stage-busy':''}"><div class="sheet-frame s${i}">${img}</div><span>${tx('最终形态','Final form')}</span>${currentQuality?`<span class="form-quality">${esc(currentQuality.toUpperCase())}</span>`:''}${allowRedo?`<div class="stage-tools"><button type="button" class="stage-redo" ${studioBusy()?'disabled':''} onclick="regenerateStage(${i})" aria-label="${esc(tx(`用 ${quality.name} 重画最终形态`,`Redraw the final form at ${quality.name}`))}">${tx(`重画 · ${quality.name}`,`redraw · ${quality.name}`)}</button><span class="stage-cost">${quality.stageCost}+</span></div>`:''}</div><div class="sheet-stage frames-soon"><div class="frames-soon-box">✦</div><span>${tx('动作帧','Action frames')}</span><small>${tx('注视、玩耍等动作帧生成后会出现在这里','gaze & play frames will appear here')}</small></div></div>`;
+  const img=override?`<img class="single" src="${esc(source)}" alt="Final familiar">`:`<img src="${esc(source)}" alt="Final familiar">`;
+  return `<div class="final-preview"><div class="sheet-frame s${i}">${img}</div><span>${tx('Medium 定稿','Medium final')}</span></div>`;
 }
 function phaseInfo(){
   const phase=(petLab.phase||'queued').toLowerCase(),local=/local|analyz|extract|process|normal|validate|matte|pack/.test(phase);
-  const known={queued:[tx('正在排队','Waiting for a slot'),tx('请求已准备好，等待开始。','The request is ready and waiting to start.')],analyzing:[tx('米墨正在本机找主角','Mimo is finding the subject locally'),tx('正在拆开拼图、识别人物与多角度，并隔离检测到的字幕、按钮、边框和物品格；这一步不会调用 API。','Splitting collages, finding people and useful angles, and isolating detected captions, controls, borders, and object-only cells. No API call happens in this step.')],connecting:[tx('正在连接 OpenAI','Connecting to OpenAI'),tx('只发送你确认过的身份板、角色设定与米墨风格板。','Sending only the identity board you confirmed, the character brief, and Mimo style board.')],uploading:[tx('正在发送身份板','Sending identity board'),tx('原始截图不会一起发送。','Original screenshots are not sent with it.')],generating:[tx('OpenAI 正在画','OpenAI is drawing'),tx('这是等待时间最长的一段；复杂图片可能接近两分钟，服务繁忙时也可能更久。关掉设置会继续。','This is usually the longest phase; complex images can approach two minutes and service load can make it longer. Closing Settings will not stop it.')],partial:[tx('第一张预览到了','First preview arrived'),tx('OpenAI 仍在完成最终图；这张预览已经包含在按钮估价里。','OpenAI is still finishing the final image; this partial is included in the button estimate.')],processing:[tx('米墨正在本机处理','Mimo is processing locally'),tx('OpenAI 已经完成。这里不会再次调用 API；正在去背景、检查边缘并对齐。','OpenAI has finished. No new API call; removing matte, checking edges, and aligning.')],downloading:[tx('正在接收图片','Receiving the image'),tx('生成已完成，正在把结果带回这台 Mac。','Generation finished; bringing the result back to this Mac.')],extracting:[tx('米墨正在本机去背景','Mimo is cleaning it locally'),tx('OpenAI 已经完成。只在这台 Mac 上重新去背景与检查边缘。','OpenAI has finished. Only matte removal and edge checks are rerunning on this Mac.')],validating:[tx('正在做最后检查','Running final checks'),tx('确认三段角色完整、透明且没有被裁掉。','Checking that every form is complete, transparent, and unclipped.') ]};
+  const known={queued:[tx('正在排队','Waiting for a slot'),tx('请求已准备好，等待开始。','The request is ready and waiting to start.')],analyzing:[tx('米墨正在本机找主角','Mimo is finding the subject locally'),tx('正在拆开拼图、识别人物与多角度，并隔离检测到的字幕、按钮、边框和物品格；这一步不会调用 API。','Splitting collages, finding people and useful angles, and isolating detected captions, controls, borders, and object-only cells. No API call happens in this step.')],connecting:[tx('正在连接 OpenAI','Connecting to OpenAI'),tx('只发送米墨自动准备的身份板、角色设定与风格板。','Sending only the identity board Mimo prepared, the character brief, and Mimo style board.')],uploading:[tx('正在发送身份板','Sending identity board'),tx('原始截图不会一起发送。','Original screenshots are not sent with it.')],generating:[tx('OpenAI 正在画','OpenAI is drawing'),tx('这是等待时间最长的一段；复杂图片可能接近两分钟，服务繁忙时也可能更久。关掉设置会继续。','This is usually the longest phase; complex images can approach two minutes and service load can make it longer. Closing Settings will not stop it.')],partial:[tx('第一张预览到了','First preview arrived'),tx('OpenAI 仍在完成最终图；完成后会自动替换这张预览。','OpenAI is still finishing the final image; the completed result will replace this preview automatically.')],processing:[tx('米墨正在本机处理','Mimo is processing locally'),tx('OpenAI 已经完成。这里不会再次调用 API；正在去背景、检查边缘并对齐。','OpenAI has finished. No new API call; removing matte, checking edges, and aligning.')],downloading:[tx('正在接收图片','Receiving the image'),tx('生成已完成，正在把结果带回这台 Mac。','Generation finished; bringing the result back to this Mac.')],extracting:[tx('米墨正在本机去背景','Mimo is cleaning it locally'),tx('OpenAI 已经完成。只在这台 Mac 上重新去背景与检查边缘。','OpenAI has finished. Only matte removal and edge checks are rerunning on this Mac.')],validating:[tx('正在做最后检查','Running final checks'),tx('确认三段角色完整、透明且没有被裁掉。','Checking that every form is complete, transparent, and unclipped.') ]};
   const fallback=local?[tx('米墨正在本机处理','Mimo is processing locally'),tx('这一段不会产生新的 API 费用。','This phase does not add API cost.')]:[tx('OpenAI 正在生成','OpenAI is generating'),tx('实际时间取决于服务负载与生成复杂度。','Timing varies with provider load and image complexity.')];
   const copy=known[phase]||fallback;if(petLab.phaseMessage)copy[1]=petLab.phaseMessage;
   const post=/extract|process|normal|validate|matte|pack/.test(phase);
@@ -1125,30 +1103,29 @@ function progressHTML(){
   const cancelTitle=tx('明确取消请求；如果 OpenAI 已经开始生成，仍可能产生费用，而且最终结果可能无法取回。','Explicitly cancel the request; if OpenAI already started, cost may still be incurred and the final result may not be recoverable.');
   const cancelArmed=Date.now()<(petLab.cancelArmedUntil||0);
   const cancel=info.local&&info.phase!=='analyzing'?'':`<button type="button" class="progress-cancel" title="${esc(cancelTitle)}" onclick="cancelStudioOperation()">${info.phase==='analyzing'?tx('停止本机分析','Stop local analysis'):cancelArmed?tx('再次点击：确认取消','Click again: confirm cancel'):tx('取消请求','Cancel request')}</button>`;
-  return `<div class="studio-progress ${partial?'has-preview':''}"><div class="progress-copy"><b>${esc(info.title)}</b><p>${esc(info.detail)}</p><div class="progress-time" id="studioElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'} · ${esc(operationCost())} ${tx('输出估价','output est.')}</div><div class="phase-track" aria-hidden="true"><i class="on"></i><i class="${info.step>=1?'on':''}"></i><i class="${info.step>=2?'on':''}"></i></div><div class="progress-actions"><button type="button" class="progress-background" onclick="continueStudioInBackground()">${tx('后台继续 · 关掉设置','Continue in background')}</button>${cancel}</div></div>${partial?`<img class="partial-preview" src="${esc(partial)}" alt="${tx('生成中的局部预览','Partial generation preview')}">`:''}</div>${diagnosticsHTML()}`;
+  return `<div class="studio-progress ${partial?'has-preview':''}"><div class="progress-copy"><b>${esc(info.title)}</b><p>${esc(info.detail)}</p><div class="progress-time" id="studioElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</div><div class="phase-track" aria-hidden="true"><i class="on"></i><i class="${info.step>=1?'on':''}"></i><i class="${info.step>=2?'on':''}"></i></div><div class="progress-actions"><button type="button" class="progress-background" onclick="continueStudioInBackground()">${tx('后台继续 · 关掉设置','Continue in background')}</button>${cancel}</div></div>${partial?`<img class="partial-preview" src="${esc(partial)}" alt="${tx('生成中的局部预览','Partial generation preview')}">`:''}</div>${diagnosticsHTML()}`;
 }
-function referenceReviewHTML(){
-  const mode=petLab.referenceMode==='sanitizedFullFrames'?tx('主体备用模式','subject fallback'):tx('人物多角度','matched person views');
-  const message=LANG==='zh'?petLab.referenceReviewMessageZh:petLab.referenceReviewMessageEn;
-  const tuning=styleTuningForBridge(),tuningHTML=tuning?`<div class="reference-review-tuning"><b>${tx('同时调整','Also tune')}</b>${esc(tuning)}</div>`:'';
-  return `<div class="reference-review"><img class="reference-review-preview" src="${esc(petLab.referencePreview||'')}" alt="${tx('米墨准备发送给 OpenAI 的身份板','Identity board Mimo is prepared to send to OpenAI')}"><div class="reference-review-copy"><strong>${tx('这就是将要发送的身份板','This is the identity board that will be sent')}</strong>${esc(message||tx('确认主角正确后，米墨才会调用 OpenAI。','Mimo calls OpenAI only after you confirm the subject.'))}</div>${tuningHTML}<div class="reference-review-meta"><span class="diag good">${esc(mode)}</span><span class="diag">${tx(`采用 ${petLab.referenceUsedCount} 张原图`,`${petLab.referenceUsedCount} source images used`)}</span><span class="diag">${tx(`${petLab.referenceEvidenceCount} 个证据角度`,`${petLab.referenceEvidenceCount} evidence views`)}</span>${petLab.referenceAmbiguous?`<span class="diag warn">${tx('需要仔细确认主角','check subject carefully')}</span>`:''}</div><div class="reference-review-actions"><button type="button" class="reference-confirm" onclick="confirmPetReferences()">${tx('确认主角 · 开始 Low 生成','Confirm subject · start Low generation')}</button><button type="button" onclick="cancelStudioOperation()">${tx('返回调整参考图','Back to references')}</button></div></div>`;
+function draftFeedbackForBridge(index){
+  return String(petLab.candidateFeedback?.[index]||'').replace(/\s+/g,' ').trim().slice(0,160);
+}
+function updateCandidateFeedback(index,value){
+  if(!Number.isInteger(index)||index<0||index>=petLab.candidates.length)return;
+  petLab.candidateFeedback[index]=String(value??'').slice(0,160);
 }
 function candidateGridHTML(){
-  const selected=new Set(petLab.candidateIndices);
-  return `<div class="candidate-grid" role="group" aria-label="${tx('可多选主角方案','Choose one or more character options')}">${petLab.candidates.map((candidate,i)=>`<button type="button" role="checkbox" aria-checked="${selected.has(i)}" class="candidate ${selected.has(i)?'sel':''}" onclick="selectCandidate(${i})"><img src="${esc(candidateImage(candidate))}" alt="${esc(tx(`草稿 ${i+1}`,`Draft ${i+1}`))}"><span>${selected.has(i)?tx(`已选 · 方案 ${i+1}`,`selected · option ${i+1}`):tx(`草稿 ${i+1}`,`draft ${i+1}`)}</span></button>`).join('')}</div>${candidateConfirmationHTML()}`;
+  return `<div class="candidate-grid" role="radiogroup" aria-label="${tx('选择一个草稿','Choose one draft')}">${petLab.candidates.map((candidate,i)=>{const selected=petLab.candidateIndex===i,image=candidateImage(candidate),feedback=petLab.candidateFeedback?.[i]||'';return `<article class="candidate ${selected?'sel':''}"><button type="button" class="candidate-select" role="radio" aria-checked="${selected}" onclick="selectCandidate(${i})"><img src="${esc(image)}" alt="${esc(tx(`草稿 ${i+1}`,`Draft ${i+1}`))}"><span>${selected?tx(`已选 · 草稿 ${i+1}`,`selected · draft ${i+1}`):tx(`选择草稿 ${i+1}`,`choose draft ${i+1}`)}</span></button><div class="candidate-tools"><button type="button" class="candidate-zoom" onclick="openCandidateLightbox(${i})">${tx('放大','Zoom')}</button></div><label class="candidate-feedback-label"><span>${tx('这张想怎么改？','What should change?')}</span><textarea class="candidate-feedback" maxlength="160" placeholder="${esc(tx('可选：例如头小一点、表情更萌','Optional: e.g. smaller head, cuter expression'))}" oninput="updateCandidateFeedback(${i},this.value)">${esc(feedback)}</textarea></label></article>`}).join('')}</div>`;
 }
-function selectedEvolutionCost(){
-  const quality=IMAGE_QUALITIES.find(q=>q.id===petLab.quality)||IMAGE_QUALITIES[0];
-  return `$${(petLab.candidateIndices.length*Number(quality.cost.replace('$',''))).toFixed(3)}`;
+function openCandidateLightbox(index){
+  const image=candidateImage(petLab.candidates[index]);if(!image)return;
+  const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');if(!box||!preview)return;
+  preview.src=image;preview.alt=tx(`草稿 ${index+1} 放大预览`,`Draft ${index+1} enlarged preview`);box.hidden=false;
+  box.querySelector('.candidate-lightbox-close')?.focus();
 }
-function candidateConfirmationHTML(){
-  const count=petLab.candidateIndices.length;if(!count)return '';
-  return `<div class="candidate-confirm"><span><b>${tx(`已选 ${count} 个`,`${count} selected`)}</b> · ${tx('等待你确认后再生成','waits for your confirmation')} · ~${selectedEvolutionCost()}</span></div>`;
+function closeCandidateLightbox(){
+  const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');
+  if(box)box.hidden=true;if(preview)preview.removeAttribute('src');
 }
-function batchResultsHTML(){
-  if(!petLab.batchResults.length)return '';
-  return `<div class="batch-results">${petLab.batchResults.map((item,i)=>`<section class="batch-result"><div class="batch-result-head"><b>${tx(`方案 ${item.candidateIndex+1}`,`Option ${item.candidateIndex+1}`)}</b><span>${item.adopted?tx('已住进桌面 ✓','on desktop ✓'):`${String(item.quality||petLab.quality).toUpperCase()} · ~${IMAGE_QUALITIES.find(q=>q.id===item.quality)?.cost||''}`}</span></div>${sheetStages(item.sheet,false,item)}<div class="sheet-actions"><button class="sheet-adopt" type="button" ${item.adopted||studioBusy()?'disabled':''} onclick="installBatchResult(${i})">${item.adopted?tx('已安装','Installed'):tx('让这个住进桌面 ✦','Bring this one home ✦')}</button></div></section>`).join('')}</div>`;
-}
+document.addEventListener('keydown',event=>{if(event.key==='Escape')closeCandidateLightbox()});
 function errorHTML(){
   const local=petLab.errorKind==='local',setup=petLab.errorKind==='setup',installFailure=petLab.operation==='install'&&petLab.errorCode==='install_failed';
   const title=installFailure?tx('角色还在，但没有保存成功','The character is intact, but was not saved'):setup?tx('开始生成前还差一步','One thing is needed before generation'):local?tx('图片到了，但本机处理没通过','Image arrived; local processing failed'):tx('OpenAI 生成没有完成','OpenAI generation did not complete');
@@ -1157,14 +1134,14 @@ function errorHTML(){
   const canRecover=local&&petLab.providerCompleted&&petLab.recoveryRequestID&&petLab.canRetryLocally;
   const until=recoveryDate(petLab.recoveryUntil);
   const expiry=until?tx(`会话内安全恢复可用到 ${until.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`,`In-session safe recovery available until ${until.toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'})}`):tx('这张原图仍可检查','The raw output remains inspectable');
-  const recovery=local&&petLab.rawPreview?`<div class="recovery-row"><img class="recovery-preview" src="${esc(petLab.rawPreview)}" alt="${tx('OpenAI 原始结果预览','Raw OpenAI result preview')}"><div class="recovery-copy"><strong>${canRecover?tx('OpenAI 已完成 · 可免费换安全提取模式','OpenAI finished · safe salvage is $0'):tx('OpenAI 原始结果','Raw OpenAI output')}</strong>${esc(canRecover?expiry:(retained||tx('只在当前会话中可见','Visible in this session only')))}</div></div>`:'';
-  const retryLocal=canRecover?`<button type="button" onclick="retryLocalProcessing()">${tx('安全提取边缘角色 · $0','Safely salvage near-edge art · $0')}</button>`:'';
+  const recovery=local&&petLab.rawPreview?`<div class="recovery-row"><img class="recovery-preview" src="${esc(petLab.rawPreview)}" alt="${tx('OpenAI 原始结果预览','Raw OpenAI result preview')}"><div class="recovery-copy"><strong>${canRecover?tx('OpenAI 已完成 · 可在本机安全重试','OpenAI finished · safe local retry available'):tx('OpenAI 原始结果','Raw OpenAI output')}</strong>${esc(canRecover?expiry:(retained||tx('只在当前会话中可见','Visible in this session only')))}</div></div>`:'';
+  const retryLocal=canRecover?`<button type="button" onclick="retryLocalProcessing()">${tx('在本机安全重新提取','Retry safe local extraction')}</button>`:'';
   let setupAction=`<button type="button" onclick="document.getElementById('apiSetup').open=true">${tx('检查 API 连接','Check API connection')}</button>`;
   if(petLab.resetTo==='upload')setupAction=`<button type="button" onclick="requestPetReference()">${tx('添加新的参考图','Add a new reference')}</button>`;
   if(petLab.resetTo==='candidates')setupAction=`<button type="button" onclick="generateCandidates()">${tx('重新生成 Low 草稿','Generate new Low drafts')}</button>`;
   const archive=local&&petLab.outputRetained?`<button type="button" onclick="send({type:'petRevealGenerationDrafts'})">${tx('查看原图档案','Show raw archive')}</button>`:'';
   const preservedInstall=!installFailure&&petLab.sheet&&petLab.draftID?`<button type="button" onclick="installCharacterSheet()">${tx('使用仍保留的上一套 ✦','Use preserved result ✦')}</button>`:'';
-  const action=installFailure?`<button type="button" onclick="installCharacterSheet()">${tx('重新保存到本机','Retry local save')}</button>`:setup?`${preservedInstall}${setupAction}`:`${preservedInstall}${retryLocal}${archive}<button type="button" onclick="retryStudioOperation()">${esc(tx(`重新请求 OpenAI · ${operationCost()}+`,`New OpenAI request · ${operationCost()}+`))}</button>`;
+  const action=installFailure?`<button type="button" onclick="installCharacterSheet()">${tx('重新保存到本机','Retry local save')}</button>`:setup?`${preservedInstall}${setupAction}`:`${preservedInstall}${retryLocal}${archive}<button type="button" onclick="retryStudioOperation()">${tx('重新请求 OpenAI','Retry OpenAI request')}</button>`;
   return `<div class="studio-error ${local?'local':''}"><b>${esc(title)}</b>${esc(petLab.error||explanation)}<br><span>${esc(explanation)} ${esc(retained)}</span>${recovery}${diagnosticsHTML()}<div class="error-actions">${action}</div></div>`;
 }
 function renderRecoveryArchive(){
@@ -1182,67 +1159,50 @@ function syncVisibleDrafts(){
   visibleDraftSignature=signature;send({type:'petVisibleDrafts',draftID,candidateDraftID});
 }
 function renderPetLab(){
-  renderTemperaments();renderStyleTuning();renderImageQualities();renderKeyState();renderStudioSteps();renderStudioPrice();renderReferenceSet();renderRecoveryArchive();
-  const busy=studioBusy()||petLab.status==='review',importing=referencesImporting(),generate=document.getElementById('petGenerate'),evolve=document.getElementById('petEvolutionGenerate');
+  renderStyleTuning();renderKeyState();renderReferenceSet();renderRecoveryArchive();
+  const busy=studioBusy(),importing=referencesImporting(),generate=document.getElementById('petGenerate'),evolve=document.getElementById('petEvolutionGenerate');
   document.querySelectorAll('[data-pet-upload]').forEach(button=>button.disabled=busy||importing||petLab.references.length>=MAX_PET_REFERENCES);
-  const likeness=document.getElementById('petLikeness');if(likeness)likeness.disabled=busy||importing;
   const petName=document.getElementById('petName');if(petName)petName.disabled=busy||importing;
-  if(generate){generate.disabled=busy||importing;generate.textContent=importing?tx(`正在导入 ${petLab.importing} 张…`,`Importing ${petLab.importing}…`):petLab.status==='busy'&&petLab.operation==='candidates'?tx('正在检查主角…','Checking subject…'):petLab.candidates.length?tx('重画 3 个草稿 · ~$0.010','New 3 drafts · ~$0.010'):tx('画 3 个 Low 草稿 · ~$0.010','Make 3 Low drafts · ~$0.010')}
-  const finalControls=document.getElementById('finalControls');if(finalControls)finalControls.classList.toggle('show',petLab.candidateIndices.length>0&&petLab.status!=='adopted');
-  const quality=IMAGE_QUALITIES.find(q=>q.id===petLab.quality)||IMAGE_QUALITIES[0];
-  const sheetQuality=IMAGE_QUALITIES.find(q=>q.id===petLab.sheetQuality)||quality;
-  const sheetQualityLabel=petLab.sheetQuality==='mixed'?'MIXED':sheetQuality.name.toUpperCase();
+  if(generate){const pending=Math.max(1,+petLab.importing||0);generate.disabled=busy||importing||!petLab.source;generate.textContent=importing?tx(`正在导入 ${pending} 张…`,`Importing ${pending}…`):petLab.status==='busy'&&petLab.operation==='candidates'?tx('正在生成 3 个草稿…','Generating 3 drafts…'):petLab.candidates.length?tx('重新生成 3 个草稿','Regenerate 3 drafts'):tx('生成 3 个草稿','Generate 3 drafts')}
+  const finalControls=document.getElementById('finalControls');if(finalControls)finalControls.classList.toggle('show',petLab.candidateIndex!==null&&(!petLab.sheet||petLab.preservedResult)&&petLab.status!=='adopted');
   if(evolve){
-    const count=petLab.candidateIndices.length;
-    evolve.disabled=busy||count===0;
-    evolve.textContent=petLab.status==='busy'&&petLab.operation==='evolution'
-      ?tx(`正在做方案 ${Math.min(petLab.batchCompleted+1,petLab.batchTotal||1)} / ${petLab.batchTotal||1}…`,`Creating option ${Math.min(petLab.batchCompleted+1,petLab.batchTotal||1)} / ${petLab.batchTotal||1}…`)
-      :tx(`生成 ${count} 个 ${quality.name} 定稿 · ~${selectedEvolutionCost()}`,`Create ${count} ${quality.name} final${count===1?'':'s'} · ~${selectedEvolutionCost()}`);
+    evolve.disabled=busy||petLab.candidateIndex===null||!petLab.candidateDraftID;
+    evolve.textContent=petLab.status==='busy'&&petLab.operation==='evolution'?tx('正在生成 Medium 定稿…','Creating Medium final…'):tx('生成 Medium 定稿','Create Medium final');
   }
   const result=document.getElementById('petSheetResult'),state=document.getElementById('petLabState');if(!result||!state)return;
   result.setAttribute('aria-busy',petLab.status==='busy'?'true':'false');
-  if(petLab.status==='review'){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('确认主角 · 尚未发送','Confirm subject · not sent yet')}</b><span class="sheet-meta">LOCAL · $0</span></div>${referenceReviewHTML()}`;
-  }else if(petLab.status==='busy'&&petLab.operation==='stage'&&petLab.sheet){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('只重画这一段','Redrawing one form')}</b><span class="sheet-meta" id="sheetElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</span></div>${sheetStages(petLab.sheet,true)}${progressHTML()}`;
-  }else if(petLab.status==='busy'){
-    const batchSuffix=petLab.operation==='evolution'&&petLab.batchTotal>1?tx(` · ${Math.min(petLab.batchCompleted+1,petLab.batchTotal)}/${petLab.batchTotal}`,` · ${Math.min(petLab.batchCompleted+1,petLab.batchTotal)}/${petLab.batchTotal}`):'';
-    const title=petLab.localRetry?tx('本机重新处理 · 不会调用 OpenAI','Local retry · no OpenAI call'):petLab.operation==='candidates'?tx('Step 1 · 画 3 个 Low 草稿','Step 1 · Make 3 Low drafts'):`${tx('Step 3 · 生成最终形态','Step 3 · Create the final form')}${batchSuffix}`;
-    result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${petLab.operation==='candidates'?'LOW':quality.name.toUpperCase()}</span></div>${progressHTML()}`;
+  if(petLab.status==='busy'){
+    const title=petLab.localRetry?tx('本机重新处理 · 不会调用 OpenAI','Local retry · no OpenAI call'):petLab.operation==='candidates'?tx('正在生成 3 个草稿','Generating 3 drafts'):tx('正在生成 Medium 定稿','Creating Medium final');
+    result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${petLab.operation==='candidates'?'LOW':'MEDIUM'}</span></div>${progressHTML()}`;
   }else if(petLab.status==='error'){
-    const preserved=petLab.sheet?`${sheetStages(petLab.sheet,!petLab.preservedResult)}<div style="height:8px"></div>`:petLab.candidates.length?`${candidateGridHTML()}<div style="height:8px"></div>`:'';
+    const preserved=petLab.sheet?`${finalPreviewHTML(petLab.sheet)}<div style="height:8px"></div>`:petLab.candidates.length?`${candidateGridHTML()}<div style="height:8px"></div>`:'';
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('这一步没有完成','This step did not finish')}</b><span class="sheet-meta err">${petLab.errorKind==='local'?'LOCAL':petLab.errorKind==='setup'?'SETUP':'OPENAI'} · ${tx('失败','FAILED')}</span></div>${preserved}${errorHTML()}`;
-  }else if(petLab.batchResults.length){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('已生成的主角方案','Generated character options')}</b><span class="sheet-meta">${petLab.batchResults.length} / ${petLab.batchTotal||petLab.batchResults.length}</span></div>${batchResultsHTML()}`;
   }else if(petLab.status==='adopted'&&petLab.sheet){
-    result.innerHTML=`<div class="sheet-result-head"><b>${esc(tx(`${petLab.adoptedName} 已住进桌面`,`${petLab.adoptedName} is home`))}</b><span class="sheet-meta">ADOPTED · ~${sheetQuality.cost}</span></div>${sheetStages(petLab.sheet,false)}${expressionStatusHTML()}${diagnosticsHTML()}`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${esc(tx(`${petLab.adoptedName} 已住进桌面`,`${petLab.adoptedName} is home`))}</b><span class="sheet-meta">ADOPTED</span></div>${finalPreviewHTML(petLab.sheet)}${expressionStatusHTML()}${diagnosticsHTML()}`;
   }else if(petLab.candidates.length&&petLab.preservedResult&&petLab.sheet){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 2 · 选新的主角','Step 2 · Pick the new master')}</b><span class="sheet-meta">LOW · 3 DRAFTS</span></div>${candidateGridHTML()}${diagnosticsHTML()}<div class="preserved-result"><b>${tx('上一套完整伴灵仍安全保留','Previous complete familiar is still safe')}</b>${sheetStages(petLab.sheet,false)}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('仍然使用上一套 ✦','Use previous result ✦')}</button></div></div>`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('选择一个新草稿','Choose one new draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateGridHTML()}${diagnosticsHTML()}<div class="preserved-result"><b>${tx('上一套仍安全保留','Previous final remains safe')}</b>${finalPreviewHTML(petLab.sheet)}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('仍然使用上一套 ✦','Use previous final ✦')}</button></div></div>`;
   }else if(petLab.sheet){
-    const redo=petLab.candidateDraftID&&petLab.candidateIndex!==null?`<button type="button" onclick="generateEvolution()">${tx(`用 ${quality.name} 整套再画 · ~${quality.cost}+`,`Redo all at ${quality.name} · ~${quality.cost}+`)}</button>`:'';
-    const title=petLab.preservedResult?tx('上一套完整伴灵 · 新设置尚未生成','Previous familiar · new settings not generated'):tx('同一个主角 · 最终形态','One master · final form');
-    result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${sheetQualityLabel} · ~${sheetQuality.cost}</span></div>${sheetStages(petLab.sheet,!petLab.preservedResult)}${diagnosticsHTML()}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('让它住进桌面 ✦','Bring it home ✦')}</button>${redo}</div><div class="expr-note">${tx('住进后会自动补画表情帧（眨眼 / 开心 / 睡着）· 3 × ~$0.045','Adoption also draws expression frames (blink / joy / rest) · 3 × ~$0.045')}</div>`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('完整伴灵已完成','Your familiar is ready')}</b><span class="sheet-meta">MEDIUM</span></div>${finalPreviewHTML(petLab.sheet)}${diagnosticsHTML()}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('让它住进桌面 ✦','Bring it home ✦')}</button></div>`;
   }else if(petLab.candidates.length){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 2 · 可以多选','Step 2 · Choose one or more')}</b><span class="sheet-meta">LOW · 3 DRAFTS</span></div>${candidateGridHTML()}${diagnosticsHTML()}`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('选择一个草稿','Choose one draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateGridHTML()}${diagnosticsHTML()}`;
   }else{
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('Step 1 · 先找出它是谁','Step 1 · Find who it is')}</b><span class="sheet-meta">LOW · ~$0.010</span></div><div class="sheet-empty">${tx('先画 3 个草稿，再决定要不要生成完整伴灵。','Make 3 drafts first, then decide whether to create the complete familiar.')}</div>`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('等待参考图','Waiting for references')}</b><span class="sheet-meta">AUTO</span></div><div class="sheet-empty">${tx('图片全部就绪后，米墨会自动生成 3 个草稿。','Mimo automatically makes 3 drafts after every image is ready.')}</div>`;
   }
-  if(!petLab.source)state.innerHTML=`<span class="dot"></span>${tx('先添加至少一张参考图；不会自动发送','Add at least one reference; nothing is sent automatically')}`;
-  else if(petLab.status==='review')state.innerHTML=`<span class="dot"></span>${tx('身份板只在本机预览 · 确认后才发送','Identity board is local-only · sent only after confirmation')}`;
+  if(!petLab.source)state.innerHTML=`<span class="dot"></span>${tx('先添加至少一张参考图','Add at least one reference')}`;
+  else if(importing){const pending=Math.max(1,+petLab.importing||0);state.innerHTML=`<span class="dot"></span>${tx(`正在准备图片 · 还剩 ${pending} 张`,`Preparing images · ${pending} remaining`)}`}
   else if(petLab.status==='busy')state.innerHTML=`<span class="dot"></span>${esc(phaseInfo().title)} · <span id="stateElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</span>`;
   else if(petLab.status==='installing')state.innerHTML=`<span class="dot"></span>${tx('正在保存到这台 Mac…','Saving this familiar on your Mac…')}`;
   else if(petLab.status==='adopted')state.innerHTML=`<span class="dot"></span>${esc(tx(`${petLab.adoptedName} 已住进桌面 · 最终形态与全部状态已接上`,`${petLab.adoptedName} is home · final form and all states are connected`))}`;
   else if(petLab.status==='error')state.innerHTML=`<span class="dot"></span>${petLab.errorCode==='install_failed'?tx('角色完整 · 只需重试本机保存','Character intact · retry local save only'):petLab.errorKind==='local'?tx('OpenAI 已完成 · 本机处理未通过','OpenAI finished · local processing failed'):petLab.errorKind==='setup'?tx('尚未发送请求','No request sent'):tx('OpenAI 请求未完成','OpenAI request did not finish')}`;
-  else if(petLab.preservedResult)state.innerHTML=`<span class="dot"></span>${tx('上一套结果仍可安装；新设置要从 Low 草稿开始','Previous result remains installable; new settings start with Low drafts')}`;
-  else if(petLab.sheet)state.innerHTML=`<span class="dot"></span>${tx('三段形态已对齐 · 每一段都可以单独重画','Three forms aligned · each one can be redrawn separately')}`;
-  else if(petLab.candidateIndices.length)state.innerHTML=`<span class="dot"></span>${tx(`已选 ${petLab.candidateIndices.length} 个方案 · 等你确认后生成`,`${petLab.candidateIndices.length} selected · waiting for your confirmation`)}`;
-  else if(petLab.candidates.length)state.innerHTML=`<span class="dot"></span>${tx('3 个草稿已到 · 可以多选','3 drafts arrived · multiple selection is available')}`;
-  else state.innerHTML=`<span class="dot"></span>${tx('参考图已就绪 · 第一步只生成 Low 草稿','Reference ready · step one only makes Low drafts')}`;
-  syncVisibleDrafts();
+  else if(petLab.sheet)state.innerHTML=`<span class="dot"></span>${tx('Medium 定稿已完成 · 可以带回桌面','Medium final ready · bring it home')}`;
+  else if(petLab.candidateIndex!==null)state.innerHTML=`<span class="dot"></span>${tx(`已选择草稿 ${petLab.candidateIndex+1} · 可以生成定稿`,`Draft ${petLab.candidateIndex+1} selected · ready for final`)}`;
+  else if(petLab.candidates.length)state.innerHTML=`<span class="dot"></span>${tx('3 个草稿已到 · 请选择一个','3 drafts arrived · choose one')}`;
+  else state.innerHTML=`<span class="dot"></span>${S.openAIConfigured?tx('参考图已就绪 · 即将自动生成草稿','References ready · drafts will start automatically'):tx('参考图已就绪 · 连接 OpenAI 后自动继续','References ready · connect OpenAI to continue')}`;
+  syncVisibleDrafts();scheduleCandidateAutoGeneration();
 }
 setInterval(()=>{
   if(petLab.status!=='busy'||!petLab.startedAt)return;const text=durationText(elapsedSeconds())||'0.0s';
-  ['studioElapsed','sheetElapsed','stateElapsed'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=id==='studioElapsed'?`${text} · ${operationCost()} ${tx('输出估价','output est.')}`:text});
+  ['studioElapsed','sheetElapsed','stateElapsed'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=text});
 },250);
 function savePetKeys(){send({type:'petSaveKeys',openAI:document.getElementById('openAIKey').value})}
 function clearPetKey(provider){send({type:'petClearKey',provider})}
@@ -1250,7 +1210,7 @@ function petKeysSaved(state){
   S.openAIConfigured=!!state.openAIConfigured;S.openAIKeySource=state.openAIKeySource||'none';const input=document.getElementById('openAIKey');
   if(input&&(state.cleared==='OpenAI'||!(state.failed||[]).includes('OpenAI')))input.value='';
   renderKeyState();if(state.error){document.getElementById('apiSetup').open=true;petLab.error=state.error;petLab.errorKind='setup';petLab.status='error';renderPetLab()}
-  else if(S.openAIConfigured)document.getElementById('apiSetup').open=false;
+  else if(S.openAIConfigured){document.getElementById('apiSetup').open=false;scheduleCandidateAutoGeneration()}
 }
 function newRequestID(){
   if(globalThis.crypto?.randomUUID)return crypto.randomUUID();
@@ -1268,7 +1228,7 @@ function setupStudioError(message){
 function canGenerate(){
   if(!petLab.source){setupStudioError(tx('请先添加至少一张参考图。','Add at least one reference image first.'));return false}
   if(referencesImporting()){setupStudioError(tx('参考图还在导入，请等缩略图全部出现。','References are still importing; wait for every thumbnail to appear.'));return false}
-  if(studioBusy()||petLab.status==='review')return false;
+  if(studioBusy())return false;
   if(!S.openAIConfigured){document.getElementById('apiSetup').open=true;setupStudioError(tx('先连接 OpenAI，才能生成角色图。','Connect OpenAI before generating character art.'));return false}
   return true;
 }
@@ -1310,44 +1270,29 @@ function finishStudioOperation(event){
   petLab.phase='';petLab.phaseMessage='';petLab.partialImage=null;petLab.localRetry=false;
 }
 function generateCandidates(){
-  if(!canGenerate())return;const requestID=beginStudioOperation('candidates');
+  if(!canGenerate())return;candidateAutoGenerateSignature=candidateReferenceSignature();const requestID=beginStudioOperation('candidates');
   send({type:'petGenerateCandidates',requestID,source:petLab.source,name:petLab.name,
-    temperamentID:petLab.temperamentID,likeness:+document.getElementById('petLikeness').value/100,
+    temperamentID:petLab.temperamentID,likeness:0.70,
     stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized,...buildReferenceBridgePayload()});
 }
 function selectCandidate(index){
-  if(studioBusy()||index<0||index>=petLab.candidates.length)return;
-  const selected=new Set(petLab.candidateIndices);
-  if(selected.has(index))selected.delete(index);else selected.add(index);
-  petLab.candidateIndices=[...selected].sort((a,b)=>a-b);petLab.candidateIndex=petLab.candidateIndices[0]??null;
+  if(studioBusy()||!Number.isInteger(index)||index<0||index>=petLab.candidates.length)return;
+  petLab.candidateIndex=index;
   if(petLab.sheet)petLab.preservedResult=true;
-  petLab.status='ready';petLab.error='';petLab.errorKind='';petLab.errorCode='';petLab.batchResults=[];
-  petLab.batchTotal=0;petLab.batchCompleted=0;petLab.evolutionQueue=[];petLab.activeCandidateIndex=null;
+  petLab.status='ready';petLab.error='';petLab.errorKind='';petLab.errorCode='';
   renderPetLab();
 }
-function startNextEvolution(){
-  if(studioBusy()||!petLab.evolutionQueue.length)return;
-  const index=petLab.evolutionQueue.shift();petLab.activeCandidateIndex=index;petLab.candidateIndex=index;
+function generateEvolution(){
+  if(!canGenerate())return;const index=petLab.candidateIndex;
+  if(!petLab.candidateDraftID||index===null){setupStudioError(tx('先从三个草稿里选一个主角。','Choose one character from the three drafts.'));return}
   const requestID=beginStudioOperation('evolution');
   send({type:'petGenerateEvolution',requestID,candidateDraftID:petLab.candidateDraftID,
-    candidateIndex:index,quality:petLab.quality,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
-}
-function generateEvolution(){
-  if(!canGenerate())return;const choices=petLab.candidateIndices.length?[...petLab.candidateIndices]:(petLab.candidateIndex!==null?[petLab.candidateIndex]:[]);
-  if(!petLab.candidateDraftID||!choices.length){setupStudioError(tx('先从三个草稿里至少选一个主角。','Choose at least one character from the three drafts.'));return}
-  petLab.evolutionQueue=choices;petLab.batchTotal=petLab.evolutionQueue.length;
-  petLab.batchCompleted=0;petLab.batchResults=[];petLab.activeCandidateIndex=null;startNextEvolution();
-}
-function regenerateStage(stageIndex){
-  if(!canGenerate())return;if(!petLab.draftID||!petLab.sheet||stageIndex<0||stageIndex>2)return;
-  const draftID=petLab.draftID,requestID=beginStudioOperation('stage',stageIndex);
-  send({type:'petRegenerateStage',requestID,draftID,stageIndex,quality:petLab.quality,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
+    candidateIndex:index,draftFeedback:draftFeedbackForBridge(index),quality:'medium',
+    stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
 }
 function retryStudioOperation(){
-  const operation=petLab.operation,stage=petLab.stageBusyIndex;
+  const operation=petLab.operation;
   petLab.status='ready';
-  if(operation==='stage'&&stage!==null)return regenerateStage(stage);
-  if(operation==='evolution'&&petLab.batchTotal>1&&petLab.evolutionQueue.length){setTimeout(startNextEvolution,180);return}
   if(operation==='evolution')return generateEvolution();
   return generateCandidates();
 }
@@ -1355,9 +1300,9 @@ function continueStudioInBackground(){
   if(petLab.status==='busy')send({type:'petContinueInBackground',requestID:petLab.requestID});
 }
 function cancelStudioOperation(){
-  if((petLab.status!=='busy'&&petLab.status!=='review')||!petLab.requestID)return;const cancelledRequestID=petLab.requestID;
-  const reviewing=petLab.status==='review',info=phaseInfo();
-  if(!reviewing&&info.local&&info.phase!=='analyzing')return;
+  if(petLab.status!=='busy'||!petLab.requestID)return;const cancelledRequestID=petLab.requestID;
+  const info=phaseInfo();
+  if(info.local&&info.phase!=='analyzing')return;
   if(/generating|partial/.test((petLab.phase||'').toLowerCase())&&Date.now()>petLab.cancelArmedUntil){
     petLab.cancelArmedUntil=Date.now()+5000;renderPetLab();setTimeout(()=>{if(Date.now()>=petLab.cancelArmedUntil){petLab.cancelArmedUntil=0;renderPetLab()}},5100);return;
   }
@@ -1365,8 +1310,7 @@ function cancelStudioOperation(){
   Object.assign(petLab,{requestID:null,status:nextStatus,phase:'',phaseMessage:'',partialImage:null,
     stageBusyIndex:null,localRetry:false,providerCompleted:false,rawPreview:null,recoveryDraftID:null,
     recoveryRequestID:null,recoveryUntil:null,canRetryLocally:false,resetTo:null,cancelArmedUntil:0,finishedElapsed:elapsedSeconds(),
-    referencePreview:null,referenceMode:null,referenceEvidenceCount:0,referenceUsedCount:0,referenceAmbiguous:false,
-    evolutionQueue:[],activeCandidateIndex:null});
+    referencePreview:null,referenceMode:null,referenceEvidenceCount:0,referenceUsedCount:0,referenceAmbiguous:false});
   renderPetLab();send({type:'petCancel',requestID:cancelledRequestID});
 }
 function petGenerationCancelled(event){
@@ -1375,7 +1319,7 @@ function petGenerationCancelled(event){
 }
 function petDraftExpired(event){
   if(event.kind==='candidate'&&event.draftID===petLab.candidateDraftID){
-    Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],evolutionQueue:[]});
+    Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{}});
     if(!petLab.sheet)Object.assign(petLab,{status:'error',operation:'candidates',errorKind:'setup',errorCode:'candidate_expired',resetTo:'candidates',error:tx('这些 Low 草稿已经过期；不会自动产生新费用。','These Low drafts expired; no new cost was incurred automatically.')});
   }
   if(event.kind==='evolution'&&event.draftID===petLab.draftID){
@@ -1399,26 +1343,11 @@ function petStudioProgress(event){
   if(event.requestID!==petLab.requestID)return;petLab.status='busy';petLab.phase=event.phase||'generating';
   petLab.phaseMessage=LANG==='zh'?(event.messageZh||event.message||''):(event.messageEn||event.message||'');recordStudioTelemetry(event);renderPetLab();
 }
-function petReferencePreview(event){
-  if(event.requestID!==petLab.requestID||!event.board)return;
-  if(!petLab.styleTuningCustomized&&event.defaultStyleTuningNote)petLab.styleTuningNote=String(event.defaultStyleTuningNote).slice(0,MAX_STYLE_TUNING);
-  recordStudioTelemetry(event);Object.assign(petLab,{status:'review',phase:'reference-review',partialImage:null,
-    referencePreview:event.board,referenceMode:event.mode||'isolatedPeople',
-    referenceEvidenceCount:Math.max(0,+event.evidenceCount||0),referenceUsedCount:Math.max(0,+event.usedSourceCount||0),
-    referenceAmbiguous:!!event.ambiguous,referenceReviewMessageZh:event.messageZh||'',referenceReviewMessageEn:event.messageEn||''});
-  renderPetLab();
-}
-function confirmPetReferences(){
-  if(petLab.status!=='review'||!petLab.requestID||!petLab.referencePreview)return;
-  petLab.status='busy';petLab.phase='connecting';petLab.phaseMessage='';petLab.partialImage=petLab.referencePreview;renderPetLab();
-  send({type:'petConfirmReferences',requestID:petLab.requestID,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized});
-}
 function petCandidateResult(event){
   if(event.requestID!==petLab.requestID)return;const candidates=(event.candidates||event.images||[]).filter(candidate=>candidateImage(candidate));
   if(!candidates.length){petStudioError({...event,kind:'local',message:tx('OpenAI 返回了结果，但没有找到可展示的候选角色。','OpenAI returned a result, but no displayable character candidates were found.')});return}
   const keepPrevious=!!petLab.sheet&&!!petLab.draftID;finishStudioOperation(event);Object.assign(petLab,{requestID:null,status:'ready',operation:'candidates',candidates,
-    candidateDraftID:event.candidateDraftID||event.draftID||event.requestID,candidateIndex:null,candidateIndices:[],preservedResult:keepPrevious,
-    evolutionQueue:[],activeCandidateIndex:null,batchTotal:0,batchCompleted:0,batchResults:[],installingBatchIndex:null,
+    candidateDraftID:event.candidateDraftID||event.draftID||event.requestID,candidateIndex:null,candidateFeedback:{},preservedResult:keepPrevious,
     stageBusyIndex:null,error:'',errorKind:'',errorCode:''});
   if(!keepPrevious)Object.assign(petLab,{draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null]});
   // Low is a deliberate stopping point. Do not select a draft or start a
@@ -1428,18 +1357,10 @@ function petCandidateResult(event){
 function petEvolutionResult(event){
   if(event.requestID!==petLab.requestID)return;
   if(!event.sheet){petStudioError({...event,kind:'local',message:tx('完整伴灵图已返回，但本机没有得到可安装的透明三段图。','The familiar returned, but local processing did not produce an installable transparent sheet.')});return}
-  finishStudioOperation(event);if(IMAGE_QUALITIES.some(q=>q.id===event.quality))petLab.quality=event.quality;
-  const finalQuality=IMAGE_QUALITIES.some(q=>q.id===event.quality)?event.quality:petLab.quality;
-  const completedCandidate=petLab.activeCandidateIndex;
+  finishStudioOperation(event);const finalQuality='medium';petLab.quality=finalQuality;
   Object.assign(petLab,{requestID:null,status:'ready',operation:'evolution',sheet:event.sheet,draftID:event.draftID||event.requestID,
     sheetQuality:finalQuality,stageQualities:[finalQuality,finalQuality,finalQuality],preservedResult:false,
     stageImages:[null,null,null],stageBusyIndex:null,error:'',errorKind:'',errorCode:''});
-  if(petLab.batchTotal>1){
-    petLab.batchResults.push({candidateIndex:completedCandidate,sheet:event.sheet,draftID:event.draftID||event.requestID,
-      quality:finalQuality,sheetQuality:finalQuality,stageImages:[null,null,null],stageQualities:[finalQuality,finalQuality,finalQuality],adopted:false});
-    petLab.batchCompleted=petLab.batchResults.length;petLab.activeCandidateIndex=null;
-    if(petLab.evolutionQueue.length){renderPetLab();setTimeout(startNextEvolution,180);return}
-  }
   renderPetLab();
 }
 function petStageResult(event){
@@ -1460,7 +1381,7 @@ function petStudioCancelled(event){
   if(event.requestID&&event.requestID!==petLab.requestID)return;
   finishStudioOperation(event);
   Object.assign(petLab,{status:petLab.sheet?'ready':'idle',error:null,errorCode:'',
-    errorKind:null,activeCandidateIndex:null,recoveryRequestID:null,requestID:null,startedAt:null});
+    errorKind:null,recoveryRequestID:null,requestID:null,startedAt:null});
   renderPetLab();
 }
 function petStudioError(event){
@@ -1473,38 +1394,23 @@ function petStudioError(event){
   if(local&&event.providerCompleted&&event.canRetryLocally){
     petLab.recoveryRequestID=event.requestID||petLab.requestID;
   }else petLab.recoveryRequestID=null;
-  if(petLab.batchTotal>1&&petLab.operation==='evolution'&&petLab.activeCandidateIndex!==null&&!petLab.evolutionQueue.includes(petLab.activeCandidateIndex))petLab.evolutionQueue.unshift(petLab.activeCandidateIndex);
-  petLab.activeCandidateIndex=null;
-  if(event.resetTo==='candidates'&&event.code==='candidate_expired')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],preservedResult:!!petLab.sheet,evolutionQueue:[]});
-  else if(event.resetTo==='candidates')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false,evolutionQueue:[],batchResults:[],batchTotal:0,batchCompleted:0});
-  if(event.resetTo==='upload')Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false,evolutionQueue:[],batchResults:[],batchTotal:0,batchCompleted:0});
+  if(event.resetTo==='candidates'&&event.code==='candidate_expired')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},preservedResult:!!petLab.sheet});
+  else if(event.resetTo==='candidates')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
+  if(event.resetTo==='upload')Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
   if(event.draftID&&!petLab.draftID)petLab.draftID=event.draftID;renderPetLab();
 }
 function installCharacterSheet(){
-  if(petLab.installingBatchIndex!==null)return installBatchResult(petLab.installingBatchIndex);
   if(!petLab.draftID||!petLab.sheet||studioBusy())return;petLab.status='installing';renderPetLab();
   send({type:'petInstallRaster',draftID:petLab.draftID,name:petLab.name,temperamentID:petLab.temperamentID});
-}
-function installBatchResult(index){
-  const item=petLab.batchResults[index];if(!item||item.adopted||studioBusy())return;
-  petLab.installingBatchIndex=index;petLab.status='installing';renderPetLab();
-  const suffix=petLab.batchResults.length>1?` ${item.candidateIndex+1}`:'';
-  send({type:'petInstallRaster',draftID:item.draftID,name:`${petLab.name}${suffix}`,temperamentID:petLab.temperamentID});
 }
 function petInstallError(event){
   const expired=event.code==='preview_expired';Object.assign(petLab,{status:'error',operation:'install',errorKind:expired?'setup':'local',errorCode:event.code||'install_failed',resetTo:expired?'candidates':null,
     error:(LANG==='zh'?(event.messageZh||event.message):(event.messageEn||event.message))||tx('无法保存这套伴灵。','Could not save this familiar.')});
-  if(expired&&petLab.installingBatchIndex!==null){
-    petLab.batchResults.splice(petLab.installingBatchIndex,1);petLab.installingBatchIndex=null;petLab.status=petLab.batchResults.length?'ready':'error';
-  }else if(expired)Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
+  if(expired)Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
   renderPetLab();
 }
 function customPetAdopted(event){
   const spec=event.spec;if(!spec)return;S.customPets=(S.customPets||[]).filter(p=>p.characterID!==spec.characterID).concat([spec]);S.character=spec.characterID;
-  if(petLab.installingBatchIndex!==null&&petLab.batchResults[petLab.installingBatchIndex]){
-    petLab.batchResults[petLab.installingBatchIndex].adopted=true;petLab.batchResults[petLab.installingBatchIndex].spec=spec;
-    petLab.installingBatchIndex=null;petLab.status='ready';petLab.requestID=null;petLab.startedAt=null;renderCards();renderPetLab();return;
-  }
   petLab.status='adopted';petLab.requestID=null;petLab.draftID=null;petLab.preservedResult=false;petLab.adoptedName=spec.name||tx('新伴灵','New familiar');petLab.sheet=spec.assetURL||petLab.sheet;petLab.startedAt=null;renderCards();renderPetLab();
 }
 /* Expression sheets: post-adoption blink/joy/rest frames, one run per pet. */
@@ -1609,7 +1515,7 @@ function petReferenceImportSkipped(event){
   petLab.importing=Math.max(0,(+petLab.importing||1)-1);
   petLab.referenceNoticeZh=event?.messageZh||'有一张图片无法读取，已跳过。';
   petLab.referenceNoticeEn=event?.messageEn||'One image could not be read and was skipped.';
-  renderPetLab();
+  renderPetLab();scheduleCandidateAutoGeneration();
 }
 // Return a primitive immediately so native can wait for WebKit to accept this
 // payload before delivering the next large data URI.
@@ -1634,18 +1540,18 @@ function loadPetImageData(url,sourceName,options={append:true}){
     const wasEmpty=!petLab.references.length;
     petLab.references=append?[...petLab.references,reference]:[reference];
     if(wasEmpty||!append||!petLab.primaryReferenceID)petLab.primaryReferenceID=reference.id;
-    petLab.referenceNoticeZh=`已在本机准备 ${petLab.references.length} 张参考图；点击生成前不会发送。`;
-    petLab.referenceNoticeEn=`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; nothing is sent before Generate.`;
+    petLab.referenceNoticeZh=`已在本机准备 ${petLab.references.length} 张参考图；全部就绪后自动生成草稿。`;
+    petLab.referenceNoticeEn=`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; drafts start when all are ready.`;
     syncPrimaryReference();
     invalidatePetDraft();return true;
   });
   petReferenceLoadQueue=task.finally(()=>{
     petLab.importing=Math.max(0,(+petLab.importing||1)-1);
-    if(referencesImporting()){
+    if(Math.max(0,+petLab.importing||0)>0){
       petLab.referenceNoticeZh=`正在导入参考图 · 还剩 ${petLab.importing} 张`;
       petLab.referenceNoticeEn=`Importing references · ${petLab.importing} remaining`;
     }
-    renderPetLab();
+    renderPetLab();scheduleCandidateAutoGeneration();
   });
   return petReferenceLoadQueue;
 }
@@ -1653,20 +1559,25 @@ function fileDataURL(file){
   return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('read_failed'));reader.readAsDataURL(file)});
 }
 async function addPetReferenceFiles(fileList){
-  if(studioBusy()||petLab.status==='review'||referencesImporting())return;const images=[...(fileList||[])].filter(file=>file.type.startsWith('image/'));
+  if(studioBusy()||referencesImporting())return;const images=[...(fileList||[])].filter(file=>file.type.startsWith('image/'));
   if(!images.length){setupStudioError(tx('请拖入 PNG、JPEG 或 WebP 图片。','Drop PNG, JPEG, or WebP images.'));return}
   const available=Math.max(0,MAX_PET_REFERENCES-petLab.references.length),selected=images.slice(0,available);
   if(!selected.length){petLab.referenceNoticeZh='已达到 8 张上限；没有添加更多图片。';petLab.referenceNoticeEn='8-image limit reached; no more images were added.';renderReferenceSet();return}
-  let skipped=images.length-selected.length,added=0;
-  for(const file of selected){
-    if(file.size>20*1024*1024){skipped++;continue}
-    try{const data=await fileDataURL(file),ok=await loadPetImageData(data,file.name,{append:true});if(ok)added++;else skipped++}catch(error){skipped++}
+  let skipped=images.length-selected.length,added=0;referenceBatchDepth++;
+  try{
+    for(const file of selected){
+      if(file.size>20*1024*1024){skipped++;continue}
+      try{const data=await fileDataURL(file),ok=await loadPetImageData(data,file.name,{append:true});if(ok)added++;else skipped++}catch(error){skipped++}
+    }
+  }finally{
+    referenceBatchDepth=Math.max(0,referenceBatchDepth-1);
   }
   if(added&&petLab.status==='error'&&petLab.errorKind==='setup')invalidatePetDraft();
   if(skipped){
     petLab.referenceNoticeZh=`已添加可用图片；另有 ${skipped} 张因超过上限、20 MB 或无法读取而跳过。`;
     petLab.referenceNoticeEn=`Usable images were added; ${skipped} skipped due to the limit, 20 MB size, or an unreadable file.`;renderReferenceSet();
   }
+  scheduleCandidateAutoGeneration();
 }
 function installPetDrop(){
   const targets=[document.getElementById('petSourceDrop'),document.getElementById('petReferenceSet')].filter(Boolean);if(!targets.length)return;
@@ -1697,170 +1608,16 @@ function changeCompanionScale(value){
 
 let S = { character: 'lulu' };
 const petLibraryUI={expanded:false,view:'active',category:null};
-let selectedActionJobID = null;
-let actionJobBusy = false;
-let actionJobNotice = '';
-const starterActionBusy = new Set();
-const starterActionNotices = {};
-
-function activeActionJobs(){
-  return (S.actionJobs||[]).filter(job=>job.characterID===S.character);
-}
-function activeStarterActionJobs(){
-  const order={gaze:0,sleep:1,tennis:2,wall:3};
-  return (S.starterActionJobs||[]).filter(job=>
-      job.characterID===S.character
-      && Object.prototype.hasOwnProperty.call(order,job.actionID))
-    .sort((a,b)=>(order[a.actionID]??99)-(order[b.actionID]??99));
-}
-const STARTER_ACTION_UI={
-  gaze:{glyph:'👀',zh:'跟随光标',en:'Follow cursor'},
-  sleep:{glyph:'💤',zh:'睡觉',en:'Sleeping'},
-  tennis:{glyph:'🎾',zh:'打网球',en:'Play tennis'},
-  wall:{glyph:'🧱',zh:'墙边站 / 坐',en:'Stand / sit at edge'}
-};
-function starterActionState(job){
-  const done=Math.max(0,+job.completedBatches||0),total=Math.max(1,+job.estimatedProviderCalls||1);
-  const phase=String(job.phase||'').replaceAll('-',' ');
-  switch(job.state){
-    case 'planned':return tx(`准备生成 · ${job.finalFrameCount} 帧`,`Ready · ${job.finalFrameCount} frames`);
-    case 'queued':return tx('已排队；尚未重复提交','Queued; no duplicate submitted');
-    case 'generating':return tx(`正在生成 batch ${Math.min(done+1,total)}/${total} · ${phase}`,`Generating batch ${Math.min(done+1,total)}/${total} · ${phase}`);
-    case 'local_processing':return tx('无需付费 · 正在本机重新抠图并统一比例 / 基线','No provider call · reprocessing matte, scale, and baseline locally');
-    case 'awaiting_review':return tx('结果已保存 · 请先桌面预览，再决定安装','Saved · preview on desktop before installing');
-    case 'installed':return tx('已安装到这只伴灵 ✓','Installed on this familiar ✓');
-    case 'failed':return starterActionNotices[job.jobID]||job.errorMessage||tx('已暂停；完成的 batch 仍保留，可从断点重试','Paused; completed batches are retained for retry');
-    case 'cancelled':return tx('已取消；完成的 batch 仍保留','Cancelled; completed batches are retained');
-    default:return phase||job.state;
-  }
-}
-function starterActionButtons(job,result){
-  const busy=starterActionBusy.has(job.jobID)||actionJobBusy;
-  if((job.state==='awaiting_review'||job.state==='installed')&&result){
-    return `<button type="button" ${busy?'disabled':''} onclick="selectActionResult('${result.jobID}');previewActionJob('${result.jobID}')">${tx('桌面预览','Preview')}</button><button type="button" ${busy||job.state==='installed'||!result.installEligible?'disabled':''} onclick="acceptActionJob('${result.jobID}')">${job.state==='installed'?tx('已安装','Installed'):tx('接受并安装','Accept')}</button>`;
-  }
-  return '';
-}
-function starterActionPackPanel(starterJobs){
-  const pack=S.starterActionPack||{};
-  const active=pack.active===true;
-  const runnable=starterJobs.filter(job=>
-    (job.state==='failed'&&job.canReprocess)||job.canStart);
-  const calls=runnable.reduce((sum,job)=>{
-    if(job.state==='failed'&&job.canReprocess)return sum;
-    return sum+Math.max(0,(+job.estimatedProviderCalls||0)-(+job.completedBatches||0));
-  },0);
-  const quality=IMAGE_QUALITIES.find(q=>q.id===(S.imageQuality||'medium'))||IMAGE_QUALITIES[0];
-  const each=Number(String(quality.cost||'$0').replace('$',''))||0;
-  const ready=starterJobs.filter(job=>['awaiting_review','installed'].includes(job.state)).length;
-  const remaining=Math.max(0,+pack.remainingCount||0);
-  let copy,button;
-  if(active){
-    copy=`<b>${tx('正在生成默认动作包','Generating the default action pack')}</b><small>${tx(`剩余 ${remaining} 套；会自动继续，不用逐个点`,`${remaining} sets remaining; Mimo continues automatically`)}</small>`;
-    button=`<button type="button" onclick="cancelDefaultStarterActions()">${tx('停止','Stop')}</button>`;
-  }else if(runnable.length){
-    const local=runnable.filter(job=>job.state==='failed'&&job.canReprocess).length;
-    copy=`<b>${tx('4 个动作已默认选好','All 4 actions are included by default')}</b><small>${tx(`${ready}/4 已完成 · ${local?`${local} 套本机修复 · `:''}${calls} calls · ~$${(calls*each).toFixed(3)}`,`${ready}/4 ready · ${local?`${local} local repairs · `:''}${calls} calls · ~$${(calls*each).toFixed(3)}`)}</small>`;
-    button=`<button type="button" onclick="startDefaultStarterActions()">${tx('一键生成默认动作','Generate defaults')}</button>`;
-  }else{
-    copy=`<b>${tx('默认动作已全部生成','All default actions are generated')}</b><small>${tx('逐个预览并接受后，就会加入这只伴灵。','Preview and accept each result to install it.')}</small>`;
-    button=`<button type="button" disabled>${tx('已完成','Done')}</button>`;
-  }
-  return `<div class="starter-actions-pack"><div class="copy">${copy}</div>${button}</div>`;
-}
-function starterActionCards(starterJobs,actionJobs){
-  return starterJobs.map(job=>{
-    const ui=STARTER_ACTION_UI[job.actionID]||{glyph:'✦',zh:job.titleZh,en:job.titleEn};
-    const result=actionJobs.find(item=>item.jobID===job.resultJobID);
-    const done=Math.max(0,+job.completedBatches||0),total=Math.max(1,+job.estimatedProviderCalls||1);
-    const pct=['local_processing','awaiting_review','installed'].includes(job.state)?100:Math.round(done/total*100);
-    const cardClass=['queued','generating','local_processing'].includes(job.state)?'running':['awaiting_review','installed'].includes(job.state)?'ready':['failed','cancelled'].includes(job.state)?'failed':'';
-    const statusClass=['failed','cancelled'].includes(job.state)?'error':'';
-    return `<article class="starter-action-card ${cardClass}" data-starter-job="${esc(job.jobID)}">
-      <div class="starter-action-title"><span class="glyph">${ui.glyph}</span><div><b>${esc(LANG==='zh'?ui.zh:ui.en)}</b><small>${job.finalFrameCount}f · ${tx('默认动作','default')}</small></div></div>
-      <div class="starter-action-state ${statusClass}">${esc(starterActionState(job))}</div>
-      <div class="starter-action-meter" aria-label="${done}/${total} batches"><i style="width:${pct}%"></i></div>
-      <div class="action-review-actions">${starterActionButtons(job,result)}</div>
-    </article>`;
-  }).join('');
-}
-function actionResultReview(job){
-  if(!job)return '';
-  const hasCycle=Number.isFinite(+job.cycleDistanceCellPixels),qaOK=job.installEligible===true;
-  const qa=qaOK
-    ? `<div class="action-review-qa ok">${tx('硬性 QA 已通过 · 仍需你亲自预览并接受，永不自动安装。','Hard QA passed · manual preview and acceptance are still required; never auto-installed.')}</div>`
-    : `<div class="action-review-qa">${tx('QA 未通过，或 walk 缺少 authored cycle distance。可以预览，但安装保持锁定。','QA did not pass, or walk lacks an authored cycle distance. Preview is available; installation stays locked.')}</div>`;
-  const preview=job.previewURL||job.stripURL;
-  const anchor=(Number.isFinite(+job.anchorX)&&Number.isFinite(+job.anchorY))?`${job.anchorX},${job.anchorY}`:tx('逐帧推断','derived');
-  return `<div class="action-review-head"><b>${esc(job.sourceLabel||tx('动作结果','Action result'))}</b><span>${job.installed?tx('已安装 ✓','installed ✓'):tx('待验收','review')}</span></div><img class="action-review-preview" src="${esc(preview)}" alt="${esc(tx('动作帧预览','action frame preview'))}"><div class="action-review-meta"><span>${esc(job.action)}</span><span>${job.frameCount} frames</span><span>${Number(job.fps).toFixed(2)} fps</span><span>cycle ${hasCycle?`${job.cycleDistanceCellPixels}px cell`:'—'}</span><span>anchor ${esc(anchor)}</span></div>${qa}<div class="action-review-actions"><button type="button" ${actionJobBusy?'disabled':''} onclick="previewActionJob('${job.jobID}')">${tx('在桌面循环预览','Loop on desktop')}</button><button type="button" ${actionJobBusy||!qaOK||job.installed?'disabled':''} onclick="acceptActionJob('${job.jobID}')">${job.installed?tx('已经装进动作库','Installed in action library'):tx('接受并安装','Accept & install')}</button></div>`;
-}
-function renderActionReview(){
-  const box=document.getElementById('actionReview');if(!box)return;
-  if(!String(S.character||'').startsWith('custom:')){
-    box.innerHTML=`<div class="note">${tx('先在上方选择一个 DIY 伴灵；四套动作会属于那只伴灵。','Select a DIY familiar above; the four motion sets belong to that familiar.')}</div>`;return;
-  }
-  const jobs=activeActionJobs(),starterJobs=activeStarterActionJobs();
-  const linked=starterJobs.find(job=>job.resultJobID===selectedActionJobID);
-  if(!linked&&!jobs.some(job=>job.jobID===selectedActionJobID)){
-    selectedActionJobID=starterJobs.find(job=>job.state==='awaiting_review')?.resultJobID
-      ||starterJobs.find(job=>job.state==='installed')?.resultJobID||null;
-  }
-  const job=jobs.find(item=>item.jobID===selectedActionJobID)||null;
-  const choose=`<button type="button" ${actionJobBusy?'disabled':''} onclick="requestActionBundle()">${actionJobBusy?tx('正在安全导入…','Importing safely…'):tx('选择外部结果文件夹…','Choose external result folder…')}</button>`;
-  const cards=starterJobs.length?starterActionCards(starterJobs,jobs):`<div class="note">${tx('正在建立这只伴灵的四张动作卡…','Preparing the four motion cards…')}</div>`;
-  const history=jobs.length>1?`<div class="action-review-history">${jobs.map(item=>`<button type="button" class="${item.jobID===selectedActionJobID?'sel':''}" onclick="selectActionResult('${item.jobID}')">${esc(item.action)} · ${item.frameCount}f</button>`).join('')}</div>`:'';
-  box.innerHTML=`<div class="starter-actions-intro"><span>✦</span><div><b>${tx('动作不用选，四套都是默认','No action picking — all four are defaults')}</b>${tx('点一次后自动顺序完成；已保存的 batch 会优先本机修复，不会重复付费。安装前仍可预览。','One click runs them in sequence. Saved batches are repaired locally first, without paying twice. You can still preview before install.')}</div></div>${starterActionPackPanel(starterJobs)}<div class="starter-actions-grid">${cards}</div>${job?`${history}${actionResultReview(job)}`:''}${actionJobNotice?`<div class="action-review-error">${esc(actionJobNotice)}</div>`:''}<details class="starter-actions-advanced"><summary>${tx('高级：导入外部动作结果','Advanced: import an external action result')}</summary><div class="note">${tx('只导入本地结果，不会启动 CLI、Modal、Wan 或 Python。','Local import only; this does not launch CLI, Modal, Wan, or Python.')}</div><div class="action-review-actions">${choose}</div></details>`;
-}
-function selectActionResult(jobID){selectedActionJobID=jobID;actionJobNotice='';renderActionReview()}
-function startStarterAction(jobID){
-  if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);starterActionNotices[jobID]='';
-  renderActionReview();send({type:'petStarterActionStart',characterID:S.character,jobID,quality:S.imageQuality||petLab.quality||'medium'});
-}
-function startDefaultStarterActions(){
-  actionJobNotice='';
-  send({type:'petStarterActionStartDefaults',characterID:S.character,quality:S.imageQuality||petLab.quality||'medium'});
-}
-function cancelDefaultStarterActions(){
-  send({type:'petStarterActionCancelDefaults',characterID:S.character});
-}
-function cancelStarterAction(jobID){
-  if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);renderActionReview();
-  send({type:'petStarterActionCancel',characterID:S.character,jobID});
-}
-function reprocessStarterAction(jobID){
-  if(starterActionBusy.has(jobID))return;starterActionBusy.add(jobID);starterActionNotices[jobID]='';
-  renderActionReview();send({type:'petStarterActionReprocess',characterID:S.character,jobID});
-}
-function starterActionJobUpdated(event){
-  if(!event?.job)return;const job=event.job;starterActionBusy.delete(job.jobID);
-  S.starterActionJobs=(S.starterActionJobs||[]).filter(item=>item.jobID!==job.jobID).concat([job]);
-  if(job.resultJobID&&['awaiting_review','installed'].includes(job.state))selectedActionJobID=job.resultJobID;
-  renderActionReview();
-}
-function starterActionJobProgress(event){
-  const job=(S.starterActionJobs||[]).find(item=>item.jobID===event?.jobID);if(!job)return;
-  job.phase=event.phase||job.phase;renderActionReview();
-}
-function starterActionJobError(event){
-  if(event?.jobID){starterActionBusy.delete(event.jobID);starterActionNotices[event.jobID]=(LANG==='zh'?event.messageZh:event.messageEn)||event.message||''}
-  actionJobNotice=(LANG==='zh'?event?.messageZh:event?.messageEn)||event?.message||tx('动作生成没有完成。','Action generation did not finish.');renderActionReview();
-}
-function requestActionBundle(){send({type:'petActionImport',characterID:S.character})}
-function previewActionJob(jobID){actionJobNotice='';send({type:'petActionPreview',characterID:S.character,jobID})}
-function acceptActionJob(jobID){actionJobBusy=true;actionJobNotice='';renderActionReview();send({type:'petActionAccept',characterID:S.character,jobID})}
-function actionJobImportStarted(){actionJobBusy=true;actionJobNotice='';renderActionReview()}
-function actionJobImported(event){
-  actionJobBusy=false;if(event.job){S.actionJobs=(S.actionJobs||[]).filter(job=>job.jobID!==event.job.jobID).concat([event.job]);selectedActionJobID=event.job.jobID}
-  const generated=String(event?.job?.sourceLabel||'').startsWith('Mimo Starter');
-  actionJobNotice=generated?tx('生成结果已安全保存；请先预览，再决定是否安装。','Generated result saved safely. Preview it before installing.'):tx('已复制进 Mimo；请先预览，再决定是否安装。','Copied into Mimo. Preview it before deciding whether to install.');renderActionReview();
-}
-function actionJobPreviewing(event){actionJobNotice=tx('正在桌面上循环预览；这还没有安装。','Looping on the desktop; this is not installed yet.');renderActionReview()}
-function actionJobAccepted(event){
-  actionJobBusy=false;if(event.job)S.actionJobs=(S.actionJobs||[]).filter(job=>job.jobID!==event.job.jobID).concat([event.job]);
-  if(event.spec)S.customPets=(S.customPets||[]).filter(p=>p.characterID!==event.spec.characterID).concat([event.spec]);
-  actionJobNotice=tx('已安装，并切换到新 revision 循环预览。','Installed and looping the new revision.');renderCards();renderActionReview();
-}
-function actionJobError(event){actionJobBusy=false;actionJobNotice=(LANG==='zh'?event.messageZh:event.messageEn)||event.message||tx('动作结果处理失败。','Could not process the action result.');renderActionReview()}
+// Keep harmless global receivers while older native builds can still deliver
+// action-job events to an already-open Settings web view.
+function starterActionJobUpdated(){}
+function starterActionJobProgress(){}
+function starterActionJobError(){}
+function actionJobImportStarted(){}
+function actionJobImported(){}
+function actionJobPreviewing(){}
+function actionJobAccepted(){}
+function actionJobError(){}
 
 function petLibraryItem(characterID){
   if(MINI[characterID])return {characterID,m:MINI[characterID],custom:false,legacy:false};
@@ -1916,7 +1673,7 @@ function renderCards(){
     return `<div class="card ${archived?'archived':''} ${S.character===characterID?'sel':''}" ${archived?'':`onclick="pick('${characterID}')"`}>${rename}${visibility}${art}<div class="nm">${esc(displayName)}</div><div class="ds">${esc(desc)}</div><button type="button" class="card-category" onclick="event.preventDefault();event.stopPropagation();editPetCategory('${characterID}')">${esc(category||tx('＋ 分类','＋ Category'))}</button></div>`;
   }).join('')||`<div class="pet-library-empty">${archivedView?tx('没有隐藏的伴灵','No hidden familiars'):tx('这个分类还是空的','This category is empty')}</div>`;
 }
-function pick(id){ S.character = id; selectedActionJobID=null; actionJobNotice=''; renderCards(); renderActionReview(); send({ type: 'pick', id }); }
+function pick(id){ S.character = id; renderCards(); send({ type: 'pick', id }); }
 
 const filters = () => [['all',tx('全部','all')],['deep',tx('🎯 专注','🎯 focus')],
   ['neutral',tx('\u{1F610} 日常','\u{1F610} everyday')],['distraction',tx('\u{1F573}\uFE0F 分心坑','\u{1F573}\uFE0F pit')]];
@@ -1960,10 +1717,9 @@ function initSettings(state){
   LANG = state.language === 'en' ? 'en' : 'zh';
   applySettingsTypography(state.settingsFontFamily,state.settingsFontWeight);
   installDIYStylePresets(state.diyStylePresets);
-  if(IMAGE_QUALITIES.some(q=>q.id===state.imageQuality))petLab.quality=state.imageQuality;
+  petLab.quality='medium';
   applyLanguage();
   renderCards();
-  renderActionReview();
   renderPetLab();
   renderChips();
   renderRules();
@@ -1986,7 +1742,6 @@ function initSettings(state){
 applySettingsTypography('pingfang','regular');
 applyLanguage();
 renderCards();
-renderActionReview();
 renderPetLab();
 installPetDrop();
 </script>

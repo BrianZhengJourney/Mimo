@@ -61,6 +61,7 @@ struct EvolutionGenerationRecovery {
     let sourceDataURI: String
     let referenceEvidenceJSON: String
     let styleTuningNote: String
+    let draftFeedback: String
     let temperamentID: String
     let likeness: Double
     let styleProfile: MimoStyleProfile
@@ -70,16 +71,6 @@ struct EvolutionGenerationRecovery {
     let usage: PetGenerationUsage
     let candidateDraftID: String
     let styleBoardUsed: Bool
-    let createdAt: Date
-}
-
-struct PendingReferencePreflight {
-    let sourceDataURI: String
-    let referenceEvidenceJSON: String
-    let styleTuningNote: String
-    let profile: CustomPetTemperamentProfile
-    let likeness: Double
-    let styleProfile: MimoStyleProfile
     let createdAt: Date
 }
 
@@ -746,16 +737,6 @@ extension AppDelegate {
     func pruneStudioState(now: Date = Date()) {
         let sessionCutoff = now.addingTimeInterval(-30 * 60)
         let ledgerCutoff = now.addingTimeInterval(-FamiliarGenerationDraftStore.retention)
-        let expiredPreflights = pendingReferencePreflights.compactMap { key, value in
-            value.createdAt < sessionCutoff ? key : nil
-        }
-        for requestID in expiredPreflights {
-            pendingReferencePreflights.removeValue(forKey: requestID)
-            if studioGenerationLedger.activeRequestID == requestID {
-                releaseStudioGeneration(requestID)
-                backgroundStudioRequests.remove(requestID)
-            }
-        }
         pendingLocalRecoveries = pendingLocalRecoveries.filter { $0.value.createdAt >= sessionCutoff }
         let recoveryParentIDs = pendingLocalRecoveries.values.compactMap { recovery -> String? in
             if case .replacement(let value) = recovery { return value.parentDraftID }
@@ -793,8 +774,7 @@ extension AppDelegate {
         // cleared inside completion handlers gated on the ledger's active ID,
         // so a dropped callback used to leak an entry that pinned a
         // multi-megabyte draft for the rest of the process.
-        let liveRequestIDs = Set(pendingReferencePreflights.keys)
-            .union(pendingLocalRecoveries.keys)
+        let liveRequestIDs = Set(pendingLocalRecoveries.keys)
             .union(studioGenerationLedger.activeRequestID.map { Set([$0]) } ?? [])
         activeStageParents = activeStageParents.filter { liveRequestIDs.contains($0.key) }
         backgroundStudioRequests = backgroundStudioRequests.intersection(
@@ -953,6 +933,19 @@ extension AppDelegate {
             activeStudioCancellationToken?.cancel()
             activeStudioCancellationToken = nil
         }
+        // A user can start another Studio request while post-adoption
+        // expressions are still running. If that request owns the shared paid
+        // generation slot when expressions finish, the durable action hand-off
+        // waits here. Wake it after every release; its guards make this a no-op
+        // unless a starter pack is genuinely pending and the slot is free.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if self.starterActionPackCharacterID != nil {
+                self.startNextStarterActionPackJob()
+            } else {
+                self.resumePostInstallStarterActions()
+            }
+        }
     }
 
     private func retainedDraftExists(_ requestID: String) -> Bool {
@@ -982,7 +975,6 @@ extension AppDelegate {
         // everything, say nothing.
         if let generationError = error as? PetGenerationError, generationError.isCancellation {
             releaseStudioGeneration(requestID)
-            pendingReferencePreflights.removeValue(forKey: requestID)
             settingsCall("petStudioCancelled", ["requestID": requestID])
             return
         }
@@ -1059,8 +1051,7 @@ extension AppDelegate {
                                             inputs: [MimoReferenceInput],
                                             profile: CustomPetTemperamentProfile,
                                             likeness: Double,
-                                            styleTuningNote: String,
-                                            useDetectedPersonDefault: Bool) {
+                                            styleTuningNote: String) {
         guard reserveProviderGeneration(requestID) else { return }
         let startedAt = Date()
         studioProgress(requestID: requestID, phase: "analyzing", startedAt: startedAt)
@@ -1097,12 +1088,6 @@ extension AppDelegate {
                                                   "The references need a clearer primary subject.")
                     return
                 }
-                let shouldUseDefault = useDetectedPersonDefault &&
-                    styleTuningNote.isEmpty &&
-                    payload.identityBoard.mode == .isolatedPeople
-                let effectiveStyleTuningNote = shouldUseDefault
-                    ? PetVisualTuningNote.detectedPersonDefault(language: voiceLanguage())
-                    : styleTuningNote
                 let boardURI = PetGenerationCoordinator.dataURI(payload.identityBoard.png)
                 self.studioProgress(requestID: requestID, phase: "analyzing",
                                     startedAt: startedAt,
@@ -1110,34 +1095,19 @@ extension AppDelegate {
                                     localSeconds: localSeconds,
                                     warnings: payload.identityBoard.mode == .sanitizedFullFrames
                                       ? ["No reliable person was found; using a locally sanitized subject board."] : [])
-                self.pendingReferencePreflights[requestID] = PendingReferencePreflight(
-                    sourceDataURI: boardURI,
+                // Local subject selection is the preflight. Continue under the
+                // reservation already acquired above so no second click or
+                // second request ID can accidentally submit another paid run.
+                self.startCandidateGeneration(
+                    requestID: requestID,
+                    source: boardURI,
                     referenceEvidenceJSON: payload.analysisJSON,
-                    styleTuningNote: effectiveStyleTuningNote,
-                    profile: profile, likeness: likeness,
+                    styleTuningNote: styleTuningNote,
+                    profile: profile,
+                    likeness: likeness,
                     styleProfile: payload.identityBoard.mode == .isolatedPeople
                         ? .humanV2 : .creatureV1,
-                    createdAt: Date())
-                let ambiguous = result.images.contains {
-                    $0.warnings.contains(.identityAmbiguous)
-                }
-                self.settingsCall("petReferencePreview", [
-                    "requestID": requestID,
-                    "board": boardURI,
-                    "mode": payload.identityBoard.mode.rawValue,
-                    "sourceCount": result.images.count,
-                    "usedSourceCount": Set(payload.identityBoard.sourceInputIDs).count,
-                    "evidenceCount": payload.identityBoard.referenceIDs.count,
-                    "ambiguous": ambiguous,
-                    "localSeconds": localSeconds,
-                    "defaultStyleTuningNote": shouldUseDefault ? effectiveStyleTuningNote : "",
-                    "messageZh": ambiguous
-                      ? "检测到不止一个可能的人物。请确认身份板里的主角正确；不对就取消并把最清楚的图设为主参考。"
-                      : "请确认这就是你想做成伴灵的主角。确认前不会调用 OpenAI。",
-                    "messageEn": ambiguous
-                      ? "More than one possible person was detected. Confirm that the identity board shows the right subject, or cancel and make the clearest image primary."
-                      : "Confirm that this is the subject you want to turn into a familiar. OpenAI is not called before confirmation.",
-                ])
+                    alreadyReserved: true)
             }
         }
     }
@@ -1265,6 +1235,63 @@ extension AppDelegate {
     }
 
     // MARK: - Starter actions (post-adoption gaze/sleep/tennis/wall)
+
+    private var postInstallStarterActionDefaultsKey: String {
+        "mimo.postInstallStarterActionCharacterID.v1"
+    }
+
+    /// Restores only the durable starter-action hand-off. Expression requests
+    /// are intentionally not replayed after a restart because their provider
+    /// completion is not durably checkpointed and replaying could double-spend.
+    func resumePostInstallStarterActions() {
+        if postInstallStarterActionCharacterID == nil {
+            postInstallStarterActionCharacterID = UserDefaults.standard.string(
+                forKey: postInstallStarterActionDefaultsKey)
+        }
+        guard let characterID = postInstallStarterActionCharacterID else { return }
+        guard (try? customPetStore.runtimeSpec(characterID: characterID)) != nil else {
+            finishPostInstallStarterActions(characterID: characterID)
+            return
+        }
+        guard MimoSecret.openAI.isConfigured,
+              expressionRunCharacterID == nil,
+              starterActionPackCharacterID == nil,
+              starterActionPackActiveJobID == nil,
+              starterActionPackQueue.isEmpty,
+              studioGenerationLedger.activeRequestID == nil else { return }
+        startStarterActionPack(characterID: characterID, quality: .medium)
+    }
+
+    private func queuePostInstallStarterActions(
+        characterID: String,
+        expressionStagePNGs: [Data],
+        temperamentID: String,
+        skipExpressions: Bool
+    ) {
+        postInstallStarterActionCharacterID = characterID
+        UserDefaults.standard.set(
+            characterID, forKey: postInstallStarterActionDefaultsKey)
+        guard !skipExpressions else {
+            resumePostInstallStarterActions()
+            return
+        }
+        startExpressionRun(
+            characterID: characterID,
+            stagePNGs: expressionStagePNGs,
+            temperamentID: temperamentID,
+            stages: [2])
+        // Invalid/missing expression inputs must not strand the action pack.
+        if expressionRunCharacterID != characterID {
+            resumePostInstallStarterActions()
+        }
+    }
+
+    private func finishPostInstallStarterActions(characterID: String) {
+        guard postInstallStarterActionCharacterID == characterID else { return }
+        postInstallStarterActionCharacterID = nil
+        UserDefaults.standard.removeObject(
+            forKey: postInstallStarterActionDefaultsKey)
+    }
 
     private func starterActionDetail(_ error: Error) -> String {
         if let actionError = error as? ActionSheetError {
@@ -1404,11 +1431,26 @@ extension AppDelegate {
         do {
             let jobs = try starterActionJobStore.ensureJobs(
                 characterID: characterID)
+            let isAutomaticPostInstall =
+                postInstallStarterActionCharacterID == characterID
             let localRepairs = jobs.filter {
                 $0.state == .failed && $0.canReprocess
             }
-            let providerJobs = jobs.filter {
-                $0.canStart && !localRepairs.contains($0)
+            let providerJobs = jobs.filter { job in
+                guard job.canStart, !localRepairs.contains(job) else {
+                    return false
+                }
+                guard isAutomaticPostInstall else { return true }
+                // Automatic restart is deliberately narrower than manual
+                // retry. A planned job has never been submitted, while
+                // generation_in_progress means the next request was rejected
+                // by our own ledger before it reached the provider. Provider
+                // failures, timeouts, checkpoint failures, interruptions, and
+                // cancellations can all have spent money or reflect explicit
+                // user intent, so never replay them invisibly after launch.
+                return job.state == .planned
+                    || (job.state == .failed
+                        && job.errorCode == "generation_in_progress")
             }
             starterActionPackQueue = (localRepairs + providerJobs).map(\.id)
             starterActionPackCharacterID = characterID
@@ -1423,6 +1465,14 @@ extension AppDelegate {
 
     private func startNextStarterActionPackJob() {
         guard starterActionPackActiveJobID == nil else { return }
+        // Do not consume planned jobs while a user-started Studio generation
+        // owns the shared provider slot. `releaseStudioGeneration` wakes this
+        // exact queue after that request finishes, preserving every action and
+        // the durable post-install hand-off in the meantime.
+        guard studioGenerationLedger.activeRequestID == nil else {
+            pushSettingsState()
+            return
+        }
         guard let characterID = starterActionPackCharacterID else {
             starterActionPackQueue.removeAll()
             pushSettingsState()
@@ -1462,6 +1512,7 @@ extension AppDelegate {
             starterActionPackActiveJobID = nil
         }
         starterActionPackCharacterID = nil
+        finishPostInstallStarterActions(characterID: characterID)
         pushSettingsState()
     }
 
@@ -1471,6 +1522,7 @@ extension AppDelegate {
         let activeJobID = starterActionPackActiveJobID
         starterActionPackActiveJobID = nil
         starterActionPackCharacterID = nil
+        finishPostInstallStarterActions(characterID: characterID)
         if let activeJobID,
            let record = try? starterActionJobStore.record(jobID: activeJobID),
            record.characterID == characterID, record.canCancel {
@@ -1700,6 +1752,87 @@ extension AppDelegate {
         }
     }
 
+    /// This is the sole automatic-install seam. Its input can only be an
+    /// in-process Mimo Starter job after ActionSheetProcessor's hard structural
+    /// checks. Imported bundles never reach this method and still pass through
+    /// `petActionAccept` plus `isEligibleForManualInstall` below.
+    private func installInternallyGeneratedStarterAction(
+        jobID: String,
+        record: StarterActionJobRecord,
+        definition: StarterActionDefinition,
+        sheet: ActionSheetResult
+    ) throws {
+        guard record.id == jobID,
+              record.state == .localProcessing,
+              sheet.frames.count == definition.finalFrameCount,
+              let anchor = sheet.frames.first else {
+            throw ActionGenerationJobError.invalidStrip
+        }
+        let action = definition.manifestActionName
+        let metadata = ActionResultBundleMetadata(
+            schemaVersion: ActionResultBundleMetadata.schemaVersion,
+            action: action,
+            stripFilename: "action-\(action).png",
+            frameCount: definition.finalFrameCount,
+            cellSize: ActionSheetProcessor.outputCellSize,
+            framesPerSecond: definition.previewFramesPerSecond,
+            cycleDistanceCellPixels: nil,
+            anchorInCell: [Double(anchor.anchorX), Double(anchor.anchorY)],
+            qaFilename: "action-\(action).qa.json",
+            // Keep the external bundle contract fail-closed. Automatic install
+            // is authorized by this native call path, never by bundle data.
+            automaticInstallAllowed: false)
+        let checker: [String: Any] = [
+            "schemaVersion": 1,
+            "hardPass": true,
+            "automaticInstallAllowed": false,
+            "manualReviewRequired": true,
+            "identityReviewRequired": true,
+            "origin": "mimo-internal-starter",
+            "actionID": definition.id.rawValue,
+            "frameCount": definition.finalFrameCount,
+            "providerCalls": record.usedProviderCalls,
+            "coherentBatchCount": definition.estimatedProviderCalls,
+        ]
+        let checkerData = try JSONSerialization.data(
+            withJSONObject: checker, options: [.sortedKeys])
+        let result = try actionGenerationJobStore.storeGeneratedResult(
+            characterID: record.characterID,
+            sourceLabel: "Mimo Starter · \(definition.titleEn)",
+            metadata: metadata,
+            stripData: sheet.pngData,
+            previewData: sheet.pngData,
+            checkerData: checkerData)
+        let spec = try customPetStore.installActionStrip(
+            characterID: record.characterID,
+            action: action,
+            pngData: sheet.pngData,
+            framesPerSecond: definition.previewFramesPerSecond,
+            cycleDistance: nil,
+            anchorInCell: CGPoint(
+                x: CGFloat(anchor.anchorX), y: CGFloat(anchor.anchorY)))
+        _ = try starterActionJobStore.markAwaitingReview(
+            jobID: jobID, resultJobID: result.id)
+        let installedStarter = try starterActionJobStore.markInstalled(jobID: jobID)
+        let installedResult = (try? actionGenerationJobStore.markInstalled(
+            jobID: result.id)) ?? result
+        emitStarterActionJob(installedStarter)
+        if JSONSerialization.isValidJSONObject(spec),
+           let data = try? JSONSerialization.data(withJSONObject: spec),
+           let json = String(data: data, encoding: .utf8) {
+            let isCurrent = UserDefaults.standard.string(forKey: "character")
+                == record.characterID
+            js("famRegisterCustomPet(\(json), \(isCurrent))")
+        }
+        refreshNativeCompanion()
+        settingsCall("actionJobAccepted", [
+            "job": actionGenerationJobStore.runtimeDictionary(for: installedResult),
+            "spec": spec,
+            "automatic": true,
+        ])
+        pushSettingsState()
+    }
+
     private func processStarterActionLocally(jobID: String) {
         do {
             let local = try starterActionJobStore.record(jobID: jobID)
@@ -1720,51 +1853,11 @@ extension AppDelegate {
                           current.state == .localProcessing else { return }
                     do {
                         let sheet = try processed.get()
-                        guard sheet.frames.count == definition.finalFrameCount,
-                              let anchor = sheet.frames.first else {
-                            throw ActionGenerationJobError.invalidStrip
-                        }
-                        let action = definition.manifestActionName
-                        let metadata = ActionResultBundleMetadata(
-                            schemaVersion: ActionResultBundleMetadata.schemaVersion,
-                            action: action,
-                            stripFilename: "action-\(action).png",
-                            frameCount: definition.finalFrameCount,
-                            cellSize: ActionSheetProcessor.outputCellSize,
-                            framesPerSecond: definition.previewFramesPerSecond,
-                            cycleDistanceCellPixels: nil,
-                            anchorInCell: [
-                                Double(anchor.anchorX), Double(anchor.anchorY),
-                            ],
-                            qaFilename: "action-\(action).qa.json",
-                            automaticInstallAllowed: false)
-                        let checker: [String: Any] = [
-                            "schemaVersion": 1,
-                            "hardPass": true,
-                            "automaticInstallAllowed": false,
-                            "manualReviewRequired": true,
-                            "identityReviewRequired": true,
-                            "actionID": definition.id.rawValue,
-                            "frameCount": definition.finalFrameCount,
-                            "providerCalls": current.usedProviderCalls,
-                            "coherentBatchCount": definition.estimatedProviderCalls,
-                        ]
-                        let checkerData = try JSONSerialization.data(
-                            withJSONObject: checker, options: [.sortedKeys])
-                        let result = try self.actionGenerationJobStore.storeGeneratedResult(
-                            characterID: current.characterID,
-                            sourceLabel: "Mimo Starter · \(definition.titleEn)",
-                            metadata: metadata,
-                            stripData: sheet.pngData,
-                            previewData: sheet.pngData,
-                            checkerData: checkerData)
-                        let review = try self.starterActionJobStore.markAwaitingReview(
-                            jobID: jobID, resultJobID: result.id)
-                        self.emitStarterActionJob(review)
-                        self.settingsCall("actionJobImported", [
-                            "job": self.actionGenerationJobStore.runtimeDictionary(for: result),
-                        ])
-                        self.pushSettingsState()
+                        try self.installInternallyGeneratedStarterAction(
+                            jobID: jobID,
+                            record: current,
+                            definition: definition,
+                            sheet: sheet)
                     } catch {
                         let failed = try? self.starterActionJobStore.markFailed(
                             jobID: jobID, code: "local_processing_failed",
@@ -1854,11 +1947,18 @@ extension AppDelegate {
 
     /// Every exit from an expression run goes through here, so the run can
     /// never be left holding `expressionRunCharacterID`.
-    private func endExpressionRun() {
+    private func endExpressionRun(continuePostInstallActions: Bool = true) {
+        let characterID = expressionRunCharacterID
         expressionRunWatchdog?.cancel()
         expressionRunWatchdog = nil
         expressionRunRequestID = nil
         expressionRunCharacterID = nil
+        guard let pendingCharacterID = postInstallStarterActionCharacterID else { return }
+        if !continuePostInstallActions, characterID == pendingCharacterID {
+            finishPostInstallStarterActions(characterID: pendingCharacterID)
+        } else {
+            resumePostInstallStarterActions()
+        }
     }
 
     private func armExpressionRunWatchdog(characterID: String, requestID: String) {
@@ -1941,7 +2041,7 @@ extension AppDelegate {
                     // next stage and spending again.
                     if let generationError = error as? PetGenerationError,
                        generationError.isCancellation {
-                        self.endExpressionRun()
+                        self.endExpressionRun(continuePostInstallActions: false)
                         self.settingsCall("petExpressionCancelled", ["characterID": characterID])
                         return
                     }
@@ -2035,6 +2135,7 @@ extension AppDelegate {
                                           candidate: PendingCandidateBoardDraft,
                                           candidateIndex: Int,
                                           styleTuningNote: String,
+                                          draftFeedback: String,
                                           quality: PetFinalGenerationQuality) {
         guard reserveProviderGeneration(requestID) else { return }
         let startedAt = Date()
@@ -2048,6 +2149,7 @@ extension AppDelegate {
             styleBoardData: style,
             referenceEvidenceJSON: candidate.referenceEvidenceJSON,
             styleTuningNote: styleTuningNote,
+            draftFeedback: draftFeedback,
             personalityVisual: profile.promptFragment,
             likeness: candidate.likeness, quality: quality,
             progress: { [weak self] phase, partial, _ in
@@ -2070,6 +2172,7 @@ extension AppDelegate {
                         sourceDataURI: candidate.sourceDataURI,
                         referenceEvidenceJSON: candidate.referenceEvidenceJSON,
                         styleTuningNote: styleTuningNote,
+                        draftFeedback: draftFeedback,
                         temperamentID: candidate.temperamentID,
                         likeness: candidate.likeness,
                         styleProfile: candidate.styleProfile,
@@ -2688,6 +2791,9 @@ extension AppDelegate {
                 keyState["error"] = voice("无法安全保存：\(failed.joined(separator: ", "))", "Could not save securely: \(failed.joined(separator: ", "))")
             }
             settingsCall("petKeysSaved", keyState)
+            if MimoSecret.openAI.isConfigured {
+                resumePostInstallStarterActions()
+            }
         case "petClearKey":
             guard body["provider"] as? String == "openai" else {
                 settingsCall("petKeysSaved", [
@@ -2705,37 +2811,11 @@ extension AppDelegate {
             ]
             if !cleared { keyState["error"] = voice("无法清除 OpenAI", "Could not clear OpenAI") }
             settingsCall("petKeysSaved", keyState)
-        case "petConfirmReferences":
-            guard let requestID = generationRequestID(body["requestID"]),
-                  studioGenerationLedger.activeRequestID == requestID,
-                  let prepared = pendingReferencePreflights.removeValue(forKey: requestID) else {
-                settingsCall("petStudioError", [
-                    "requestID": body["requestID"] as? String ?? "",
-                    "kind": "setup", "phase": "input",
-                    "code": "reference_preview_expired",
-                    "messageZh": "这张身份板已过期；没有调用 OpenAI。请重新检查参考图。",
-                    "messageEn": "This identity-board preview expired. OpenAI was not called; review the references again.",
-                    "outputRetained": false, "requestNotStarted": true,
-                ])
-                return
-            }
-            let confirmedStyleTuningNote = (body["styleTuningNote"] as? String).map {
-                PetVisualTuningNote.sanitize($0)
-            } ?? prepared.styleTuningNote
-            startCandidateGeneration(
-                requestID: requestID,
-                source: prepared.sourceDataURI,
-                referenceEvidenceJSON: prepared.referenceEvidenceJSON,
-                styleTuningNote: confirmedStyleTuningNote,
-                profile: prepared.profile, likeness: prepared.likeness,
-                styleProfile: prepared.styleProfile,
-                alreadyReserved: true)
         case "petCancel":
             if let rawID = body["requestID"] as? String,
                let uuid = UUID(uuidString: rawID) {
                 let id = uuid.uuidString.lowercased()
                 petGenerator.cancel(id)
-                pendingReferencePreflights.removeValue(forKey: id)
                 pendingCandidateBoards.removeValue(forKey: id)
                 if let evolution = pendingEvolutionSheets.removeValue(forKey: id) {
                     for relatedID in evolution.relatedRequestIDs {
@@ -2749,7 +2829,9 @@ extension AppDelegate {
                 if visibleEvolutionDraftID == id { visibleEvolutionDraftID = nil }
                 _ = try? generationDraftStore.delete(requestID: id)
                 // An expression run is now a plain UUID too, so cancel reaches it.
-                if expressionRunRequestID == id { endExpressionRun() }
+                if expressionRunRequestID == id {
+                    endExpressionRun(continuePostInstallActions: false)
+                }
                 releaseStudioGeneration(id)
                 settingsCall("petGenerationCancelled", [
                     "generationRecoveryCount": generationDraftStore.recoverableDraftCount(),
@@ -2788,14 +2870,18 @@ extension AppDelegate {
             }
             let profile = CustomPetTemperaments.profile(
                 for: body["temperamentID"] as? String)
-            let likeness = max(0, min(1, body["likeness"] as? Double ?? 0.58))
-            let styleTuningNote = PetVisualTuningNote.sanitize(
+            let likeness = max(0, min(1, body["likeness"] as? Double ?? 0.70))
+            let preset = DIYStylePreset.resolve(body["stylePresetID"] as? String)
+            let userTuning = PetVisualTuningNote.sanitize(
                 body["styleTuningNote"] as? String)
-            let useDetectedPersonDefault = !(body["styleTuningCustomized"] as? Bool ?? false)
+            // Presets are bounded visual defaults. Explicit user tuning wins,
+            // but is sanitized through the same narrow contract.
+            let styleTuningNote = userTuning.isEmpty
+                ? preset.tuningNote(language: voiceLanguage())
+                : userTuning
             prepareCandidateGeneration(requestID: requestID, inputs: inputs,
                                        profile: profile, likeness: likeness,
-                                       styleTuningNote: styleTuningNote,
-                                       useDetectedPersonDefault: useDetectedPersonDefault)
+                                       styleTuningNote: styleTuningNote)
         case "petGenerateEvolution":
             pruneStudioState()
             guard let requestID = generationRequestID(body["requestID"]),
@@ -2813,10 +2899,14 @@ extension AppDelegate {
                 ])
                 return
             }
-            let quality = PetFinalGenerationQuality.resolve(body["quality"] as? String)
-            let styleTuningNote = (body["styleTuningNote"] as? String).map {
-                PetVisualTuningNote.sanitize($0)
-            } ?? candidate.styleTuningNote
+            let quality = PetFinalGenerationQuality.medium
+            let userTuning = PetVisualTuningNote.sanitize(
+                body["styleTuningNote"] as? String)
+            let styleTuningNote = userTuning.isEmpty
+                ? candidate.styleTuningNote
+                : userTuning
+            let draftFeedback = PetVisualTuningNote.sanitize(
+                body["draftFeedback"] as? String)
             d.set(quality.rawValue, forKey: "petImageQuality")
             if var refreshed = pendingCandidateBoards[candidateDraftID] {
                 refreshed.lastTouchedAt = Date()
@@ -2827,6 +2917,7 @@ extension AppDelegate {
                                      candidate: candidate,
                                      candidateIndex: index,
                                      styleTuningNote: styleTuningNote,
+                                     draftFeedback: draftFeedback,
                                      quality: quality)
         case "petRegenerateStage":
             pruneStudioState()
@@ -2941,17 +3032,14 @@ extension AppDelegate {
                 settingsCall("customPetAdopted", ["spec": spec])
                 pushSettingsState()
                 revealOverlay()
-                // Expression sheets ride along after adoption: blink/joy/rest
-                // frames. Only the mature form gets them — the runtime always
-                // draws that form, so expressions for the other two slices
-                // would be paid for and never seen. Optional — a failure
-                // leaves a static familiar.
-                if body["skipExpressions"] as? Bool != true {
-                    startExpressionRun(characterID: characterID,
-                                       stagePNGs: expressionStagePNGs,
-                                       temperamentID: profile.id,
-                                       stages: [2])
-                }
+                // One durable post-install pipeline: mature-form expressions
+                // first, then the four internal starter actions sequentially.
+                // A failed/watchdog expression still hands off to actions.
+                queuePostInstallStarterActions(
+                    characterID: characterID,
+                    expressionStagePNGs: expressionStagePNGs,
+                    temperamentID: profile.id,
+                    skipExpressions: body["skipExpressions"] as? Bool == true)
             } catch {
                 settingsCall("petInstallError", [
                     "draftID": draftID, "code": "install_failed",

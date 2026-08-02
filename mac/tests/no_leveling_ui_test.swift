@@ -53,8 +53,8 @@ struct NoLevelingUITests {
                !settings.contains("蛋白质") &&
                !settings.contains("魔法书") &&
                settings.contains("专注分类") &&
-               settings.contains("生成完整伴灵") &&
-               settings.contains("Medium / High 定稿"),
+               settings.contains("生成 Medium 定稿") &&
+               settings.contains("声音（专注完成、分心提醒）"),
                "Settings should describe final generation and focus sounds without upgrades")
         expect(!product.contains("成长等级") &&
                !product.contains("成长图") &&

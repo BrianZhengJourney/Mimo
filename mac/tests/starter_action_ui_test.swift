@@ -11,58 +11,60 @@ private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
 @main
 struct StarterActionUITests {
     static func main() throws {
-        let html = try String(contentsOfFile: "mac/settings.html", encoding: .utf8)
-        let bridge = try String(contentsOfFile: "mac/product.swift", encoding: .utf8)
+        let html = try String(
+            contentsOfFile: "mac/settings.html", encoding: .utf8)
+        let bridge = try String(
+            contentsOfFile: "mac/product.swift", encoding: .utf8)
 
-        expect(html.contains("Starter Actions · DIY 动作"),
-               "Settings exposes the product action section")
-        expect(!html.contains("data-zh=\"Wan 动作验收\""),
-               "the external experiment is no longer the product heading")
-
-        for action in StarterActionID.allCases {
-            expect(html.contains("\(action.rawValue):{glyph:"),
-                   "Settings has a durable card for \(action.rawValue)")
-        }
-        for event in [
-            "petStarterActionStartDefaults", "petStarterActionCancelDefaults",
-            "starterActionJobUpdated", "starterActionJobProgress",
-            "starterActionJobError",
+        for removedSurface in [
+            "id=\"actionImportSection\"", "id=\"actionReview\"",
+            "Starter Actions · DIY 动作",
+            "Advanced: import an external action result",
         ] {
-            expect(html.contains(event), "Settings includes \(event)")
-            expect(bridge.contains(event), "the native bridge includes \(event)")
+            expect(!html.contains(removedSurface),
+                   "Settings should hide action-generation surface: \(removedSurface)")
         }
-        expect(html.contains("Advanced: import an external action result"),
-               "local external import remains available as an advanced seam")
-        expect(html.contains("一键生成默认动作") &&
-               html.contains("${calls} calls · ~$${(calls*each).toFixed(3)}"),
-               "one default-pack action discloses total calls and estimated cost")
-        expect(!html.contains("onclick=\"startStarterAction('${job.jobID}')"),
-               "users do not select or start default actions one by one")
+        for removedControl in [
+            "renderActionReview", "starterActionCards", "startStarterAction",
+            "startDefaultStarterActions", "requestActionBundle",
+            "previewActionJob", "acceptActionJob",
+            "petStarterActionStartDefaults",
+        ] {
+            expect(!html.contains(removedControl),
+                   "Settings should not expose action control: \(removedControl)")
+        }
+
+        // Older native events can land in a Settings web view that was already
+        // open during an update. Global no-op receivers make that harmless.
+        for receiver in [
+            "starterActionJobUpdated", "starterActionJobProgress",
+            "starterActionJobError", "actionJobImportStarted",
+            "actionJobImported", "actionJobPreviewing", "actionJobAccepted",
+            "actionJobError",
+        ] {
+            expect(html.contains("function \(receiver)(){}"),
+                   "Settings should retain a harmless callback: \(receiver)")
+        }
+
+        expect(bridge.contains("queuePostInstallStarterActions(") &&
+               bridge.contains("startStarterActionPack(characterID: characterID, quality: .medium)"),
+               "starter actions should remain automatic post-install work")
         expect(html.contains("STYLE_TUNING_MIMO_V2") &&
                html.contains("细腻高分辨率像素画") &&
                html.contains("白衣伴灵画风（默认）"),
-               "Studio exposes the approved white-outfit Mimo v2 finish as its default tuning note")
-        expect(!html.contains("女性角色默认") && !html.contains("applyFemaleStylePreset"),
-               "the retired female-personality preset cannot override the Mimo v2 style default")
-        expect(html.contains("自动找出人物") &&
-               html.contains("生成后手动选择") &&
-               html.contains("等待你确认后再生成"),
-               "Studio should auto-detect the subject but stop for manual approval after Low drafts")
-        expect(html.contains("type:'petUpload',remaining:MAX_PET_REFERENCES-petLab.references.length") &&
+               "Studio should retain the approved Mimo v2 default style")
+        expect(html.contains("const MAX_PET_REFERENCES=8") &&
+               html.contains("function scheduleCandidateAutoGeneration()") &&
                html.contains("function enqueuePetImageData") &&
-               bridge.contains("PetReferenceImportQueue") &&
-               bridge.contains("panel.urls.prefix(selectionLimit)"),
-               "multi-photo selection should respect remaining slots and cross WebKit sequentially")
-        for retiredAutoStart in [
-            "petArmCandidateAutoStart", "petCandidateAutoStart",
-            "armCandidateAutoStart", "candidateAutoStartAt",
-            "petLab.candidateIndices=[0]", "8 秒内可换人",
-        ] {
-            expect(!html.contains(retiredAutoStart),
-                   "Settings must not retain the retired Low-to-Medium auto-start: \(retiredAutoStart)")
-            expect(!bridge.contains(retiredAutoStart),
-                   "native bridge must not retain the retired Low-to-Medium auto-start: \(retiredAutoStart)")
-        }
-        print("starter action UI contract tests passed")
+               bridge.contains("PetReferenceImportQueue"),
+               "multi-photo imports should remain bounded and auto-start after settling")
+        expect(!html.contains("petConfirmReferences") &&
+               !bridge.contains("case \"petConfirmReferences\"") &&
+               html.contains("role=\"radiogroup\"") &&
+               html.contains("draftFeedback:draftFeedbackForBridge") &&
+               html.contains("quality:'medium'"),
+               "generation should flow directly to one manually selected Medium final")
+
+        print("starter action UI removal contract tests passed")
     }
 }
