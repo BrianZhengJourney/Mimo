@@ -650,13 +650,35 @@ final class CustomPetStore: @unchecked Sendable {
 
     /// Only namespaced IDs returned by this store are accepted. Built-ins,
     /// raw UUIDs, paths, and URL strings cannot reach FileManager deletion.
+    /// Returns false only when a canonical target has already been removed.
+    /// Existing unsafe/corrupt directories still fail closed.
+    func validateDeletionTarget(characterID: String) throws -> Bool {
+        try synchronized {
+            try ensureStorageReady()
+            let uuidString = try Self.uuidString(fromCharacterID: characterID)
+            let directory = petDirectory(uuidString)
+            guard fileManager.fileExists(atPath: directory.path) else { return false }
+            guard Self.isSafeDirectory(directory, fileManager: fileManager),
+                  Self.isDescendant(directory, of: petsURL) else {
+                throw CustomPetStoreError.unsafeAssetPath
+            }
+            _ = try loadManifest(uuidString: uuidString)
+            return true
+        }
+    }
+
+    /// Only namespaced IDs returned by this store are accepted. Built-ins,
+    /// raw UUIDs, paths, and URL strings cannot reach FileManager deletion.
     func delete(characterID: String) throws {
         try synchronized {
             try ensureStorageReady()
             let uuidString = try Self.uuidString(fromCharacterID: characterID)
             let directory = petDirectory(uuidString)
             guard fileManager.fileExists(atPath: directory.path) else {
-                throw CustomPetStoreError.missingPet
+                // Deletion is intentionally idempotent. A retry can arrive
+                // after the directory was already removed but before the
+                // library metadata/UI refresh completed.
+                return
             }
             guard Self.isSafeDirectory(directory, fileManager: fileManager),
                   Self.isDescendant(directory, of: petsURL) else {

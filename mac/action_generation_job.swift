@@ -333,6 +333,52 @@ final class ActionGenerationJobStore: @unchecked Sendable {
         }) ?? []
     }
 
+    /// Removes only app-owned job directories whose validated record targets
+    /// this custom familiar. Unknown/corrupt entries are left untouched: when
+    /// ownership cannot be proven, deletion must fail closed rather than risk
+    /// removing another familiar's data. Repeating the call is safe.
+    @discardableResult
+    func deleteJobs(characterID: String) throws -> Int {
+        try synchronized {
+            try prepareStorage()
+            let characterID = try Self.canonicalCharacterID(characterID)
+            let entries = try fileManager.contentsOfDirectory(
+                at: jobsURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            var targets: [(id: String, directory: URL)] = []
+            for entry in entries {
+                guard let uuid = UUID(uuidString: entry.lastPathComponent) else { continue }
+                let id = uuid.uuidString.lowercased()
+                guard entry.lastPathComponent == id,
+                      Self.isSafeDirectory(entry, fileManager: fileManager),
+                      Self.isDescendant(entry, of: jobsURL),
+                      let record = try? loadRecord(id),
+                      record.characterID == characterID else { continue }
+                targets.append((id, entry))
+            }
+            for target in targets {
+                let tombstone = jobsURL.appendingPathComponent(
+                    ".delete-\(target.id)-\(UUID().uuidString.lowercased())",
+                    isDirectory: true)
+                guard Self.isDescendant(tombstone, of: jobsURL),
+                      !fileManager.fileExists(atPath: tombstone.path) else {
+                    throw ActionGenerationJobError.unsafeAsset
+                }
+                try fileManager.moveItem(at: target.directory, to: tombstone)
+                do {
+                    try fileManager.removeItem(at: tombstone)
+                } catch {
+                    if !fileManager.fileExists(atPath: target.directory.path) {
+                        try? fileManager.moveItem(at: tombstone, to: target.directory)
+                    }
+                    throw error
+                }
+            }
+            return targets.count
+        }
+    }
+
     func record(jobID: String) throws -> ActionGenerationJobRecord {
         try synchronized {
             try prepareStorage()
@@ -492,7 +538,8 @@ final class ActionGenerationJobStore: @unchecked Sendable {
     private func cleanupTransactions() {
         guard let entries = try? fileManager.contentsOfDirectory(
             at: jobsURL, includingPropertiesForKeys: nil) else { return }
-        for entry in entries where entry.lastPathComponent.hasPrefix(".import-") {
+        for entry in entries where entry.lastPathComponent.hasPrefix(".import-")
+            || entry.lastPathComponent.hasPrefix(".delete-") {
             try? fileManager.removeItem(at: entry)
         }
     }

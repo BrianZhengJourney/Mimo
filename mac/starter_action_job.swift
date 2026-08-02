@@ -117,14 +117,17 @@ final class StarterActionJobStore: @unchecked Sendable {
     static let maximumBatchBytes = 20 * 1024 * 1024
 
     private let fileManager: FileManager
+    private let rootURL: URL
     private let jobsURL: URL
     private let lock = NSLock()
 
     init(root: URL, fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        jobsURL = root.standardizedFileURL.appendingPathComponent(
+        rootURL = root.standardizedFileURL
+        jobsURL = rootURL.appendingPathComponent(
             Self.folderName, isDirectory: true)
         if (try? prepareStorage()) != nil {
+            cleanupTransactions()
             recoverInterruptedJobs()
         }
     }
@@ -191,6 +194,51 @@ final class StarterActionJobStore: @unchecked Sendable {
             }.filter(Self.isCurrentContract)
             return Self.productOrdered(records)
         }) ?? []
+    }
+
+    /// Deletes the durable orchestration/checkpoint directories belonging to
+    /// one validated custom familiar. Records that cannot prove ownership are
+    /// never removed. The operation is idempotent.
+    @discardableResult
+    func deleteJobs(characterID: String) throws -> Int {
+        try synchronized {
+            try prepareStorage()
+            let characterID = try Self.canonicalCharacterID(characterID)
+            let entries = try fileManager.contentsOfDirectory(
+                at: jobsURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            var targets: [(id: String, directory: URL)] = []
+            for entry in entries {
+                guard let uuid = UUID(uuidString: entry.lastPathComponent) else { continue }
+                let id = uuid.uuidString.lowercased()
+                guard entry.lastPathComponent == id,
+                      Self.isSafeDirectory(entry, fileManager: fileManager),
+                      Self.isDescendant(entry, of: jobsURL),
+                      let record = try? loadRecord(id),
+                      record.characterID == characterID else { continue }
+                targets.append((id, entry))
+            }
+            for target in targets {
+                let tombstone = jobsURL.appendingPathComponent(
+                    ".delete-\(target.id)-\(UUID().uuidString.lowercased())",
+                    isDirectory: true)
+                guard Self.isDescendant(tombstone, of: jobsURL),
+                      !fileManager.fileExists(atPath: tombstone.path) else {
+                    throw StarterActionJobError.corruptStore
+                }
+                try fileManager.moveItem(at: target.directory, to: tombstone)
+                do {
+                    try fileManager.removeItem(at: tombstone)
+                } catch {
+                    if !fileManager.fileExists(atPath: target.directory.path) {
+                        try? fileManager.moveItem(at: tombstone, to: target.directory)
+                    }
+                    throw error
+                }
+            }
+            return targets.count
+        }
     }
 
     func record(jobID: String) throws -> StarterActionJobRecord {
@@ -544,8 +592,28 @@ final class StarterActionJobStore: @unchecked Sendable {
 
     private func prepareStorage() throws {
         try fileManager.createDirectory(
+            at: rootURL, withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+        guard Self.isSafeDirectory(rootURL, fileManager: fileManager) else {
+            throw StarterActionJobError.corruptStore
+        }
+        try fileManager.createDirectory(
             at: jobsURL, withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700])
+        guard Self.isSafeDirectory(jobsURL, fileManager: fileManager),
+              Self.isDescendant(jobsURL, of: rootURL) else {
+            throw StarterActionJobError.corruptStore
+        }
+    }
+
+    private func cleanupTransactions() {
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: jobsURL, includingPropertiesForKeys: nil) else { return }
+        for entry in entries where entry.lastPathComponent.hasPrefix(".delete-") {
+            // Entries come from a direct directory listing; removeItem unlinks
+            // a symlink itself instead of following its destination.
+            try? fileManager.removeItem(at: entry)
+        }
     }
 
     private func loadAll() throws -> [StarterActionJobRecord] {
@@ -688,6 +756,13 @@ final class StarterActionJobStore: @unchecked Sendable {
         let rootPath = root.standardizedFileURL.path
         let path = url.standardizedFileURL.path
         return path.hasPrefix(rootPath + "/")
+    }
+
+    private static func isSafeDirectory(_ url: URL,
+                                        fileManager: FileManager) -> Bool {
+        guard let values = try? url.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]) else { return false }
+        return values.isDirectory == true && values.isSymbolicLink != true
     }
 
     private func synchronized<T>(_ body: () throws -> T) rethrows -> T {

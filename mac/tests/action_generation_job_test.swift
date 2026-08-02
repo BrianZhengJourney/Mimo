@@ -66,6 +66,7 @@ private func writeBundle(at url: URL, metadata: ActionResultBundleMetadata,
 @main
 struct ActionGenerationJobTests {
     static let characterID = "custom:7d8dfd2e-e852-4691-a585-c74803211f0d"
+    static let otherCharacterID = "custom:21d6f02c-8f60-44d6-bc70-bcd9000ff0b6"
 
     static func metadata(cycle: Double? = 144) -> ActionResultBundleMetadata {
         ActionResultBundleMetadata(
@@ -242,6 +243,56 @@ struct ActionGenerationJobTests {
         }
     }
 
+    static func testDeleteJobsIsScopedIdempotentAndDoesNotFollowSymlinks() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(
+            "mimo-action-job-delete-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let store = ActionGenerationJobStore(root: root)
+        let checker = try JSONSerialization.data(withJSONObject: [
+            "schemaVersion": 1,
+            "hardPass": true,
+            "automaticInstallAllowed": false,
+            "manualReviewRequired": true,
+        ])
+        let target = try store.storeGeneratedResult(
+            characterID: characterID, sourceLabel: "target",
+            metadata: metadata(), stripData: makePNG(width: 24 * 512),
+            previewData: nil, checkerData: checker,
+            now: Date(timeIntervalSince1970: 1_700_000_200))
+        let retained = try store.storeGeneratedResult(
+            characterID: otherCharacterID, sourceLabel: "retained",
+            metadata: metadata(), stripData: makePNG(width: 24 * 512),
+            previewData: nil, checkerData: checker,
+            now: Date(timeIntervalSince1970: 1_700_000_201))
+
+        let outside = root.appendingPathComponent("outside", isDirectory: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        let marker = outside.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: marker)
+        let rogue = root.appendingPathComponent(ActionGenerationJobStore.folderName)
+            .appendingPathComponent(UUID().uuidString.lowercased(), isDirectory: true)
+        try fm.createSymbolicLink(at: rogue, withDestinationURL: outside)
+
+        let deletedCount = try store.deleteJobs(characterID: characterID)
+        expect(deletedCount == 1,
+               "delete should remove exactly the target familiar's action job")
+        expectThrows("the removed action job must no longer resolve") {
+            _ = try store.record(jobID: target.id)
+        }
+        let retainedRecord = try store.record(jobID: retained.id)
+        expect(retainedRecord == retained,
+               "another familiar's action job must remain untouched")
+        expect(fm.fileExists(atPath: marker.path),
+               "a symlinked job-looking directory must never delete its target")
+        let repeatedCount = try store.deleteJobs(characterID: characterID)
+        expect(repeatedCount == 0,
+               "repeated action-job deletion should be a no-op")
+        expectThrows("action-job deletion must reject path-like IDs") {
+            _ = try store.deleteJobs(characterID: "custom:../../outside")
+        }
+    }
+
     static func testLiveBundleWhenRequested() throws {
         guard let path = ProcessInfo.processInfo.environment["MIMO_ACTION_RESULT_BUNDLE"],
               !path.isEmpty else { return }
@@ -270,6 +321,7 @@ struct ActionGenerationJobTests {
         try testImportPersistsAndServesCanonicalAssets()
         try testFailClosedQAAndBundleBoundary()
         try testStudioCanPersistAGeneratedResultWithoutFolderImport()
+        try testDeleteJobsIsScopedIdempotentAndDoesNotFollowSymlinks()
         try testLiveBundleWhenRequested()
         print("action generation job store tests passed")
     }

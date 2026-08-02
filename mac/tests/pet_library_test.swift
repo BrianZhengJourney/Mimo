@@ -89,6 +89,28 @@ struct PetLibraryTests {
             validIDs: ["valid", "bad id"], expanded: true) == ["valid"],
                "invalid caller IDs should never enter a rendered library")
 
+        let canonicalDeleteID = "custom:7d8dfd2e-e852-4691-a585-c74803211f0d"
+        let builtinTarget = try PetLibraryDeletionPolicy.target(for: "lulu")
+        let legacyTarget = try PetLibraryDeletionPolicy.target(for: "prototype")
+        let customTarget = try PetLibraryDeletionPolicy.target(for: canonicalDeleteID)
+        expect(builtinTarget == .builtin("lulu"),
+               "bundled delete targets should use reversible library removal")
+        expect(legacyTarget == .legacyPrototype,
+               "the legacy generated familiar should remain a recognized delete target")
+        expect(customTarget == .custom(canonicalDeleteID),
+               "canonical custom UUIDs should cross the deletion boundary")
+        for unsafe in [
+            "custom:../../Pets", "custom:",
+            "custom:7D8DFD2E-E852-4691-A585-C74803211F0D", "unknown",
+        ] {
+            expectThrows("deletion policy must reject noncanonical ID: \(unsafe)") {
+                _ = try PetLibraryDeletionPolicy.target(for: unsafe)
+            }
+        }
+        expect(PetLibraryDeletionPolicy.safeBuiltinFallback(excluding: "lulu")
+               == "clawd",
+               "removing the selected built-in should choose a different safe bundle")
+
         let suite = "Mimo.PetLibraryTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else { exit(1) }
         defer { defaults.removePersistentDomain(forName: suite) }

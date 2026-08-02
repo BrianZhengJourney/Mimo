@@ -44,6 +44,7 @@ private func makeBatchPNG() -> Data {
 @main
 struct StarterActionJobTests {
     static let characterID = "custom:7d8dfd2e-e852-4691-a585-c74803211f0d"
+    static let otherCharacterID = "custom:21d6f02c-8f60-44d6-bc70-bcd9000ff0b6"
 
     static func testEnsureCreatesOneDurableCardPerStarterAction() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -272,12 +273,47 @@ struct StarterActionJobTests {
                "Settings receives durable provider telemetry")
     }
 
+    static func testDeleteJobsIsScopedIdempotentAndRejectsPathEscape() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(
+            "mimo-starter-delete-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: root) }
+        let store = StarterActionJobStore(root: root)
+        let target = try store.ensureJobs(characterID: characterID)
+        let retained = try store.ensureJobs(characterID: otherCharacterID)
+
+        let outside = root.appendingPathComponent("outside", isDirectory: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        let marker = outside.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: marker)
+        let rogue = root.appendingPathComponent(StarterActionJobStore.folderName)
+            .appendingPathComponent(UUID().uuidString.lowercased(), isDirectory: true)
+        try fm.createSymbolicLink(at: rogue, withDestinationURL: outside)
+
+        let deletedCount = try store.deleteJobs(characterID: characterID)
+        expect(deletedCount == target.count,
+               "deletion should remove all and only the target familiar's checkpoints")
+        expect(store.jobs(characterID: characterID).isEmpty,
+               "deleted starter-action checkpoints should not be listed")
+        expect(store.jobs(characterID: otherCharacterID) == retained,
+               "another familiar's starter-action checkpoints must remain untouched")
+        expect(fm.fileExists(atPath: marker.path),
+               "a symlinked job-looking directory must never delete its target")
+        let repeatedCount = try store.deleteJobs(characterID: characterID)
+        expect(repeatedCount == 0,
+               "repeated starter-action deletion should be a no-op")
+        expectThrows("starter deletion must reject path-like character IDs") {
+            _ = try store.deleteJobs(characterID: "custom:../../outside")
+        }
+    }
+
     static func main() throws {
         try testEnsureCreatesOneDurableCardPerStarterAction()
         try testJobMovesThroughPaidAndLocalPhasesIntoReview()
         try testRestartFailsClosedWithoutRepeatingPaidWork()
         try testRevisedSleepKeepsPaidLegacyAndCreatesANewCurrentCard()
         try testFailedAndCancelledProviderCallsKeepLatencyEvidence()
+        try testDeleteJobsIsScopedIdempotentAndRejectsPathEscape()
         print("starter action job tests passed")
     }
 }

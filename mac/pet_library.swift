@@ -12,6 +12,50 @@ enum PetLibraryCategoryFilter: Equatable, Sendable {
     case named(String)
 }
 
+enum PetLibraryDeleteTarget: Equatable, Sendable {
+    case builtin(String)
+    case legacyPrototype
+    case custom(String)
+}
+
+enum PetLibraryDeletionError: LocalizedError, Equatable {
+    case invalidCharacterID
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidCharacterID:
+            return "The familiar ID is invalid and was not deleted."
+        }
+    }
+}
+
+/// The deletion bridge accepts only the three known bundled IDs, the legacy
+/// prototype ID, or a canonical namespaced UUID. Keeping this policy outside
+/// the WebKit handler makes the filesystem boundary independently testable.
+enum PetLibraryDeletionPolicy {
+    static let builtinIDs = ["lulu", "clawd", "nat"]
+
+    static func target(for characterID: String) throws -> PetLibraryDeleteTarget {
+        if builtinIDs.contains(characterID) { return .builtin(characterID) }
+        if characterID == "prototype" { return .legacyPrototype }
+        guard characterID.hasPrefix("custom:") else {
+            throw PetLibraryDeletionError.invalidCharacterID
+        }
+        let suffix = String(characterID.dropFirst("custom:".count))
+        guard let uuid = UUID(uuidString: suffix),
+              suffix == uuid.uuidString.lowercased() else {
+            throw PetLibraryDeletionError.invalidCharacterID
+        }
+        return .custom("custom:\(suffix)")
+    }
+
+    /// A bundled fallback always exists and never points back to the familiar
+    /// being removed. The caller unarchives it before selection.
+    static func safeBuiltinFallback(excluding characterID: String) -> String {
+        builtinIDs.first(where: { $0 != characterID }) ?? "lulu"
+    }
+}
+
 struct PetLibraryMetadata: Codable, Equatable, Sendable {
     var displayName: String? = nil
     var category: String?

@@ -507,6 +507,11 @@ struct CustomPetTests {
         }
         try store.delete(characterID: "custom:\(canonicalID)")
         expect(!fileManager.fileExists(atPath: petDirectory.path), "valid custom delete should remove its directory")
+        try store.delete(characterID: "custom:\(canonicalID)")
+        let deletionTargetExists = try store.validateDeletionTarget(
+            characterID: "custom:\(canonicalID)")
+        expect(deletionTargetExists == false,
+               "repeated custom deletion should be an idempotent no-op")
         let afterDelete = try store.listRuntimeSpecs()
         expect(afterDelete.isEmpty, "deleted pet should no longer be listed")
     }
