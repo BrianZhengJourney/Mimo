@@ -610,6 +610,7 @@ extension AppDelegate {
         ]
         state["settingsFontFamily"] = typography.family.rawValue
         state["settingsFontWeight"] = typography.weight.rawValue
+        state["diyStylePresets"] = DIYStylePreset.runtimeDictionaries
         if let customPet = storedCustomPetSpec() { state["customPet"] = customPet }
         let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
         state["customPets"] = customPets

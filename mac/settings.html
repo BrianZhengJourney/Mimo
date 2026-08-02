@@ -492,6 +492,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .pet-privacy,.pet-privacy summary,.recovery-archive{ color:var(--dim); }
 .proto-tag{ color:#fffaf3; background:var(--warn); }
 .card-library-action,.card-rename{ border-color:#ffffff30; color:#fffaf3; background:#352c25cc; }
+.style-tuning-chip.applied{ color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
 .api-field input:focus,.style-tuning-input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 </style>
 </head>
@@ -738,9 +739,9 @@ function applyLanguage(){
     input.value = tx('我的小伴灵', 'My little familiar');
     petLab.name = input.value;
   }
-  if (!petLab.styleTuningCustomized &&
-      Object.values(STYLE_TUNING_MIMO_V2).includes(petLab.styleTuningNote)) {
-    petLab.styleTuningNote = defaultStyleTuning();
+  if (!petLab.styleTuningCustomized) {
+    const preset=stylePresetByID(petLab.stylePresetID)||defaultStylePreset();
+    petLab.styleTuningNote=localizedStylePresetNote(preset)||defaultStyleTuning();
   }
   syncLanguageChoices();
 }
@@ -816,14 +817,6 @@ const STUDIO_STAGES=[
   {zh:'Medium / High 定稿',en:'Medium / High final',subZh:'确认后才生成',subEn:'generated only after confirmation'}
 ];
 const MAX_STYLE_TUNING=160;
-const STYLE_TUNING_SUGGESTIONS=[
-  {id:'mature-glam',zh:'御姐感',en:'mature glam',phraseZh:'明确成年主体：成熟自信、有御姐气场',phraseEn:'adult: mature, confident'},
-  {id:'source-faithful',zh:'贴近原图',en:'closer to source',phraseZh:'整体更贴近原图',phraseEn:'closer to source'},
-  {id:'sassy',zh:'拽拽的',en:'sassy',phraseZh:'性格拽拽的、带点小傲娇',phraseEn:'sassy, a little cocky'},
-  {id:'slimmer',zh:'纤细一点',en:'slimmer build',phraseZh:'身形更纤细轻巧',phraseEn:'a slimmer, lighter silhouette'},
-  {id:'longer',zh:'拉长比例',en:'longer proportions',phraseZh:'身体和四肢比例更修长',phraseEn:'longer body and limb proportions'},
-  {id:'smaller-head',zh:'头小一点',en:'smaller head',phraseZh:'头部稍小，身体比例更自然',phraseEn:'a slightly smaller head with more natural body proportions'}
-];
 // The default rendering language comes from the approved white-outfit Mimo v2
 // character. Keep it identity-neutral: users inherit the finish, not her hair,
 // skin tone, clothes, or body.
@@ -831,11 +824,23 @@ const STYLE_TUNING_MIMO_V2={
   zh:'细腻高分辨率像素画；清晰全身轮廓、精细深色描边与适度抗锯齿，暖调柔和明暗，小尺寸仍能看清脸和衣物褶皱；保持主参考的脸、肤色、发型和服装，整体比例稍微短矮紧凑、头身比可爱一点，轮廓轻微圆润但不要胖乎乎；不要低清粗块、塑料3D或夸张幼态大头。',
   en:'Refined pixel art, crisp outline, warm shading. Keep identity; slightly short, compact proportions and a cute rounded shape; no chunky pixels, 3D or babyish.'
 };
-const defaultStyleTuning=()=>LANG==='zh'?STYLE_TUNING_MIMO_V2.zh:STYLE_TUNING_MIMO_V2.en;
+// Startup fallback only. initSettings replaces every row with the canonical
+// Swift DIYStylePreset.runtimeDictionaries payload before the user can generate.
+const DIY_STYLE_PRESETS=[
+  {id:'mimo-v2',labelZh:'白衣伴灵画风（默认）',labelEn:'White-outfit Familiar (Default)',tuningNoteZh:STYLE_TUNING_MIMO_V2.zh,tuningNoteEn:STYLE_TUNING_MIMO_V2.en,default:true,recommended:true},
+  {id:'compact-cute',labelZh:'萌系短矮',labelEn:'Compact Cute',tuningNoteZh:'更萌、更短矮紧凑，头身比略可爱，四肢轻巧，轮廓圆润但不胖；表情亲和，细节清楚，避免夸张幼态与巨头比例。',tuningNoteEn:'Extra cute and compact; gently larger head, short light limbs, rounded but not chubby shape, friendly expression and clear detail; no extreme baby proportions.',default:false,recommended:true},
+  {id:'source-faithful',labelZh:'贴近原图',labelEn:'Source Faithful',tuningNoteZh:'降低风格化偏移，准确保留已有的形状、配色、比例与细节，只做克制简化；像素密度均匀，轮廓干净，明暗自然。',tuningNoteEn:'Restrained stylization: keep existing shapes, colors, proportions and small details accurate; use clean contours, even pixel density and subtle shading.',default:false,recommended:true},
+  {id:'warm-storybook',labelZh:'暖绘本',labelEn:'Warm Storybook',tuningNoteZh:'暖色绘本质感，柔和低对比配色，纸张般温润的色阶与轻柔阴影；轮廓清楚，细节精致，整体安静、亲切、有手绘温度。',tuningNoteEn:'Warm storybook feel with a soft low-contrast palette, paper-like color steps and gentle shadows; clean contours, delicate detail and calm handmade warmth.',default:false,recommended:true},
+  {id:'cool-confident',labelZh:'酷感自信',labelEn:'Cool & Confident',tuningNoteZh:'更酷、更利落自信；姿态感挺拔，轮廓简洁，明暗对比略强，配色克制，神情沉稳带一点小傲气，避免攻击性与夸张肌肉。',tuningNoteEn:'Cool and self-assured; upright bearing, clean silhouette, firm contrast, restrained color and subtly cocky calm; avoid aggression or exaggerated muscle.',default:false,recommended:true}
+];
+const stylePresetByID=id=>DIY_STYLE_PRESETS.find(preset=>preset.id===id)||null;
+const defaultStylePreset=()=>DIY_STYLE_PRESETS.find(preset=>preset.default)||DIY_STYLE_PRESETS[0]||null;
+const localizedStylePresetNote=preset=>preset?(LANG==='en'?preset.tuningNoteEn:preset.tuningNoteZh):'';
+const defaultStyleTuning=()=>localizedStylePresetNote(defaultStylePreset())||(LANG==='zh'?STYLE_TUNING_MIMO_V2.zh:STYLE_TUNING_MIMO_V2.en);
 const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],primaryReferenceID:null,requestID:null,draftID:null,
   candidateDraftID:null,candidates:[],candidateIndex:null,candidateIndices:[],
   temperamentID:'quiet-curious',quality:'medium',
-  styleTuningNote:STYLE_TUNING_MIMO_V2.zh,styleTuningCustomized:false,
+  stylePresetID:'mimo-v2',styleTuningNote:STYLE_TUNING_MIMO_V2.zh,styleTuningCustomized:false,
   sheetQuality:null,stageQualities:[null,null,null],preservedResult:false,
   status:'idle',operation:null,phase:'',phaseMessage:'',error:'',errorKind:'',errorCode:'',outputRetained:false,
   sheet:null,stageImages:[null,null,null],stageBusyIndex:null,providerSeconds:null,localSeconds:null,
@@ -982,12 +987,31 @@ function renderTemperaments(){
   grid.setAttribute('aria-label',tx('伴灵气质','Familiar temperament'));
   grid.innerHTML=TEMPERAMENTS.map(t=>`<button type="button" role="radio" aria-checked="${petLab.temperamentID===t.id}" class="temperament-tile ${petLab.temperamentID===t.id?'sel':''}" ${busy?'disabled':''} onclick="selectTemperament('${t.id}')"><span class="temperament-ico">${t.ico}</span><span><b>${esc(LANG==='zh'?t.zh:t.en)}</b><small>${esc(LANG==='zh'?t.subZh:t.subEn)}</small></span></button>`).join('');
 }
+function installDIYStylePresets(value){
+  const seen=new Set();
+  const incoming=(Array.isArray(value)?value:[]).map(row=>{
+    const id=String(row?.id||'').trim().toLowerCase();
+    const labelZh=String(row?.labelZh||'').trim().slice(0,80),labelEn=String(row?.labelEn||'').trim().slice(0,80);
+    const tuningNoteZh=String(row?.tuningNoteZh||'').replace(/\s+/g,' ').trim().slice(0,MAX_STYLE_TUNING);
+    const tuningNoteEn=String(row?.tuningNoteEn||'').replace(/\s+/g,' ').trim().slice(0,MAX_STYLE_TUNING);
+    if(!/^[a-z0-9-]{1,40}$/.test(id)||seen.has(id)||!labelZh||!labelEn||!tuningNoteZh||!tuningNoteEn)return null;
+    seen.add(id);return {id,labelZh,labelEn,tuningNoteZh,tuningNoteEn,default:row.isDefault===true,recommended:row.isRecommended===true};
+  }).filter(Boolean).slice(0,8);
+  if(incoming.length){
+    const defaultIndex=Math.max(0,incoming.findIndex(preset=>preset.default));
+    incoming.forEach((preset,index)=>{preset.default=index===defaultIndex});
+    DIY_STYLE_PRESETS.splice(0,DIY_STYLE_PRESETS.length,...incoming);
+  }
+  const selected=stylePresetByID(petLab.stylePresetID)||defaultStylePreset();
+  if(!selected)return;
+  petLab.stylePresetID=selected.id;
+  if(!petLab.styleTuningCustomized)petLab.styleTuningNote=localizedStylePresetNote(selected)||defaultStyleTuning();
+}
+function stylePresetIDForBridge(){
+  return (stylePresetByID(petLab.stylePresetID)||defaultStylePreset())?.id||'mimo-v2';
+}
 function styleTuningForBridge(){
   return String(petLab.styleTuningNote||'').replace(/\s+/g,' ').trim().slice(0,MAX_STYLE_TUNING);
-}
-function styleSuggestionApplied(suggestion){
-  const note=String(petLab.styleTuningNote||'');
-  return note.includes(suggestion.phraseZh)||note.toLocaleLowerCase().includes(suggestion.phraseEn.toLocaleLowerCase());
 }
 function renderStyleTuning(){
   const input=document.getElementById('petStyleTuning'),counter=document.getElementById('petStyleTuningCount'),chips=document.getElementById('petStyleTuningSuggestions'),hint=document.getElementById('petStyleTuningHint');
@@ -999,30 +1023,21 @@ function renderStyleTuning(){
   const length=String(petLab.styleTuningNote||'').length;
   counter.textContent=`${length} / ${MAX_STYLE_TUNING}`;counter.classList.toggle('near',length>=MAX_STYLE_TUNING-20);
   hint.textContent=tx('可选 · 调整下一次生成','optional · tune the next generation');
-  chips.dataset.label=tx('试试','try');
-  const mimoV2Applied=String(petLab.styleTuningNote||'')===defaultStyleTuning();
-  chips.innerHTML=`<button type="button" class="style-tuning-chip ${mimoV2Applied?'applied':''}" ${disabled?'disabled':''} onclick="applyMimoV2StylePreset()">${mimoV2Applied?'✓':'✦'} ${esc(tx('白衣伴灵画风（默认）','white-outfit familiar style (default)'))}</button>`
-    +STYLE_TUNING_SUGGESTIONS.map(suggestion=>{const applied=styleSuggestionApplied(suggestion);return `<button type="button" class="style-tuning-chip ${applied?'applied':''}" ${disabled?'disabled':''} onclick="appendStyleTuningSuggestion('${suggestion.id}')">${applied?'✓':'＋'} ${esc(LANG==='zh'?suggestion.zh:suggestion.en)}</button>`}).join('');
+  chips.dataset.label=tx('风格','style');
+  const selectedID=stylePresetIDForBridge();
+  chips.innerHTML=DIY_STYLE_PRESETS.map(preset=>{const selected=preset.id===selectedID,label=LANG==='en'?preset.labelEn:preset.labelZh;return `<button type="button" aria-pressed="${selected}" class="style-tuning-chip ${selected?'applied':''}" ${disabled?'disabled':''} onclick="selectDIYStylePreset('${preset.id}')">${selected?'✓':preset.default?'✦':'＋'} ${esc(label)}</button>`}).join('');
 }
-function applyMimoV2StylePreset(){
+function selectDIYStylePreset(id){
   if(studioBusy()||referencesImporting())return;
-  updateStyleTuning(defaultStyleTuning());
+  const preset=stylePresetByID(id);if(!preset)return;
+  petLab.stylePresetID=id;petLab.styleTuningNote=localizedStylePresetNote(preset);
+  petLab.styleTuningCustomized=true;renderStyleTuning();
+  requestAnimationFrame(()=>document.getElementById('petStyleTuning')?.focus());
 }
 function updateStyleTuning(value,customized=true){
   if(studioBusy()||referencesImporting())return;
   const next=String(value??'').slice(0,MAX_STYLE_TUNING);if(next===petLab.styleTuningNote){renderStyleTuning();return}
   petLab.styleTuningNote=next;if(customized)petLab.styleTuningCustomized=true;renderStyleTuning();
-}
-function appendStyleTuningSuggestion(id){
-  if(studioBusy()||referencesImporting())return;
-  const suggestion=STYLE_TUNING_SUGGESTIONS.find(item=>item.id===id);if(!suggestion)return;
-  const phrase=LANG==='zh'?suggestion.phraseZh:suggestion.phraseEn;
-  if(styleSuggestionApplied(suggestion)){document.getElementById('petStyleTuning')?.focus();return}
-  const current=String(petLab.styleTuningNote||'').trim(),separator=current?(LANG==='zh'?'；':' · '):'';
-  const next=`${current}${separator}${phrase}`;
-  if(next.length>MAX_STYLE_TUNING){const hint=document.getElementById('petStyleTuningHint');if(hint)hint.textContent=tx('先删几个字，再添加这条','shorten the note to add this');document.getElementById('petStyleTuning')?.focus();setTimeout(renderStyleTuning,1800);return}
-  updateStyleTuning(next);
-  requestAnimationFrame(()=>{const input=document.getElementById('petStyleTuning');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length)}});
 }
 function invalidatePetDraft(){
   if(studioBusy())return;
@@ -1298,7 +1313,7 @@ function generateCandidates(){
   if(!canGenerate())return;const requestID=beginStudioOperation('candidates');
   send({type:'petGenerateCandidates',requestID,source:petLab.source,name:petLab.name,
     temperamentID:petLab.temperamentID,likeness:+document.getElementById('petLikeness').value/100,
-    styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized,...buildReferenceBridgePayload()});
+    stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized,...buildReferenceBridgePayload()});
 }
 function selectCandidate(index){
   if(studioBusy()||index<0||index>=petLab.candidates.length)return;
@@ -1315,7 +1330,7 @@ function startNextEvolution(){
   const index=petLab.evolutionQueue.shift();petLab.activeCandidateIndex=index;petLab.candidateIndex=index;
   const requestID=beginStudioOperation('evolution');
   send({type:'petGenerateEvolution',requestID,candidateDraftID:petLab.candidateDraftID,
-    candidateIndex:index,quality:petLab.quality,styleTuningNote:styleTuningForBridge()});
+    candidateIndex:index,quality:petLab.quality,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
 }
 function generateEvolution(){
   if(!canGenerate())return;const choices=petLab.candidateIndices.length?[...petLab.candidateIndices]:(petLab.candidateIndex!==null?[petLab.candidateIndex]:[]);
@@ -1326,7 +1341,7 @@ function generateEvolution(){
 function regenerateStage(stageIndex){
   if(!canGenerate())return;if(!petLab.draftID||!petLab.sheet||stageIndex<0||stageIndex>2)return;
   const draftID=petLab.draftID,requestID=beginStudioOperation('stage',stageIndex);
-  send({type:'petRegenerateStage',requestID,draftID,stageIndex,quality:petLab.quality,styleTuningNote:styleTuningForBridge()});
+  send({type:'petRegenerateStage',requestID,draftID,stageIndex,quality:petLab.quality,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
 }
 function retryStudioOperation(){
   const operation=petLab.operation,stage=petLab.stageBusyIndex;
@@ -1396,7 +1411,7 @@ function petReferencePreview(event){
 function confirmPetReferences(){
   if(petLab.status!=='review'||!petLab.requestID||!petLab.referencePreview)return;
   petLab.status='busy';petLab.phase='connecting';petLab.phaseMessage='';petLab.partialImage=petLab.referencePreview;renderPetLab();
-  send({type:'petConfirmReferences',requestID:petLab.requestID,styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized});
+  send({type:'petConfirmReferences',requestID:petLab.requestID,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized});
 }
 function petCandidateResult(event){
   if(event.requestID!==petLab.requestID)return;const candidates=(event.candidates||event.images||[]).filter(candidate=>candidateImage(candidate));
@@ -1944,6 +1959,7 @@ function initSettings(state){
   S = state;
   LANG = state.language === 'en' ? 'en' : 'zh';
   applySettingsTypography(state.settingsFontFamily,state.settingsFontWeight);
+  installDIYStylePresets(state.diyStylePresets);
   if(IMAGE_QUALITIES.some(q=>q.id===state.imageQuality))petLab.quality=state.imageQuality;
   applyLanguage();
   renderCards();

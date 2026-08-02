@@ -32,6 +32,7 @@ APP_SOURCES=(
   style_reference.swift
   reference_preprocessor.swift
   settings_typography.swift
+  diy_style_preset.swift
   main.swift
   product.swift
   consistency_metric.swift
