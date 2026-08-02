@@ -104,23 +104,11 @@ body[data-char="pixel"] .shadow{ display:none; }
 .status-badge.distract{ border-color:#e0574d55; }
 .status-badge.distract .sb-dot{ background:#e0574d; box-shadow:0 0 7px #e0574dcc; }
 
-/* ── HUD above creature ── */
-.hud{ position:absolute; right:0; bottom:192px; display:flex; flex-direction:column;
-  gap:6px; align-items:flex-end; font-size:11px; color:var(--ink-dim);
-  opacity:0; transform:translateY(4px); transition:opacity .5s, transform .5s; }
-.hud.on{ opacity:1; transform:none; }
-.hud-row{ display:flex; gap:6px; }
+/* ── Focus timer ── */
 .chip{ display:flex; align-items:center; gap:4px; padding:3px 9px; border-radius:20px;
   background:rgba(20,16,40,.82); border:1px solid #ffffff1a; color:var(--ink);
   font-size:11px; backdrop-filter:blur(8px); box-shadow:0 4px 14px #0006; }
 .chip b{ font-weight:600; font-variant-numeric:tabular-nums; }
-.chip.streak b{ color:#7df0cf; }
-.chip.pop{ animation:chipPop .45s cubic-bezier(.34,1.56,.64,1); }
-@keyframes chipPop{ 50%{ transform:scale(1.2);} }
-.flamebar{ width:64px; height:5px; border-radius:3px; background:#ffffff20; overflow:hidden; }
-.flamefill{ height:100%; width:55%; border-radius:3px; transition:width .8s, background .8s;
-  background:linear-gradient(90deg,#ff9d4d,#ffd76a); }
-.flamefill.low{ background:linear-gradient(90deg,#5a5470,#7a7490); }
 
 /* ── journal: full openable history, bucketed by time ── */
 .journal{ position:absolute; right:150px; bottom:10px; width:334px; max-height:300px;
@@ -314,23 +302,6 @@ body[data-char="pixel"] .shadow{ display:none; }
 .j-expand .arr{ font-size:9px; transition:transform .18s; }
 .j-expand[aria-expanded="true"] .arr{ transform:rotate(180deg); }
 
-/* quest view */
-.q-wrap{ padding:2px 0; }
-.q-node{ display:flex; gap:10px; padding:5px 0 5px 2px; position:relative; }
-.q-node::before{ content:""; position:absolute; left:13px; top:30px; bottom:-6px;
-  width:1.5px; background:repeating-linear-gradient(#b9a5ff44 0 4px, transparent 4px 9px); }
-.q-node:last-of-type::before{ display:none; }
-.q-ico{ width:26px; height:26px; flex:none; display:flex; align-items:center; justify-content:center;
-  font-size:15px; background:#241f42; border:1px solid #ffffff22; border-radius:50%; z-index:1; }
-.q-node.main .q-ico{ background:#2b2450; border-color:#b9a5ff66; }
-.q-node.bad .q-ico{ background:#3c2b3a; border-color:#e88fae55; }
-.q-node.gold .q-ico{ background:#3d3420; border-color:#ffd76a88; }
-.q-title{ font-family:var(--font-magic); font-size:13px; color:#f4f1ff; line-height:1.3; padding-top:3px; }
-.q-node.main .q-title{ color:#cabcf5; }
-.q-node.bad .q-title{ color:#e88fae; }
-.q-node.gold .q-title{ color:#ffd76a; }
-.q-sub{ font-size:11px; color:var(--ink-dim); margin-top:1px; }
-
 /* week heatmap */
 .wk-grid{ display:grid; grid-template-columns:34px repeat(24, 1fr); gap:2px; align-items:center; margin:6px 0 4px; }
 .wk-day{ font-size:9.5px; color:var(--ink-dim); text-align:right; padding-right:4px; }
@@ -347,8 +318,7 @@ body[data-char="pixel"] .shadow{ display:none; }
 
 /* ── Cozy Parchment: reflection becomes a warm physical object while the
    ambient familiar/status chrome stays midnight. The panel tucks 22px under
-   the mascot; opening it quiets the transient HUD so the two do not compete. */
-.stage.journal-open .hud{ opacity:0; pointer-events:none; }
+   the mascot. */
 .journal{
   right:128px; width:344px; border-radius:13px 18px 16px 12px;
   --ink:#3a2417; --ink-dim:#8a6a45;
@@ -364,7 +334,7 @@ body[data-char="pixel"] .shadow{ display:none; }
 .journal .j-head span:first-child{ text-shadow:0 1px rgba(255,255,255,.7); }
 .journal .j-close,.journal .j-now .jn-sub,.journal .j-empty,.journal .j-strip-cap,
 .journal .j-legend,.journal .j-total,.journal .j-item .min,.journal .j-li .du,
-.journal .j-sess-head .tm,.journal .q-sub,.journal .wk-day,.journal .wk-dayline .n,
+.journal .j-sess-head .tm,.journal .wk-day,.journal .wk-dayline .n,
 .journal .wk-dayline .v,.journal .j-period-axis,.journal .j-period-legend,
 .journal .j-sess-head .chev,.journal .j-expand{ color:var(--ink-dim); }
 .journal .j-now,.journal .j-now b,.journal .j-li .nm,.journal .j-item,
@@ -378,8 +348,7 @@ body[data-char="pixel"] .shadow{ display:none; }
 .journal .j-body::-webkit-scrollbar{ width:6px; }
 .journal .j-body::-webkit-scrollbar-thumb{ border-radius:6px; background:#b78e5b70; }
 .journal .j-ring circle:first-child{ stroke:#b9976540; }
-.journal .j-ring .pct b,.journal .j-tile .v,.journal .j-sess-head .du,
-.journal .q-title{ color:#3a2417; }
+.journal .j-ring .pct b,.journal .j-tile .v,.journal .j-sess-head .du{ color:#3a2417; }
 .journal .j-tile,.journal .j-sess{ background:#fffaf0b8; border-color:#dfc89a; }
 .journal .j-sess{ box-shadow:0 2px 7px rgba(93,61,31,.06); }
 .journal .j-sess-head:not(:disabled):hover,.journal .j-li:hover{ background:#ead8b651; }
@@ -414,20 +383,12 @@ body[data-char="pixel"] .shadow{ display:none; }
 .journal .j-expand{ border-color:#a77b4238; }
 .journal .j-expand:hover{ color:#3a2417; background:#ead8b62e; }
 .journal .j-li .dot.neut{ background:#9f907a; }
-.journal .j-note,.journal .j-sh,.journal .q-node.main .q-title{ color:#8a5a33; }
-.journal .j-sh.bad,.journal .q-node.bad .q-title{ color:#a23d5b; }
-.journal .q-node.gold .q-title{ color:#98661c; }
-.journal .q-node::before{
-  background:repeating-linear-gradient(#b689574f 0 4px,transparent 4px 9px);
-}
-.journal .q-ico{ color:#fff9ec; background:#6e4a2c; border-color:#9f754d; }
-.journal .q-node.main .q-ico{ background:#8a5a33; border-color:#c5975f; }
-.journal .q-node.bad .q-ico{ background:#7b394b; border-color:#c46b82; }
-.journal .q-node.gold .q-ico{ background:#8a6527; border-color:#d6a94a; }
+.journal .j-note,.journal .j-sh{ color:#8a5a33; }
+.journal .j-sh.bad{ color:#a23d5b; }
 .journal .wk-cell{ background:#c9ae7c26; }
 .journal .j-bh{ border-color:#a77b4238; }
 
-/* pomodoro hunt chip */
+/* running Focus timer */
 .pomo-wrap{ position:absolute; right:0; bottom:226px; display:none; }
 .pomo-wrap.on{ display:block; }
 .chip.pomo{ cursor:pointer; border-color:#ffd76a66; }
@@ -454,14 +415,8 @@ body[data-char="pixel"] .shadow{ display:none; }
 
 <div class="stage" id="stage">
   <div class="status-badge" id="statusBadge"><span class="sb-dot"></span><span id="statusText">😐 发发呆</span></div>
-  <div class="hud" id="hud">
-    <div class="hud-row">
-      <span class="chip">🔥 <span class="flamebar"><span class="flamefill" id="flame"></span></span></span>
-      <span class="chip streak">◇ <b id="streak">0m</b></span>
-    </div>
-  </div>
   <div class="pomo-wrap" id="pomoWrap">
-    <span class="chip pomo" id="pomoChip" onclick="famPomodoro(0)" title="结束这次冒险">🏹 <b id="pomoTime">25:00</b><span class="pomobar"><span id="pomoFill"></span></span></span>
+    <span class="chip pomo" id="pomoChip" onclick="famPomodoro(0)" title="结束专注">◴ <span id="focusTimerLabel">专注</span> <b id="pomoTime">25:00</b><span class="pomobar"><span id="pomoFill"></span></span></span>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="journal" id="journal">
@@ -491,7 +446,9 @@ function famSetLanguage(lang){
   const page = document.getElementById('openPageButton');
   if (page) page.title = tx('在新页面打开', 'open as a page');
   const pomo = document.getElementById('pomoChip');
-  if (pomo) pomo.title = tx('结束这次冒险', 'call off this quest');
+  if (pomo) pomo.title = tx('结束专注', 'End Focus');
+  const focusTimerLabel = document.getElementById('focusTimerLabel');
+  if (focusTimerLabel) focusTimerLabel.textContent = tx('专注', 'Focus');
   if (typeof Fam !== 'undefined') {
     const st = statusCopy(Fam.state);
     const status = document.getElementById('statusText');
@@ -1025,6 +982,9 @@ const Mascot = (() => {
       const img = document.getElementById('ffpRasterImg');
       expression = img ? Math.round(-parseFloat(img.getAttribute('x') || '0') / 22) : 0;
     }
+    const continuousFocus = Fam.continuousFocusMinutes
+      ? Fam.continuousFocusMinutes()
+      : 0;
     bridge({ type:'companionArt', stage: stage,
              expression: hasExpressions ? expression : 0,
              hasExpressions: hasExpressions,
@@ -1032,8 +992,10 @@ const Mascot = (() => {
                 companion goes quiet during deep work by condition rather than
                 by a hardcoded rule in Swift. */
              mood: current || 'idle',
-             focusMinutes: Fam.streakMin ? Fam.streakMin() : 0,
-             streakMinutes: Fam.streakMin ? Fam.streakMin() : 0 });
+             focusMinutes: continuousFocus,
+             /* Kept as a behavior-pack compatibility field; it is not a
+                user-facing streak or reward counter. */
+             streakMinutes: continuousFocus });
   }
   function stopBlink(){
     clearTimeout(blinkTimer);
@@ -1186,9 +1148,9 @@ function mascotStateFor(s){
   const m = { idle: 'idle', focused: 'focused', scholar: 'focused', dizzy: 'dizzy',
               poisoned: 'poisoned', ghost: 'ghost', sleep: 'sleeping' };
   let out = m[s] || 'idle';
-  // 25+ min single streak upgrades focus to deepWork (2× the calm)
-  if (out === 'focused' && Fam.streakMin() >= 25) out = 'deepWork';
-  // Nat dives for the duration of a hunt — goggles stay on unless wounded
+  // 25+ minutes of uninterrupted focus selects the calmer deep-work behavior.
+  if (out === 'focused' && Fam.continuousFocusMinutes() >= 25) out = 'deepWork';
+  // Nat dives for the duration of a Focus timer — goggles stay on unless interrupted.
   if (typeof Pomo !== 'undefined' && Pomo.timer && Mascot.has('snorkel')
       && ['idle', 'focused', 'deepWork'].includes(out)) out = 'snorkel';
   return out;
@@ -1197,7 +1159,7 @@ function mascotStateFor(s){
 /* ═══ creature + state ═══ */
 const Fam = {
   char: 'wisp', state: 'idle',
-  focus: 55, streakStart: null,
+  focusStartedAt: null,
   history: [],          // {app, kind, t0, t1}
   cur: null,            // {app, kind, t0}
   distractSec: 0, deepSec: 0, switches: [],
@@ -1226,15 +1188,11 @@ const Fam = {
     document.getElementById('statusText').textContent = st.label;
   },
 
-  setFocus(v){
-    this.focus = Math.max(0, Math.min(100, v));
-    const f = document.getElementById('flame');
-    f.style.width = this.focus + '%';
-    f.classList.toggle('low', this.focus < 30);
+  continuousFocusMinutes(){
+    return this.focusStartedAt
+      ? Math.floor((Date.now() - this.focusStartedAt) / 60000)
+      : 0;
   },
-
-  streakMin(){ return this.streakStart ? Math.floor((Date.now() - this.streakStart) / 60000) : 0; },
-  renderStreak(){ document.getElementById('streak').textContent = this.streakMin() + 'm'; },
 
   sparkle(n){
     const st = document.getElementById('stage');
@@ -1248,8 +1206,6 @@ const Fam = {
       setTimeout(() => s.remove(), 1900);
     }
   },
-
-  hud(on){ document.getElementById('hud').classList.toggle('on', on); },
 };
 
 function statusCopy(state){
@@ -1281,20 +1237,17 @@ setInterval(() => {
   const kind = Fam.cur.kind;
   if (DEEP_KINDS.has(kind)) {
     Fam.deepSec++; Fam.distractSec = Math.max(0, Fam.distractSec - 2);
-    Fam.setFocus(Fam.focus + 0.25);
-    if (!Fam.streakStart) Fam.streakStart = Date.now();
+    if (!Fam.focusStartedAt) Fam.focusStartedAt = Date.now();
     if (Fam.deepSec === 6) Fam.setState(kind === 'paper' ? 'scholar' : 'focused');
-    const m = Fam.streakMin();
-    if (m === 25 && !Fam._t25) { Fam._t25 = true; toast(tx('🔥 已连续专注 25 分钟','🔥 focused for 25 minutes')); sound('streak'); }
   } else if (kind === 'distraction') {
-    Fam.distractSec++; Fam.deepSec = 0; Fam.streakStart = null; Fam._t25 = false;
-    Fam.setFocus(Fam.focus - 0.5);
+    Fam.distractSec++; Fam.deepSec = 0; Fam.focusStartedAt = null;
     if (Fam.distractSec === 8)  Fam.setState('dizzy');
     if (Fam.distractSec === 45) { Fam.setState('poisoned'); toast(tx('☠️ 被信息流毒到了','☠️ poisoned by the feed')); sound('poison'); }
     if (Fam.distractSec === 120) Fam.setState('ghost');
   } else {
     // neutral: corruption wears off, then settle to idle
     Fam.deepSec = 0;
+    Fam.focusStartedAt = null;
     if (Fam.distractSec > 0) {
       Fam.distractSec--;
       if (Fam.distractSec <= 30 && ['poisoned','ghost'].includes(Fam.state)) Fam.setState('dizzy');
@@ -1303,10 +1256,8 @@ setInterval(() => {
       Fam.setState('idle');
     }
   }
-  Fam.renderStreak();
-  // mascot upgrades focused → deepWork when the streak crosses 25 min,
-  // which happens without a Fam state change — resync each tick (no-ops if same)
-  Mascot.setState(mascotStateFor(Fam.state));   // picks up the 25-min deepWork upgrade
+  // Continuous focus can select deepWork without a Fam state change.
+  Mascot.setState(mascotStateFor(Fam.state));
 }, 1000);
 
 /* checkpoint: split long open sessions into ≤60s segments on disk, so a
@@ -1336,9 +1287,6 @@ function famSetApp(appName, kind, detail, url, canon){
   Fam.switches = Fam.switches.filter(t => now - t < 8000);
   Fam.switches.push(now);
   if (Fam.switches.length >= 5) { Fam.setState('ghost'); Fam.distractSec = Math.max(Fam.distractSec, 46); }
-  Fam.hud(true);
-  clearTimeout(Fam._hudT);
-  Fam._hudT = setTimeout(() => Fam.hud(false), 6000);
 }
 
 function famSetCharacter(id){ Fam.setCharacter(id); toast(MASCOTS[Fam.char].name); }
@@ -1382,7 +1330,7 @@ function famPause(p){ Fam.paused = p; Fam.setState(p ? 'idle' : Fam.state); }
 /* The native companion layer (companion_runtime.swift) renders the familiar
    itself for raster packs, with real physics. When it owns the familiar we
    hide the stage here — otherwise it draws twice and both hosts fight over
-   the cursor. The journal, HUD and status badge are unaffected. */
+   the cursor. The journal, Focus timer, and status badge are unaffected. */
 function famSetNativeHosted(on){
   document.body.classList.toggle('native-hosted', !!on);
 }
@@ -1404,9 +1352,8 @@ function famIdle(on){
   }
   Fam.cur = null;
   Fam.deepSec = 0;
-  Fam.streakStart = null;
+  Fam.focusStartedAt = null;
   Fam.setState('idle');
-  Fam.renderStreak();
 }
 
 /* transient celebration: git commit detected (design: ~5s, then back) */
@@ -1415,7 +1362,7 @@ function famProud(label){
   proudUntil = Date.now() + 5000;
   Mascot.setState('proud');
   toast(label || tx('🎉 做出来了！','🎉 shipped!'));
-  sound('streak');
+  sound('celebrate');
   setTimeout(() => { proudUntil = 0; Mascot.setState(mascotStateFor(Fam.state)); }, 5200);
 }
 
@@ -1502,8 +1449,7 @@ function windowEntries(){
   return Fam.cur ? [...Fam.history, {...Fam.cur, t1: now}] : [...Fam.history];
 }
 
-function windowStats(minutes){
-  const now = Date.now(), w0 = now - minutes * 60000;
+function rangeStats(w0, now){
   let deep = 0, total = 0;
   for (const h of windowEntries()){
     const a = Math.max(h.t0, w0), b = Math.min(h.t1, now);
@@ -1511,20 +1457,17 @@ function windowStats(minutes){
     total += b - a;
     if (DEEP_KINDS.has(h.kind)) deep += b - a;
   }
-  return { pct: total ? Math.round(100 * deep / total) : 0, deepMin: Math.round(deep / 60000), total };
+  return { pct: total ? Math.round(100 * deep / total) : 0, deep, total };
 }
 
-/* ── journal render + toggle: time views, quest story, week heatmap ── */
-const J_TIMEFRAMES = [
-  { zh: '30 分钟', en: '30 min', min: 30 },
-  { zh: '1 小时',  en: '1 h',    min: 60 },
-  { zh: '今天',    en: 'today',  min: 1440 },
+/* ── journal render + toggle: complete Today first, Week second ── */
+const J_VIEWS = [
+  { id: 'today', zh: '今天', en: 'today' },
+  { id: 'week', zh: '本周', en: 'week' },
 ];
-const J_VIEWS = [ { id: 'quest', zh: '⚔️ 冒险', en: '⚔️ quest' }, { id: 'week', zh: '▦ 本周', en: '▦ week' } ];
-const J = { tf: 30, view: 'time', openSess: null,
+const J = { view: 'today', openSess: null,
   open: { read: false, built: false, distracted: false } };
 
-function jSetTf(min){ J.view = 'time'; J.tf = min; J.openSess = null; renderJournal(); }
 function jToggleSess(id){
   const body = document.getElementById('journalBody');
   const scrollTop = body ? body.scrollTop : 0;
@@ -1543,9 +1486,11 @@ function jSetView(v){ J.view = v; J.openSess = null; renderJournal(); }
 function jToggleSec(s){ J.open[s] = !J.open[s]; renderJournal(); }
 
 function renderTabs(){
+  const title = document.getElementById('journalTitle');
+  if (title) title.textContent = J.view === 'week'
+    ? tx('✦ 本周', '✦ this week')
+    : tx('✦ 今日手记', "✦ today's journal");
   document.getElementById('journalTabs').innerHTML =
-    J_TIMEFRAMES.map(t =>
-      `<button class="j-tab ${J.view === 'time' && t.min === J.tf ? 'cur' : ''}" onclick="jSetTf(${t.min})">${tx(t.zh,t.en)}</button>`).join('') +
     J_VIEWS.map(v =>
       `<button class="j-tab ${J.view === v.id ? 'cur' : ''}" onclick="jSetView('${v.id}')">${tx(v.zh,v.en)}</button>`).join('');
 }
@@ -1627,24 +1572,20 @@ function stripTip(e){
 
 const J_NOTES = [
   { min: 70, zh:'今天专注得很稳。✦', en:'a steady, focused day. ✦' },
-  { min: 40, zh:'不错——火苗晃了晃，但还亮着。', en:'decent — the flame flickers, but holds.' },
+  { min: 40, zh:'不错——今天的专注节奏还算稳定。', en:'decent — today kept a workable focus rhythm.' },
   { min: 15, zh:'有点摇晃。关掉信息流，回来专注一会儿。', en:'we wobble. close the feed and come back to focus.' },
   { min: 0,  zh:'这一段，我们就不提了。🕳️', en:'we do not speak of this window. 🕳️' },
 ];
 
-/* the old thread bubble, folded into the journal as a live header */
+/* Current activity is context; the complete Today report below is the summary. */
 function renderNow(){
   const el = document.getElementById('journalNow');
   if (!el) return;
   const now = Date.now();
-  const s25 = windowStats(25), s60 = windowStats(60);
-  const pc = p => `<span class="${p >= 65 ? 'pct-good' : p >= 35 ? 'pct-mid' : 'pct-bad'}">${p}%</span>`;
   const cur = Fam.cur
     ? tx(`你在 <b>${Fam.cur.app}</b>——${fmtDur(now - Fam.cur.t0)}`, `You're in <b>${Fam.cur.app}</b> — ${fmtDur(now - Fam.cur.t0)}`)
     : tx('暂时离开','away');
-  const streak = Fam.streakMin();
-  el.innerHTML = `<div>${cur}${streak > 0 ? tx(` · 连续专注 <b>${streak} 分钟</b> 🔥`,` · focus streak <b>${streak}m</b> 🔥`) : ''}</div>` +
-    `<div class="jn-sub">${tx(`过去 25 分钟 ${pc(s25.pct)} 专注 · 过去一小时 ${pc(s60.pct)} 专注`,`last 25 min ${pc(s25.pct)} focused · last hour ${pc(s60.pct)} focused`)}</div>`;
+  el.innerHTML = `<div>${cur}</div>`;
 }
 
 /* cluster merged segments into sessions (gaps > 10 min split), then
@@ -1905,13 +1846,11 @@ function renderJournal(){
   if (hoverTip) hoverTip.style.opacity = 0;
   renderNow();
   renderTabs();
-  if (J.view === 'quest') return renderQuest();
   if (J.view === 'week')  return renderWeek();
 
   const now = Date.now();
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  // "today" is the calendar day, not a rolling 24 hours
-  const w0 = J.tf >= 1440 ? dayStart.getTime() : now - J.tf * 60000;
+  const w0 = dayStart.getTime();
   const labels = labelMap();
   const merged = mergeSegments(w0, now, labels);
 
@@ -1926,96 +1865,21 @@ function renderJournal(){
   let html = '';
   if (total > 30000){
     const pct = Math.round(100 * deep / total);
-    const R = 30, C = 2 * Math.PI * R;
     const noteCopy = J_NOTES.find(n => pct >= n.min);
     const note = tx(noteCopy.zh, noteCopy.en);
-    const timeHero = `
-      <div class="j-hero">
-        <div class="j-ring">
-          <svg viewBox="0 0 74 74">
-            <circle cx="37" cy="37" r="${R}" fill="none" stroke="#ffffff12" stroke-width="7"/>
-            <circle cx="37" cy="37" r="${R}" fill="none" stroke="#2fae8f" stroke-width="7"
-              stroke-linecap="round" stroke-dasharray="${(C * pct / 100).toFixed(1)} ${C.toFixed(1)}"/>
-          </svg>
-          <div class="pct"><b>${pct}%</b><span>${tx('专注','FOCUS')}</span></div>
-        </div>
-        <div class="j-tiles">
-          <div class="j-tile deep"><span class="v">${fmtDur(deep)}</span><span class="k">${tx('专注','focus')}</span></div>
-          <div class="j-tile pit"><span class="v">${dist > 30000 ? '\u2212' + fmtDur(dist) : '0m'}</span><span class="k">${tx('分心坑','the pit')}</span></div>
-        </div>
-      </div>`;
     const dayHero = `<div class="j-day-summary">
       <span class="sigil">✦</span><b>${tx(`今天 ${pct}% 专注`,`${pct}% focused today`)}</b><span class="sep">·</span>
       <span>${tx(`专注 ${fmtDur(deep)}`,`${fmtDur(deep)} focused`)}</span><span class="sep">·</span>
       <span>${dist > 30000 ? tx(`${fmtDur(dist)} 散线`,`${fmtDur(dist)} frayed`) : tx('线织得很干净','a clean thread')}</span><span class="sep">·</span>
       <span>${tx(`记下 ${fmtDur(total)}`,`${fmtDur(total)} recorded`)}</span>
     </div>`;
-    html += (J.tf >= 1440 ? dayHero : timeHero) +
-      buildPeriodRail(w0, now, J.tf) +
+    html += dayHero +
+      buildPeriodRail(w0, now, 1440) +
       renderSessions(merged) +
       `<div class="j-note" style="margin-top:8px">${note}</div>`;
   }
   document.getElementById('journalBody').innerHTML =
     html || `<div class="j-empty">${tx('这一页还是空的。<br>去做点什么、读点什么、拆点什么——<br>我会替你记下来。✦',"the pages for this window are blank.<br>go build something, read something, break something —<br>i'll write it down. ✦")}</div>`;
-}
-
-/* ── quest view: the day retold as an RPG ── */
-function renderQuest(){
-  const now = Date.now();
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const w0 = dayStart.getTime();
-  const labels = labelMap();
-  const groups = aggregate(w0, now, labels);
-  const deepG = groups.filter(g => g.sec !== 'distracted').sort((a, b) => b.ms - a.ms);
-  const distG = groups.filter(g => g.sec === 'distracted').sort((a, b) => b.ms - a.ms);
-
-  const entries = windowEntries()
-    .map(h => ({ ...h, a: Math.max(h.t0, w0), b: Math.min(h.t1, now) }))
-    .filter(h => h.b - h.a > 1000)
-    .sort((x, y) => x.a - y.a);
-  let neut = 0, deepTotal = 0;
-  for (const h of entries){
-    const d = h.b - h.a;
-    if (DEEP_KINDS.has(h.kind)) deepTotal += d;
-    else if (h.kind !== 'distraction') neut += d;
-  }
-  const distTotal = distG.reduce((s, g) => s + g.ms, 0);
-
-  // best streak: longest run of deep entries with <3min gaps
-  let best = 0, run = 0, lastEnd = 0;
-  for (const h of entries){
-    if (DEEP_KINDS.has(h.kind)) {
-      run = (h.a - lastEnd < 180000) ? run + (h.b - h.a) : (h.b - h.a);
-      lastEnd = h.b;
-      best = Math.max(best, run);
-    }
-  }
-
-  const node = (ico, title, sub, cls = '') => `
-    <div class="q-node ${cls}">
-      <div class="q-ico">${ico}</div>
-      <div class="q-body"><div class="q-title">${title}</div>${sub ? `<div class="q-sub">${sub}</div>` : ''}</div>
-    </div>`;
-
-  let html = '';
-  if (!entries.length) {
-    html = `<div class="j-empty">${tx('冒险还没开始，地图上还是一片空白。✦',"the quest log is blank — the adventure hasn't started yet. ✦")}</div>`;
-  } else {
-    html += node('🏰', tx('启程','dawn'), tx(`${fmtClock(entries[0].a)} 第一次出现`,`first sighted at ${fmtClock(entries[0].a)}`));
-    if (deepG[0]) html += node('⚔️', tx(`主线冒险——${deepG[0].label}`,`MAIN QUEST — ${deepG[0].label}`),
-      tx(`认真专注了 ${fmtDur(deepG[0].ms)}`,`${fmtDur(deepG[0].ms)} of focused work`), 'main');
-    deepG.slice(1, 4).filter(g => g.ms > 8 * 60000).forEach(g =>
-      html += node('🗡️', tx(`支线——${g.label}`,`side quest — ${g.label}`), fmtDur(g.ms)));
-    if (neut > 5 * 60000) html += node('🧾', tx('日常杂事','admin tax'), tx(`${fmtDur(neut)}——勉强接受吧`,`${fmtDur(neut)} — tolerated, grudgingly`));
-    if (distTotal > 3 * 60000) html += node('🕳️', tx('分心坑','the distraction pit'),
-      `−${fmtDur(distTotal)} · ` + distG.slice(0, 2).map(g => `${g.label} (${fmtDur(g.ms)})`).join(' · '), 'bad');
-    if (best > 60000) html += node('◇', tx('最长连续专注','longest focus streak'),
-      fmtDur(best), 'gold');
-    const pct = deepTotal + neut + distTotal > 0 ? Math.round(100 * deepTotal / (deepTotal + neut + distTotal)) : 0;
-    const note = J_NOTES.find(n => pct >= n.min);
-    html += `<div class="j-note" style="margin-top:8px">${tx(note.zh,note.en)}</div>`;
-  }
-  document.getElementById('journalBody').innerHTML = `<div class="q-wrap">${html}</div>`;
 }
 
 /* ── week view: hour-by-day heatmap + per-day focus bars ── */
@@ -2081,7 +1945,7 @@ function renderWeek(){
     <div class="wk-days">${dayLines || `<div class="j-empty">${tx('目前只有一天的数据；这一周会慢慢长出来。','one day of data so far — the map fills in as the week goes.')}</div>`}</div>`;
 }
 
-/* ── pomodoro: the hunt ── */
+/* ── Focus timer ── */
 const Pomo = { until: 0, dur: 0, timer: null, wounded: false };
 
 function famPomodoro(min){
@@ -2092,8 +1956,8 @@ function famPomodoro(min){
   Pomo.wounded = false;
   document.getElementById('pomoWrap').classList.add('on');
   Pomo.timer = setInterval(pomoTick, 1000);
-  toast(tx(`🏹 冒险开始——${min} 分钟`,`🏹 the quest begins — ${min} minutes`));
-  sound('streak');
+  toast(tx(`专注开始——${min} 分钟`,`Focus started — ${min} minutes`));
+  sound('focus');
   pomoTick();
 }
 function pomoTick(){
@@ -2105,33 +1969,16 @@ function pomoTick(){
   if (Fam.cur && Fam.cur.kind === 'distraction' && !Pomo.wounded){
     Pomo.wounded = true;
     Fam.setState('poisoned');
-    toast(tx('🩸 冒险受伤了——回来吧','🩸 the quest is wounded — come back'));
+    toast(tx('有点分心了——回来继续专注','A distraction interrupted Focus — come back'));
     sound('poison');
   }
 }
 function endPomo(success){
   clearInterval(Pomo.timer); Pomo.timer = null;
   document.getElementById('pomoWrap').classList.remove('on');
-  if (success && !Pomo.wounded){ toast(tx('🏹 专注完成','🏹 focus complete')); Fam.sparkle(7); sound('streak'); }
-  else if (success){ toast(tx('🏹 跌跌撞撞，但完成了','🏹 finished — limping, but done')); }
-  else toast(tx('🏹 冒险结束','🏹 quest called off'));
-}
-
-/* ── markdown export (Swift pulls this string and writes/copies it) ── */
-function famExportMD(){
-  const now = Date.now();
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const labels = labelMap();
-  const groups = aggregate(dayStart.getTime(), now, labels);
-  const sec = (name, s) => {
-    const items = groups.filter(g => g.sec === s).sort((a, b) => b.ms - a.ms);
-    return items.length ? `\n\n## ${name}\n` + items.map(g => `- ${g.label} — ${fmtDur(g.ms)}`).join('\n') : '';
-  };
-  const st = windowStats(24 * 60);
-  return `# ${tx('Mimo 今日手记','Mimo Journal')} — ${new Date().toDateString()}\n\n` +
-    tx(`**${st.pct}% 专注** · 专注 ${fmtDur(st.deepMin * 60000)}`,
-       `**${st.pct}% focused** · ${fmtDur(st.deepMin * 60000)} focus`) +
-    sec(tx('📖 读过','📖 Read'), 'read') + sec(tx('🛠️ 做过','🛠️ Built'), 'built') + sec(tx('🕳️ 分心','🕳️ Distractions'), 'distracted') + '\n';
+  if (success && !Pomo.wounded){ toast(tx('✓ 专注完成','✓ Focus complete')); Fam.sparkle(7); sound('focus'); }
+  else if (success){ toast(tx('✓ 计时完成，专注有过中断','✓ Focus timer complete, with an interruption')); }
+  else toast(tx('专注已结束','Focus ended'));
 }
 
 /* ── full-page HTML export: standalone journal for the browser.
@@ -2142,13 +1989,11 @@ function famExportHTML(){
   const w0 = dayStart.getTime();
   const labels = labelMap();
   const groups = aggregate(w0, now, labels);
-  const st = windowStats(24 * 60);
+  const st = rangeStats(w0, now);
 
-  // borrow the quest renderer via a save/render/restore round-trip
+  // Borrow the Week renderer, then restore the in-app Today report unchanged.
   const jb = document.getElementById('journalBody');
   const savedHTML = jb.innerHTML, savedView = J.view;
-  J.view = 'quest'; renderQuest();
-  const questHTML = jb.innerHTML;
   J.view = 'week'; renderWeek();
   const weekHTML = jb.innerHTML;
   jb.innerHTML = savedHTML; J.view = savedView;
@@ -2176,24 +2021,21 @@ function famExportHTML(){
   .page .j-item .min{ color:#9d97b8; font-size:12px; }
   .page .j-strip{ height:24px; }
   .page .j-strip i span{ line-height:24px; font-size:10px; }
-  .page .q-title{ font-size:15px; }
   .page .wk-grid{ max-width:560px; }
   /* lift every dim/dark ink for the standalone page — some tones that work
      at overlay size are unreadable in a bright browser window */
   .page{ --ink-dim:#b9b3d6; }
-  .page, .page .j-item, .page .q-title{ color:#eae7f8; }
-  .page .meta, .page .q-sub, .page .j-strip-cap, .page .j-item .min,
+  .page, .page .j-item{ color:#eae7f8; }
+  .page .meta, .page .j-strip-cap, .page .j-item .min,
   .page .j-legend, .page .wk-day, .page .wk-dayline .n, .page .wk-dayline .v,
   .page .j-block .tm, .page .j-block .du{ color:#b9b3d6; }
 </style></head>
 <body><div class="page">
   <h1>✦ ${tx('Mimo 今日手记','Mimo Journal')}</h1>
   <div class="meta">${new Date().toDateString()} · ${tx('米墨替你记下','recorded by Mimo')} ·
-    <b style="color:#7df0cf">${st.pct}% ${tx('专注','focus')}</b> · ${fmtDur(st.deepMin * 60000)} ${tx('专注','focus')}</div>
+    <b style="color:#7df0cf">${st.pct}% ${tx('专注','focus')}</b> · ${fmtDur(st.deep)} ${tx('专注','focus')}</div>
   <h2>${tx('一天留下的纹理','the day, hour by hour')}</h2>
   ${buildStrip(w0, now, labels)}
-  <h2>${tx('⚔️ 冒险手记','⚔️ quest log')}</h2>
-  ${questHTML}
   ${fullSec(tx('📖 读过的一切','📖 everything read'), 'read')}
   ${fullSec(tx('🛠️ 做过的一切','🛠️ everything built'), 'built')}
   ${fullSec(tx('🕳️ 每一次分心','🕳️ every distraction'), 'distracted')}
@@ -2212,10 +2054,10 @@ function famCloseJournal(){
   bridge({ type: 'bubble', on: false });
 }
 
-function famShowJournal(today=false){
+function famShowJournal(){
   const j = document.getElementById('journal');
   const stage = document.getElementById('stage');
-  if(today){J.view='time';J.tf=1440;J.openSess=null;}
+  J.view='today';J.openSess=null;
   renderJournal();
   j.classList.add('on');
   stage.classList.add('journal-open');
@@ -2224,23 +2066,25 @@ function famShowJournal(today=false){
 
 function famToggleJournal(){
   if(document.getElementById('journal').classList.contains('on'))famCloseJournal();
-  else famShowJournal(false);
+  else famShowJournal();
 }
 
 /* Pet click → complete journal on today's view. */
-function famToggleContext(){famShowJournal(true);}
+function famToggleContext(){famShowJournal();}
+
+let suppressFamiliarOpenOnce=false;
 
 /* Close immediately when a click lands in the transparent WebView outside
    the journal. Native also monitors clicks beyond this panel. */
 document.addEventListener('pointerdown',event=>{
   const journal=document.getElementById('journal');
   if(!journal.classList.contains('on')||event.target.closest('#journal'))return;
+  suppressFamiliarOpenOnce=!!event.target.closest('#familiar');
   famCloseJournal();
 },true);
 
 document.addEventListener('DOMContentLoaded', () => {
   Fam.setCharacter(localStorage.getItem('ff-char') || 'lulu');
-  Fam.setFocus(55);
 
   // click = complete journal; press-and-move = drag (window moved by Swift).
   const fam = document.getElementById('familiar');
@@ -2257,9 +2101,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   fam.addEventListener('pointerup', () => {
+    const suppressOpen=suppressFamiliarOpenOnce;
+    suppressFamiliarOpenOnce=false;
     if (dragging) bridge({ type: 'dragEnd' });
+    else if (suppressOpen) { /* this gesture only dismissed the journal */ }
     else if (hasBridge) bridge({ type: 'famClick' });
-    else famShowJournal(true);
+    else famShowJournal();
     pd = null; dragging = false;
   });
   // if the pointer is lost mid-drag, end the drag - otherwise the window
@@ -2267,6 +2114,7 @@ document.addEventListener('DOMContentLoaded', () => {
   for (const ev of ['pointercancel', 'lostpointercapture']) {
     fam.addEventListener(ev, () => {
       if (dragging) bridge({ type: 'dragEnd' });
+      suppressFamiliarOpenOnce=false;
       pd = null; dragging = false;
     });
   }
@@ -2284,11 +2132,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (q.get('char')) Fam.setCharacter(q.get('char'));
     if (q.get('state')) Fam.setState(q.get('state'));
     if (q.get('mstate')) Mascot.setState(q.get('mstate'));
-    Fam.hud(true);
     const journalPreview = q.get('preview');
     if (journalPreview === 'pet-prototype') {
       famSetPrototypePet({
-        name:'Pocket Moss', variant:'adventure',
+        name:'Pocket Moss', variant:'cozy',
         PAL:{P:'#b98768',L:'#f0cdb2',A:'#74c8ad',D:'#493833',K:'#241a20',W:'#ffffff',M:'#382421'},
         BASE:['..P..........P..','.LPP........PPL.','.PPPP......PPPP.','PPPPPPPPPPPPPPPP',
           'PPLLLLLLLLLLLLPP','PPLLLLLLLLLLLLPP','PPLLLLLLLLLLLLPP','PPLLLLLLLLLLLLPP',
@@ -2318,7 +2165,6 @@ document.addEventListener('DOMContentLoaded', () => {
           return entry;
         });
         Fam.cur = {app:'Arc',kind:'neutral',detail:'127.0.0.1',canon:'Arc localhost',t0:now-m};
-        J.tf = 30;
       } else {
         const at = (hour, minute = 0) => {
           const d = new Date(now); d.setHours(hour, minute, 0, 0); return d.getTime();
@@ -2336,16 +2182,13 @@ document.addEventListener('DOMContentLoaded', () => {
           {app:'YouTube',kind:'distraction',detail:'Home',canon:'YouTube',t0:at(20,10),t1:at(20,35)}
         ].map(h => ({...h, t1:Math.min(h.t1, now)})).filter(h => h.t0 < now && h.t1 > h.t0);
         Fam.cur = {app:'VS Code',kind:'code',detail:'Cozy Parchment journal',canon:'Cozy Parchment journal',t0:now-32*m};
-        J.tf = 1440;
       }
       if (q.get('offline') === '1' && Fam.cur) {
         Fam.history.push({...Fam.cur, t1:now-5*m});
         Fam.cur = null;
       }
-      Fam.streakStart = Fam.cur ? Fam.cur.t0 : null;
-      Fam.focus = 76;
-      Fam.setFocus(76); Fam.renderStreak();
-      J.view = 'time'; J.openSess = null;
+      Fam.focusStartedAt = Fam.cur ? Fam.cur.t0 : null;
+      J.view = 'today'; J.openSess = null;
       document.getElementById('journal').classList.add('on');
       document.getElementById('stage').classList.add('journal-open');
       Mascot.setState(mascotStateFor(Fam.state));

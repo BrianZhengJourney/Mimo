@@ -32,6 +32,7 @@ struct NoLevelingUITests {
             "resRow", "renderRes", "RESOURCE_FOR", "Fam.gain",
             "resources:", "protein:", "spellbook:", "fragment:",
             "rowsForLevel", "artForLevel", "stageForLevel",
+            "renderQuest(", "J_TIMEFRAMES", "id=\"flame\"", "id=\"streak\"",
         ]
         for token in forbiddenOverlay {
             expect(!overlay.contains(token),
@@ -64,7 +65,7 @@ struct NoLevelingUITests {
                overlay.contains("正在专注"),
                "the release overlay should expose focus without resource pickups")
         expect(overlay.contains("const MATURE_STAGE = 2") &&
-               overlay.contains("🏹 专注完成") &&
+               overlay.contains("✓ 专注完成") &&
                overlay.contains("🎉 做出来了！"),
                "mature art, focus completion, and cute celebration should remain")
 

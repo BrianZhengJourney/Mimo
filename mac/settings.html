@@ -535,7 +535,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   <div class="row"><span class="grow" data-zh="伴灵显示大小" data-en="Familiar display size">伴灵显示大小</span>
     <div class="size-control"><input id="companionScale" type="range" min="60" max="140" step="5" value="100"
       oninput="changeCompanionScale(this.value)" aria-label="Familiar display size"><output id="companionScaleValue">100%</output></div></div>
-  <div class="row"><span class="grow" data-zh="声音（连续专注、分心提醒）" data-en="Sounds (focus streaks and distraction alerts)">声音（连续专注、分心提醒）</span>
+  <div class="row"><span class="grow" data-zh="声音（专注完成、分心提醒）" data-en="Sounds (Focus completion and distraction alerts)">声音（专注完成、分心提醒）</span>
     <label class="toggle"><input type="checkbox" id="sndTog" onchange="send({type:'sounds', on:this.checked})"><i></i></label></div>
   <div class="row"><span class="grow" data-zh="登录时启动" data-en="Start at login">登录时启动</span>
     <label class="toggle"><input type="checkbox" id="loginTog" onchange="send({type:'login', on:this.checked})"><i></i></label></div>
@@ -566,7 +566,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
     <span class="kbd" data-zh="点击伴灵" data-en="click pet">点击伴灵</span><span data-zh="直接打开完整手记的今天视图" data-en="open the full journal on today">直接打开完整手记的今天视图</span>
     <span class="kbd" data-zh="右键伴灵" data-en="right-click pet">右键伴灵</span><span data-zh="藏起来" data-en="hide it">藏起来</span>
     <span class="kbd" data-zh="拖到边缘" data-en="drag to edge">拖到边缘</span><span data-zh="让它躲进屏幕边缘；点击露出的一角即可回来" data-en="tuck it away; click the peek to bring it back">让它躲进屏幕边缘；点击露出的一角即可回来</span>
-    <span class="kbd">🏹</span><span data-zh="开始一次冒险——米墨会陪你完成番茄钟" data-en="begin a quest — a pomodoro Mimo joins">开始一次冒险——米墨会陪你完成番茄钟</span>
+    <span class="kbd">◴</span><span data-zh="开始专注——选择 25 或 50 分钟" data-en="Start Focus — choose 25 or 50 minutes">开始专注——选择 25 或 50 分钟</span>
   </div>
 </div>
 

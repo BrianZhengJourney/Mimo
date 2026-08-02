@@ -20,8 +20,8 @@ struct JournalClickUITests {
         let settings = try String(
             contentsOfFile: "mac/settings.html", encoding: .utf8)
 
-        expect(overlay.contains("function famShowJournal(today=false)") &&
-               overlay.contains("if(today){J.view='time';J.tf=1440;J.openSess=null;}"),
+        expect(overlay.contains("function famShowJournal(){") &&
+               overlay.contains("J.view='today';J.openSess=null;"),
                "a pet tap should open the complete journal directly on today")
         expect(!overlay.contains("function famShowFocusBrief") &&
                !overlay.contains("🐾 今天专注得怎么样？"),
@@ -30,15 +30,22 @@ struct JournalClickUITests {
                !overlay.contains("body.native-hosted .stage{ display:none; }"),
                "native pets must hide only duplicate art, not the journal")
         expect(overlay.contains("event.target.closest('#journal')") &&
+               overlay.contains("suppressFamiliarOpenOnce=!!event.target.closest('#familiar')") &&
+               overlay.contains("const suppressOpen=suppressFamiliarOpenOnce;") &&
+               overlay.contains("else if (suppressOpen)") &&
                main.contains("addGlobalMonitorForEvents") &&
                main.contains("event.window !== self.panel"),
                "clicks outside the journal should dismiss it inside and outside the app")
         expect(main.contains("func showJournal(near screenPoint: CGPoint? = nil)") &&
+               main.contains("companionRuntime.onPress =") &&
+               main.contains("nativePressDismissedJournal = self.bubbleOpen") &&
+               main.contains("if self.nativePressDismissedJournal") &&
                main.contains("showJournal(near: point)") &&
                main.contains("case \"famClick\":\n            showJournal()"),
                "both native and web-hosted pets should open the same full journal")
-        expect(runtime.contains("onClick?(pressAnchor)"),
-               "a successful cute reaction must still deliver the product click")
+        expect(runtime.contains("onPress?(point)") &&
+               runtime.contains("onClick?(pressAnchor)"),
+               "native press and click phases must preserve dismissal and cute reactions")
         expect(settings.contains("直接打开完整手记的今天视图"),
                "Settings should teach the direct journal interaction")
         print("journal click UI tests passed")

@@ -630,15 +630,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let menu = NSMenu()
         menu.addItem(item(voice("刚才在做什么？  (⌥Space)", "What was I doing?  (⌥Space)"), #selector(openJournal), "j", "book"))
 
-        let huntMenu = NSMenu()
+        let focusMenu = NSMenu()
         for min in [25, 50] {
-            let it = NSMenuItem(title: voice("\(min) 分钟", "\(min) minutes"), action: #selector(startHunt(_:)), keyEquivalent: "")
+            let it = NSMenuItem(title: voice("\(min) 分钟", "\(min) minutes"), action: #selector(startFocusTimer(_:)), keyEquivalent: "")
             it.representedObject = min; it.target = self
-            huntMenu.addItem(it)
+            focusMenu.addItem(it)
         }
-        let huntRoot = item(voice("开始一次冒险", "Begin a quest"), nil, "", "scope")
-        menu.addItem(huntRoot)
-        menu.setSubmenu(huntMenu, for: huntRoot)
+        let focusRoot = item(voice("开始专注", "Start Focus"), nil, "", "timer")
+        menu.addItem(focusRoot)
+        menu.setSubmenu(focusMenu, for: focusRoot)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -800,7 +800,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         positionJournal(near: screenPoint)
         setContextPanelOpen(true)
         panel.ignoresMouseEvents = false
-        js("famShowJournal(true)")
+        js("famShowJournal()")
     }
 
     func showContext() {
@@ -854,6 +854,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     // `defaults write com.brianzheng.mimo companionNativeRuntime -bool false`
     // forces every familiar back to the webview path.
     var nativeCompanionActive: Bool { !companionRuntime.isEmpty }
+    var nativePressDismissedJournal = false
 
     func nativeCompanionEnabled() -> Bool {
         UserDefaults.standard.object(forKey: "companionNativeRuntime") as? Bool ?? true
@@ -896,10 +897,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         activeCompanionSpec = spec
         recordCompanionStatus("native layer active, \(sprite.frameCount) frames")
 
-        // A tap does both jobs: the behavior pack reacts in-world, while the
-        // full journal opens beside the moving companion.
+        // A press outside an open journal dismisses it and owns that gesture;
+        // its eventual click must not immediately reopen the same panel.
+        companionRuntime.onPress = { [weak self] _ in
+            guard let self else { return }
+            self.nativePressDismissedJournal = self.bubbleOpen
+            if self.bubbleOpen { self.dismissContextPanel() }
+        }
+        // A fresh tap does both jobs: the behavior pack reacts in-world, while
+        // the full journal opens beside the moving companion.
         companionRuntime.onClick = { [weak self] point in
             guard let self else { return }
+            if self.nativePressDismissedJournal {
+                self.nativePressDismissedJournal = false
+                return
+            }
             self.showJournal(near: point)
         }
         companionRuntime.onRightClick = { [weak self] in self?.showCompanionMenu() }
@@ -1174,27 +1186,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let d = UserDefaults.standard
         d.set(!d.bool(forKey: "soundOn"), forKey: "soundOn")
     }
-    @objc func startHunt(_ sender: NSMenuItem) {
+    @objc func startFocusTimer(_ sender: NSMenuItem) {
         guard let min = sender.representedObject as? Int else { return }
         js("famPomodoro(\(min))")
-    }
-
-    // write today's journal as markdown next to the activity logs + clipboard
-    @objc func exportJournal() {
-        webView.evaluateJavaScript("famExportMD()") { result, _ in
-            guard let md = result as? String else { return }
-            let dir = logDir.appendingPathComponent("exports")
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let url = dir.appendingPathComponent("journal-\(logDayStamp()).md")
-            try? md.write(to: url, atomically: true, encoding: .utf8)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(md, forType: .string)
-            let a = NSAlert()
-            a.messageText = "Journal exported"
-            a.informativeText = "Copied to clipboard and saved to \(url.path)"
-            NSApp.activate(ignoringOtherApps: true)
-            a.runModal()
-        }
     }
 
     // render today's journal as a standalone page and open it in the browser.
@@ -1332,8 +1326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "log":
             if let entry = body["entry"] as? [String: Any] { appendLog(entry) }
         case "sound":
-            // streak = bright ping, poison = low thud
-            let map = ["streak": "Ping", "poison": "Basso"]
+            let map = ["focus": "Ping", "celebrate": "Ping", "poison": "Basso"]
             if let n = body["name"] as? String, let snd = map[n] { playSound(snd) }
         default:
             break

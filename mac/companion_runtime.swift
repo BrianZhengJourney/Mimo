@@ -239,6 +239,7 @@ final class CompanionRuntime {
     /// Raised on every click that was a click, not a drag. The behavior pack
     /// still gets the same event, so a tap can be both a pet reaction and a
     /// product action. The point anchors focus UI beside the moving companion.
+    var onPress: ((CGPoint) -> Void)?
     var onClick: ((CGPoint) -> Void)?
     var onRightClick: (() -> Void)?
     private var pressAnchor: CGPoint = .zero
@@ -1007,6 +1008,7 @@ final class CompanionRuntime {
 
     private func handleMouseDown(at point: CGPoint) {
         guard let companion = companions.last(where: { $0.isOpaque(atScreenPoint: point) }) else { return }
+        onPress?(point)
         companion.stateBeforeGrab = companion.state
         companion.state = .held
         companion.integrator.velocity = .zero

@@ -33,7 +33,7 @@
 │   displays[](各带自己的 scaleFactor)· workAreas                  │
 │   cursor(EMA 平滑 dx/dy)· surfaces[](P1: 屏幕/工作区四边;       │
 │                                        P4: 追加窗口边界)          │
-│   Mimo 语义层:mood / focus / streak / idle                       │
+│   Mimo 语义层:mood / focus duration / idle                    │
 ├───────────────────────────────────────────────────────────────────┤
 │ CompanionEngine(CVDisplayLink 驱动,三相 tick)                   │
 │   ① env.sample()  ② forEach.tick()(逻辑)  ③ forEach.apply()     │
@@ -75,8 +75,9 @@
   - 变量 schema(显式枚举,加载期校验拼写):
     `world.cursor.{x,y,dx,dy}`、`world.display.workArea.{top,bottom,left,right}`、
     `self.{anchor.x, anchor.y, lookRight, state, footX, heldSeconds}`、
-    `world.companionCount`、**`mimo.{mood, focusMinutes, streakMin, isIdle, level,
-    frontmostApp}`(语义层,Shimeji 没有的)**
+    `world.companionCount`、**`mimo.{mood, focusMinutes, streakMinutes, isIdle,
+    frontmostApp}`(语义层,Shimeji 没有的)**。`streakMinutes` 仅是旧行为包
+    兼容字段，不对用户展示连胜或奖励。
   - **保留 `${}`(init 求一次并缓存)/ `#{}`(每帧重求)的语义区分。**
     注意 libshijima 把两者当同一件事处理(`scripting/condition.cc:8-13`),
     丢掉了这个优化 —— 别重蹈。这个区分决定了 `duration: "${100+random()*100}"`
@@ -290,11 +291,11 @@ T1 那 9 帧配合程序化变换已经能覆盖约 80% 的 Shimeji 手感。
 - Hotspot(-ee 式):清单里按动画声明可点区域 + 触发行为(摸头 →
   `Petted` 行为)。P3。
 
-### 4.7 与现有 focus 引擎/HUD 的结合
+### 4.7 与现有 focus 引擎/手记的结合
 
-- `Fam` 的 focus 引擎(1Hz、streak、XP)**原样保留**,但不再直接 set
-  CSS 状态;它成为 `mimo.*` 语义绑定的数据源(经 bridge 每秒推给 Swift
-  引擎,或反向:focus 引擎整体上移到 Swift —— 建议 P1 时上移)。
+- `Fam` 的 1Hz focus 引擎保留活动分类、连续专注时长和 mood 语义；
+  XP、等级、火苗/连续专注 HUD 与 25 分钟奖励提示已移除。引擎继续向
+  `mimo.*` 行为条件提供 focus duration，但不把它包装成用户等级。
 - 现有情绪状态映射为行为包的条件域:`focused/deepWork` → 安静集;
   `dizzy/poisoned/ghost` → 萎靡集(走得慢、坐着晃、ghost 飘浮无视重力
   —— `gravity=0` 作为 action 参数覆盖,行为包就能表达);`evolved` →
@@ -308,4 +309,3 @@ T1 那 9 帧配合程序化变换已经能覆盖约 80% 的 Shimeji 手感。
   **老资产自动落在 T0,不失效**(迁移器合成最小行为包)。
   详见 §4.6 的改动清单 —— 这不是"完全不动",是四层的增量改动,
   其中 `generation_ledger.swift` 基本不用改(当初做对了)。
-

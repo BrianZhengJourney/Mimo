@@ -18,8 +18,8 @@ The repository has moved beyond the original browser concept:
 
 - Native AppKit/CALayer companion with alpha hit testing, HiDPI rendering,
   drag/throw physics, screen surfaces, gaze, and data-driven behavior packs.
-- Local app/browser activity classification, focus quests, context restore,
-  daily journal, week view, and Markdown/HTML export.
+- Local app/browser activity classification, 25/50-minute Focus timers,
+  a complete Today journal, Week view, and a full-page HTML archive.
 - Mimo Studio reference preprocessing, canonical character generation,
   expression assets, provider abstraction, generation ledger, and recovery.
 - Mimo Studio includes four default Starter Actions after adoption: cursor
@@ -71,18 +71,12 @@ This resumable Studio workflow is now implemented for the four-action starter
 pack. Paid visual generation remains user-triggered; the app never silently
 spends, retries, or installs.
 
-### Exports
+### Full-page journal
 
-- `◐ → Export today's journal` — markdown to
-  `~/Library/Application Support/Mimo/exports/journal-YYYY-MM-DD.md`
-  (+ clipboard). `◐ → Open journal as page ↗` renders the full journal
-  (strip, quest log, complete lists, week heatmap) as a standalone HTML page
-  in the browser.
-- Exports are **idempotent**: one dated file per day, newer exports overwrite
-  older ones. The same rule applies to Notion pushes — a day page
-  ("Focus Journal — <date>") lives under the current week's Reflection page
-  and is **updated in place** (`replace_content`) when newer data exists,
-  never duplicated.
+The ↗ button in Today renders the day timeline, complete lists, and week
+heatmap as a standalone HTML page in the browser. It writes one dated file to
+`~/Library/Application Support/Mimo/exports/journal-YYYY-MM-DD.html`; opening
+it again updates that file instead of creating duplicates.
 
 ## Repository map
 
@@ -98,9 +92,10 @@ spends, retries, or installs.
 Large generated intermediates under `output/`, Wan run outputs, retired walk experiments,
 build products, and raw personal reference images are local-only.
 
-## Browser concept demo
+## Archived browser concept demo
 
-The original two-minute concept walkthrough remains useful for product demos:
+The original two-minute walkthrough is a historical design archive, not a
+release surface. It intentionally preserves the retired quest/XP/flame concept:
 
 ```bash
 python3 -m http.server 5199 --directory .
