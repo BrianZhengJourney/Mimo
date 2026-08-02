@@ -100,6 +100,37 @@ MIMO_EVAL_PROVIDER_TELEMETRY=/run/candidate/telemetry.json \
 The eval rejects partial cohorts, dirty runtime commits, contract/input/quality
 mismatches, call success below 99%, or action QA below 99%.
 
+### Sleep safe-zone target
+
+The revision-3 sleep prompt has one isolated hypothesis: one shared scale plus
+64px side bands removes prone-pose right clipping. Historical provider evidence
+contained one failed action among 12 mixed default-pack actions, but its
+sleep-only denominator was one failure among three sleep packs. Keep both
+figures explicit; do not report the mixed `1/12` as 12 sleep samples. The fixed
+historical evidence SHA-256 is
+`696dfbe529e51594c6f1ad3254f4ae59ea577b854d583bae82550d7148d2ba81`.
+
+`sleep_telemetry.sh` runs exactly 12 independent, two-call sleep packs through
+the production generator and local coherent-batch QA. It checkpoints every
+call under the isolated output root and installs nothing. The target passes
+only at 24/24 successful calls and 0/12 failed sleep packs.
+
+```bash
+./mac/evals/sleep_telemetry.sh \
+  --pet-dir /path/to/the/fixed/human/pet \
+  --style-board mac/assets/style-reference/mimo-human-style-reference-board.png \
+  --style-profile human-v2 \
+  --output-root /private/local/sleep-v3-run \
+  --runtime-commit "$(git rev-parse HEAD)" \
+  --quality medium \
+  --preflight true
+```
+
+Remove `--preflight true` only for the paid run. The fixed input fingerprint
+must remain `0c178bae983f294d4253eb1c97db6732f2c89d5fd7c74540071a83b2eaf616f9`.
+Resume a reviewed provider failure with `--retry-failed true`; never silently
+replace a completed QA failure.
+
 ## Round discipline
 
 Every candidate names one mechanism and one falsifiable prediction. Run a
