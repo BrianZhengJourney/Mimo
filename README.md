@@ -20,6 +20,9 @@ The repository has moved beyond the original browser concept:
   drag/throw physics, screen surfaces, gaze, and data-driven behavior packs.
 - Local app/browser activity classification, 25/50-minute Focus timers,
   a complete Today journal, Week view, and a full-page HTML archive.
+- A native Reflection Browser joins raw local activity with explicitly selected
+  Notion reflections, evidence-linked analysis, and preview-before-confirm
+  writeback. Missing Notion/OpenAI credentials never block local browsing.
 - Mimo Studio reference preprocessing, canonical character generation,
   expression assets, provider abstraction, generation ledger, and recovery.
 - Mimo Studio includes four default Starter Actions after adoption: cursor
@@ -30,7 +33,9 @@ The repository has moved beyond the original browser concept:
   preview, hard-QA checking, and explicit Accept before manifest installation.
 
 See the [current status](docs/companion/STATUS.md) and
-[custom pet integration plan](docs/companion/11-custom-pet-integration.md).
+[custom pet integration plan](docs/companion/11-custom-pet-integration.md). The
+[Reflection Browser guide](docs/reflection-browser.md) documents its data,
+privacy, and Notion boundaries.
 
 ## Build and test
 
