@@ -43,6 +43,7 @@ enum FamiliarGenerationDraftError: LocalizedError {
     case missingDraft
     case corruptManifest
     case unsafePath
+    case purgeIncomplete
 
     var errorDescription: String? {
         switch self {
@@ -51,6 +52,7 @@ enum FamiliarGenerationDraftError: LocalizedError {
         case .missingDraft: return "The generated draft could not be found."
         case .corruptManifest: return "The generated draft metadata is corrupt."
         case .unsafePath: return "The generated draft path is unsafe."
+        case .purgeIncomplete: return "Not all generated drafts could be deleted."
         }
     }
 }
@@ -212,6 +214,33 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
         }
     }
 
+    /// Privacy erasure needs stronger durability than routine retention
+    /// pruning: every store-owned UUID draft (including interrupted install or
+    /// delete tombstones) must be verified safe and removed with throwing I/O.
+    /// Unrecognized entries are never followed or deleted.
+    func purgeAll() throws {
+        try synchronized {
+            try prepareStorage()
+            let entries = try fileManager.contentsOfDirectory(
+                at: draftsURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [])
+            for entry in entries where isManagedDraftEntryName(entry.lastPathComponent) {
+                guard isSafeDirectory(entry), isDescendant(entry, of: draftsURL) else {
+                    throw FamiliarGenerationDraftError.unsafePath
+                }
+                try fileManager.removeItem(at: entry)
+            }
+            let remaining = try fileManager.contentsOfDirectory(
+                at: draftsURL, includingPropertiesForKeys: nil, options: [])
+            guard !remaining.contains(where: {
+                isManagedDraftEntryName($0.lastPathComponent)
+            }) else {
+                throw FamiliarGenerationDraftError.purgeIncomplete
+            }
+        }
+    }
+
     private func update(requestID: String,
                         mutate: (URL, inout FamiliarGenerationDraftManifest) throws -> Void) throws
         -> FamiliarGenerationDraftManifest {
@@ -333,6 +362,25 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
             throw FamiliarGenerationDraftError.invalidRequestID
         }
         return uuid.uuidString.lowercased()
+    }
+
+    private func isCanonicalUUID(_ value: String) -> Bool {
+        guard let uuid = UUID(uuidString: value) else { return false }
+        return value.caseInsensitiveCompare(uuid.uuidString) == .orderedSame
+    }
+
+    private func isManagedDraftEntryName(_ value: String) -> Bool {
+        if isCanonicalUUID(value) { return true }
+        for prefix in [".install-", ".delete-"] where value.hasPrefix(prefix) {
+            let suffix = String(value.dropFirst(prefix.count))
+            guard suffix.count == 73 else { return false }
+            let first = String(suffix.prefix(36))
+            let separator = suffix.index(suffix.startIndex, offsetBy: 36)
+            let second = String(suffix[suffix.index(after: separator)...])
+            return suffix[separator] == "-"
+                && isCanonicalUUID(first) && isCanonicalUUID(second)
+        }
+        return false
     }
 
     private func draftURL(_ requestID: String) -> URL {

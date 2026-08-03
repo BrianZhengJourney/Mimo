@@ -12,6 +12,17 @@ private func expectThrows(_ message: String, _ body: () throws -> Void) {
     do { try body(); expect(false, message) } catch { }
 }
 
+private final class FailingRemoveFileManager: FileManager {
+    var blockedPath: String?
+
+    override func removeItem(at url: URL) throws {
+        if url.standardizedFileURL.path == blockedPath {
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        try super.removeItem(at: url)
+    }
+}
+
 @main
 struct GenerationDraftTests {
     static func main() throws {
@@ -53,8 +64,67 @@ struct GenerationDraftTests {
                                   phase: .candidates, quality: "low", providerSeconds: nil, now: now)
         }
 
+        let corruptID = UUID().uuidString.lowercased()
+        let corruptDirectory = store.folderURL.appendingPathComponent(corruptID, isDirectory: true)
+        try fm.createDirectory(at: corruptDirectory, withIntermediateDirectories: false)
+        let unrelated = store.folderURL.appendingPathComponent("keep-me.txt")
+        try Data("unrelated".utf8).write(to: unrelated)
+        try store.purgeAll()
+        expectThrows("strict purge should remove valid draft directories") {
+            _ = try store.manifest(requestID: requestID)
+        }
+        expect(!fm.fileExists(atPath: corruptDirectory.path),
+               "strict purge should remove safe UUID directories even with corrupt metadata")
+        expect(fm.fileExists(atPath: unrelated.path),
+               "strict purge must leave unrecognized entries untouched")
+
+        let expiringID = UUID().uuidString
+        _ = try store.saveRaw(requestID: expiringID, pngData: png, phase: .candidates,
+                              quality: "low", providerSeconds: nil, now: now)
         try store.purgeExpired(now: now.addingTimeInterval(FamiliarGenerationDraftStore.retention + 1))
-        expectThrows("expired drafts should be removed") { _ = try store.manifest(requestID: requestID) }
+        expectThrows("expired drafts should be removed") { _ = try store.manifest(requestID: expiringID) }
+
+        let failingRoot = fm.temporaryDirectory
+            .appendingPathComponent("mimo-generation-drafts-failure-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: failingRoot) }
+        let failingFileManager = FailingRemoveFileManager()
+        let failingStore = FamiliarGenerationDraftStore(
+            root: failingRoot, fileManager: failingFileManager)
+        let blockedID = UUID().uuidString
+        _ = try failingStore.saveRaw(
+            requestID: blockedID, pngData: png, phase: .evolution,
+            quality: "medium", providerSeconds: 1, now: now)
+        let blockedDirectory = failingStore.folderURL
+            .appendingPathComponent(blockedID.lowercased(), isDirectory: true)
+        failingFileManager.blockedPath = blockedDirectory.standardizedFileURL.path
+        expectThrows("strict purge must surface any UUID draft deletion failure") {
+            try failingStore.purgeAll()
+        }
+        expect(fm.fileExists(atPath: blockedDirectory.path),
+               "a failed strict deletion must never be reported as purged")
+        failingFileManager.blockedPath = nil
+        try failingStore.purgeAll()
+        expect(!fm.fileExists(atPath: blockedDirectory.path),
+               "strict purge should succeed once deletion is available")
+
+        let unsafeRoot = fm.temporaryDirectory
+            .appendingPathComponent("mimo-generation-drafts-unsafe-\(UUID().uuidString)")
+        let external = fm.temporaryDirectory
+            .appendingPathComponent("mimo-generation-drafts-external-\(UUID().uuidString)")
+        defer {
+            try? fm.removeItem(at: unsafeRoot)
+            try? fm.removeItem(at: external)
+        }
+        let unsafeStore = FamiliarGenerationDraftStore(root: unsafeRoot)
+        try fm.createDirectory(at: external, withIntermediateDirectories: true)
+        let linkedID = UUID().uuidString.lowercased()
+        let link = unsafeStore.folderURL.appendingPathComponent(linkedID)
+        try fm.createSymbolicLink(at: link, withDestinationURL: external)
+        expectThrows("strict purge must reject a UUID symlink instead of following it") {
+            try unsafeStore.purgeAll()
+        }
+        expect(fm.fileExists(atPath: external.path),
+               "unsafe UUID entries must not delete data outside the draft root")
         print("generation draft tests passed")
     }
 }

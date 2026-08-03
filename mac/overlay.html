@@ -153,6 +153,12 @@ body[data-char="pixel"] .shadow{ display:none; }
 .j-item .lbl{ flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .j-item .min{ color:var(--ink-dim); font-size:10.5px; flex:none; font-variant-numeric:tabular-nums; }
 .j-empty{ color:var(--ink-dim); font-size:11.5px; padding:6px 0; }
+.j-reflect{ display:flex; align-items:center; justify-content:space-between; gap:8px;
+  margin-top:10px; padding-top:9px; border-top:1px solid #ffffff14; }
+.j-reflect span{ color:var(--ink-dim); font-size:10px; }
+.j-reflect button{ border:1px solid #ffffff20; border-radius:12px; padding:4px 9px;
+  background:#ffffff0a; color:var(--ink); font:600 10.5px/1.2 inherit; cursor:pointer; }
+.j-reflect button:hover{ background:#ffffff15; }
 /* stacked focus bar + chronological strip */
 .j-bar{ display:flex; height:8px; border-radius:4px; overflow:hidden; margin:6px 0 3px; background:#ffffff10; }
 .j-bar i{ display:block; height:100%; }
@@ -1164,6 +1170,7 @@ const Fam = {
   cur: null,            // {app, kind, t0}
   distractSec: 0, deepSec: 0, switches: [],
   paused: false,
+  logGeneration: 0,
 
   setCharacter(id, persist = true){
     if (!MASCOTS[id]) id = 'lulu';
@@ -1263,24 +1270,25 @@ setInterval(() => {
 /* checkpoint: split long open sessions into ≤60s segments on disk, so a
    quit/crash loses at most a minute. aggregate() re-merges them by canonKey. */
 setInterval(() => {
-  if (!Fam.cur) return;
+  if (Fam.paused || !Fam.cur) return;
   const now = Date.now();
   if (now - Fam.cur.t0 < 60000) return;
   const seg = { ...Fam.cur, t1: now };
   Fam.history.push(seg);
   if (Fam.history.length > 600) Fam.history.shift();
-  bridge({ type: 'log', entry: seg });
+  bridge({ type: 'log', entry: seg, generation: Fam.logGeneration });
   Fam.cur.t0 = now;
 }, 15000);
 
 /* ═══ API called from Swift ═══ */
 function famSetApp(appName, kind, detail, url, canon){
+  if (Fam.paused) { Fam.cur = null; return; }
   const now = Date.now();
   if (Fam.cur) {
     Fam.cur.t1 = now;
     Fam.history.push(Fam.cur);
     if (Fam.history.length > 600) Fam.history.shift();
-    if (Fam.cur.t1 - Fam.cur.t0 >= 5000) bridge({ type: 'log', entry: Fam.cur });  // persist to disk
+    if (Fam.cur.t1 - Fam.cur.t0 >= 5000) bridge({ type: 'log', entry: Fam.cur, generation: Fam.logGeneration });  // persist to disk
   }
   Fam.cur = { app: appName, kind, detail: detail || '', url: url || '', canon: canon || '', t0: now };
   // frantic switching → ghost
@@ -1325,7 +1333,12 @@ function famUnregisterCustomPet(id){
   delete MASCOTS[id];
   if(localStorage.getItem('ff-char')===id)localStorage.setItem('ff-char','lulu');
 }
-function famPause(p){ Fam.paused = p; Fam.setState(p ? 'idle' : Fam.state); }
+function famPause(p){
+  const next=!!p;
+  if(next&&!Fam.paused)famIdle(true);
+  Fam.paused=next;
+  Fam.setState(next?'idle':Fam.state);
+}
 
 /* The native companion layer (companion_runtime.swift) renders the familiar
    itself for raster packs, with real physics. When it owns the familiar we
@@ -1348,7 +1361,7 @@ function famIdle(on){
   if (now - Fam.cur.t0 >= 5000) {
     Fam.history.push(Fam.cur);
     if (Fam.history.length > 600) Fam.history.shift();
-    bridge({ type: 'log', entry: Fam.cur });
+    bridge({ type: 'log', entry: Fam.cur, generation: Fam.logGeneration });
   }
   Fam.cur = null;
   Fam.deepSec = 0;
@@ -1368,10 +1381,16 @@ function famProud(label){
 
 /* privacy eraser: drop everything tracked since `ts` from working memory
    (Swift rewrites the JSONL on disk) */
-function famEraseSince(ts){
+function famSetLogGeneration(generation){
+  const value=Number(generation);
+  if(Number.isSafeInteger(value)&&value>=Fam.logGeneration)Fam.logGeneration=value;
+}
+function famEraseSince(ts,generation=Fam.logGeneration){
+  famSetLogGeneration(generation);
   Fam.history = Fam.history.filter(h => h.t1 <= ts);
-  if (Fam.cur && Fam.cur.t0 > ts) Fam.cur = null;
-  else if (Fam.cur) Fam.cur.t0 = Math.max(Fam.cur.t0, 0);
+  // Native calls this only after the JSONL rewrite has finished. Keep the
+  // current app context but start a new-generation segment at that moment.
+  if (Fam.cur) Fam.cur = {...Fam.cur, t0:Date.now()};
   Fam.week = (Fam.week || []).filter(h => h.t1 <= ts);
   toast(tx('🫥 已经忘掉了。','🫥 forgotten.'));
 }
@@ -1484,6 +1503,13 @@ function jSessKey(e, id){
 }
 function jSetView(v){ J.view = v; J.openSess = null; renderJournal(); }
 function jToggleSec(s){ J.open[s] = !J.open[s]; renderJournal(); }
+function reflectionBrowserEntry(){
+  return `<div class="j-reflect"><span>${tx('把手记和真实轨迹放在一起','compare writing with the real trail')}</span><button onclick="openReflectionBrowser()">${tx('深度回望 ↗','open reflection ↗')}</button></div>`;
+}
+function openReflectionBrowser(){
+  famCloseJournal();
+  bridge({ type:'openReflection' });
+}
 
 function renderTabs(){
   const title = document.getElementById('journalTitle');
@@ -1879,7 +1905,7 @@ function renderJournal(){
       `<div class="j-note" style="margin-top:8px">${note}</div>`;
   }
   document.getElementById('journalBody').innerHTML =
-    html || `<div class="j-empty">${tx('这一页还是空的。<br>去做点什么、读点什么、拆点什么——<br>我会替你记下来。✦',"the pages for this window are blank.<br>go build something, read something, break something —<br>i'll write it down. ✦")}</div>`;
+    (html || `<div class="j-empty">${tx('这一页还是空的。<br>去做点什么、读点什么、拆点什么——<br>我会替你记下来。✦',"the pages for this window are blank.<br>go build something, read something, break something —<br>i'll write it down. ✦")}</div>`) + reflectionBrowserEntry();
 }
 
 /* ── week view: hour-by-day heatmap + per-day focus bars ── */
@@ -1942,7 +1968,8 @@ function renderWeek(){
     <div class="wk-grid" onmousemove="stripTip(event)" onmouseleave="stripTip(null)">${grid}</div>
     <div class="wk-legend"><span><i style="background:rgba(47,174,143,.7)"></i>${tx('专注','focus')}</span>
       <span><i style="background:rgba(193,74,106,.6)"></i>${tx('分心','distracted')}</span><span>${tx('0–23 点 →','hours 0–23 →')}</span></div>
-    <div class="wk-days">${dayLines || `<div class="j-empty">${tx('目前只有一天的数据；这一周会慢慢长出来。','one day of data so far — the map fills in as the week goes.')}</div>`}</div>`;
+    <div class="wk-days">${dayLines || `<div class="j-empty">${tx('目前只有一天的数据；这一周会慢慢长出来。','one day of data so far — the map fills in as the week goes.')}</div>`}</div>
+    ${reflectionBrowserEntry()}`;
 }
 
 /* ── Focus timer ── */

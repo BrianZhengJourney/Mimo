@@ -102,17 +102,25 @@ enum PendingLocalGenerationRecovery {
 
 // ── data retention & privacy eraser ─────────────────────────
 
-func pruneOldLogs() {
+@discardableResult
+func pruneOldLogs() -> (removedAny: Bool, succeeded: Bool) {
     let days = UserDefaults.standard.object(forKey: "retentionDays") as? Int ?? 90
-    guard days > 0 else { return }
+    guard days > 0 else { return (false, true) }
     let cutoff = Date().addingTimeInterval(-Double(days) * 86400)
-    guard let files = try? FileManager.default.contentsOfDirectory(at: logDir, includingPropertiesForKeys: nil) else { return }
+    guard let files = try? FileManager.default.contentsOfDirectory(
+        at: logDir, includingPropertiesForKeys: nil) else { return (false, false) }
+    var removedAny = false
+    var succeeded = true
     for url in files where url.lastPathComponent.hasPrefix("activity-") {
         let name = url.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "activity-", with: "")
         if let d = logDateFormatter.date(from: name), d < cutoff {
-            try? FileManager.default.removeItem(at: url)
+            do {
+                try FileManager.default.removeItem(at: url)
+                removedAny = true
+            } catch { succeeded = false }
         }
     }
+    return (removedAny, succeeded)
 }
 
 /// Drop everything recorded after `ts` (ms epoch).
@@ -124,10 +132,13 @@ func eraseSince(_ ts: Double) -> Bool {
     var ok = true
     for day in logDaysToErase(after: ts) {
         let url = logURL(for: day)
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
-        let kept = retainedLogLines(in: text, erasingAfter: ts)
-        let out = kept.joined(separator: "\n") + (kept.isEmpty ? "" : "\n")
-        do { try out.write(to: url, atomically: true, encoding: .utf8) } catch { ok = false }
+        guard FileManager.default.fileExists(atPath: url.path) else { continue }
+        do {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let kept = retainedLogLines(in: text, erasingAfter: ts)
+            let out = kept.joined(separator: "\n") + (kept.isEmpty ? "" : "\n")
+            try out.write(to: url, atomically: true, encoding: .utf8)
+        } catch { ok = false }
     }
     return ok
 }
@@ -143,17 +154,20 @@ func warnEraseIncomplete() {
     a.runModal()
 }
 
-func eraseAllHistory() {
+@discardableResult
+func eraseAllHistory() -> Bool {
     guard let entries = try? FileManager.default.contentsOfDirectory(
-        at: logDir, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
+        at: logDir, includingPropertiesForKeys: [.isDirectoryKey]) else { return false }
+    var ok = true
     for entry in entries {
         let name = entry.lastPathComponent
         if name.hasPrefix("activity-") && entry.pathExtension == "jsonl" {
-            try? FileManager.default.removeItem(at: entry)
+            do { try FileManager.default.removeItem(at: entry) } catch { ok = false }
         } else if name == "exports" {
-            try? FileManager.default.removeItem(at: entry)
+            do { try FileManager.default.removeItem(at: entry) } catch { ok = false }
         }
     }
+    return ok
 }
 
 func historyStats() -> String {
@@ -356,6 +370,27 @@ final class GitWatcher {
 // ── the one settings window (hosts settings.html) ───────────
 
 extension AppDelegate {
+
+    private static let studioPrivacyScopedSettingsTypes: Set<String> = [
+        "petUpload",
+        "petGenerateCandidates",
+        "petGenerateEvolution",
+        "petRegenerateStage",
+        "petRetryLocalProcessing",
+        "petContinueInBackground",
+        "petInstallRaster",
+        "petRegenerateExpressions",
+    ]
+
+    private var studioPrivacyGenerationToken: String {
+        StudioPrivacyGeneration.token(for: generationPurgeEpoch)
+    }
+
+    private func acceptsStudioPrivacyGeneration(_ body: [String: Any]) -> Bool {
+        StudioPrivacyGeneration.accepts(
+            body["studioPrivacyGeneration"] as? String,
+            currentEpoch: generationPurgeEpoch)
+    }
 
     func settingsCall(_ function: String, _ payload: [String: Any]) {
         guard JSONSerialization.isValidJSONObject(payload),
@@ -756,6 +791,7 @@ extension AppDelegate {
             "imageQuality": PetFinalGenerationQuality.resolve(
                 d.string(forKey: "petImageQuality")).rawValue,
             "generationRecoveryCount": generationDraftStore.recoverableDraftCount(),
+            "studioPrivacyGeneration": studioPrivacyGenerationToken,
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
         ]
         state["settingsFontFamily"] = typography.family.rawValue
@@ -951,9 +987,83 @@ extension AppDelegate {
         js("famNotice(\(jsonStr(kind)), \(jsonStr(message)))")
     }
 
+    /// One fail-closed predicate protects both provider and local callbacks.
+    /// Matching the ledger alone is insufficient after a privacy purge because
+    /// a delayed callback could otherwise meet a newly reused request ID.
+    private func studioGenerationIsCurrent(_ requestID: String,
+                                           purgeEpoch: UInt64) -> Bool {
+        generationPurgeEpoch == purgeEpoch
+            && activeStudioDraftRequestID == requestID
+            && studioGenerationLedger.activeRequestID == requestID
+    }
+
+    private func expressionGenerationIsCurrent(characterID: String,
+                                                requestID: String,
+                                                purgeEpoch: UInt64) -> Bool {
+        generationPurgeEpoch == purgeEpoch
+            && expressionRunCharacterID == characterID
+            && expressionRunRequestID == requestID
+    }
+
+    /// Invalidates every producer that can recreate an unadopted generation
+    /// draft, then removes all such in-memory and on-disk state. Adopted pet
+    /// manifests/assets and durable starter-action jobs are intentionally not
+    /// touched.
+    @discardableResult
+    private func purgeUnadoptedGenerationStateForErase() -> Bool {
+        precondition(Thread.isMainThread)
+        generationPurgeEpoch &+= 1
+        // Break the native-to-WebKit photo delivery chain before any in-flight
+        // file read can enqueue another pre-erase reference. The epoch checks in
+        // importPetReferenceURLs drop the one delivery that may already be
+        // running.
+        petReferenceImportQueue = nil
+        settingsCall("petPrivacyReset", [
+            "studioPrivacyGeneration": studioPrivacyGenerationToken,
+        ])
+
+        let studioRequestID = activeStudioDraftRequestID
+        activeStudioDraftRequestID = nil
+        activeStudioCancellationToken?.cancel()
+        activeStudioCancellationToken = nil
+        if let studioRequestID {
+            studioGenerationLedger.finish(requestID: studioRequestID)
+            petGenerator.cancel(studioRequestID)
+        }
+
+        let expressionRequestID = expressionRunRequestID
+        let expressionCharacterID = expressionRunCharacterID
+        expressionRunWatchdog?.cancel()
+        expressionRunWatchdog = nil
+        expressionRunRequestID = nil
+        expressionRunCharacterID = nil
+        if let expressionRequestID { petGenerator.cancel(expressionRequestID) }
+        if let expressionCharacterID,
+           postInstallStarterActionCharacterID == expressionCharacterID {
+            finishPostInstallStarterActions(characterID: expressionCharacterID)
+        }
+
+        activeStageParents.removeAll(keepingCapacity: false)
+        backgroundStudioRequests.removeAll(keepingCapacity: false)
+        pendingCandidateBoards.removeAll(keepingCapacity: false)
+        pendingEvolutionSheets.removeAll(keepingCapacity: false)
+        pendingLocalRecoveries.removeAll(keepingCapacity: false)
+        visibleCandidateDraftID = nil
+        visibleEvolutionDraftID = nil
+        studioNotice = nil
+
+        do {
+            try generationDraftStore.purgeAll()
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private func reserveProviderGeneration(_ requestID: String) -> Bool {
         switch studioGenerationLedger.reserve(requestID: requestID) {
         case .accepted:
+            activeStudioDraftRequestID = requestID
             return true
         case .duplicateActive:
             settingsCall("petStudioProgress", [
@@ -982,7 +1092,9 @@ extension AppDelegate {
     }
 
     private func reserveLocalProcessing(_ requestID: String) -> Bool {
-        studioGenerationLedger.reserveLocalProcessing(requestID: requestID)
+        let reserved = studioGenerationLedger.reserveLocalProcessing(requestID: requestID)
+        if reserved { activeStudioDraftRequestID = requestID }
+        return reserved
     }
 
     private func studioProgress(requestID: String, phase: String, startedAt: Date,
@@ -1088,6 +1200,9 @@ extension AppDelegate {
     /// keeps burning Vision passes on work nobody will read.
     private func releaseStudioGeneration(_ requestID: String) {
         studioGenerationLedger.finish(requestID: requestID)
+        if activeStudioDraftRequestID == requestID {
+            activeStudioDraftRequestID = nil
+        }
         if activeStudioCancellationToken?.requestID == requestID {
             activeStudioCancellationToken?.cancel()
             activeStudioCancellationToken = nil
@@ -1113,7 +1228,11 @@ extension AppDelegate {
 
     private func retainRaw(_ rawPNG: Data, requestID: String,
                            phase: FamiliarGenerationPhase, quality: String,
-                           providerSeconds: Double) -> Bool {
+                           providerSeconds: Double,
+                           purgeEpoch: UInt64) -> Bool {
+        guard generationPurgeEpoch == purgeEpoch,
+              activeStudioDraftRequestID == requestID
+                || expressionRunRequestID == requestID else { return false }
         do {
             try generationDraftStore.saveRaw(requestID: requestID, pngData: rawPNG,
                                              phase: phase, quality: quality,
@@ -1212,6 +1331,7 @@ extension AppDelegate {
                                             likeness: Double,
                                             styleTuningNote: String) {
         guard reserveProviderGeneration(requestID) else { return }
+        let purgeEpoch = generationPurgeEpoch
         let startedAt = Date()
         studioProgress(requestID: requestID, phase: "analyzing", startedAt: startedAt)
         // The preprocessor polls isCancelled at least 2N+3 times per run. That
@@ -1229,7 +1349,8 @@ extension AppDelegate {
             let localSeconds = Date().timeIntervalSince(startedAt)
             DispatchQueue.main.async {
                 guard let self,
-                      self.studioGenerationLedger.activeRequestID == requestID else { return }
+                      self.studioGenerationIsCurrent(
+                        requestID, purgeEpoch: purgeEpoch) else { return }
                 self.pushPetReferenceAnalysis(result)
                 guard let payload = result.providerPayload else {
                     self.settingsCall("petStudioError", [
@@ -1279,6 +1400,7 @@ extension AppDelegate {
                                           styleProfile: MimoStyleProfile,
                                           alreadyReserved: Bool = false) {
         guard alreadyReserved || reserveProviderGeneration(requestID) else { return }
+        let purgeEpoch = generationPurgeEpoch
         let startedAt = Date()
         let style = MimoStyleReference.requestData(profile: styleProfile)
         petGenerator.generateCandidateBoard(
@@ -1287,11 +1409,13 @@ extension AppDelegate {
             styleTuningNote: styleTuningNote,
             personalityVisual: profile.promptFragment, likeness: likeness,
             progress: { [weak self] phase, partial, _ in
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 self.studioProgress(requestID: requestID, phase: phase,
                                     startedAt: startedAt, partial: partial)
             }, completion: { [weak self] result in
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .failure(let error):
                     self.studioProviderError(requestID: requestID, error: error,
@@ -1301,7 +1425,8 @@ extension AppDelegate {
                     let retained = self.retainRaw(
                         output.data, requestID: requestID, phase: .candidates,
                         quality: PetGenerationQuality.low.rawValue,
-                        providerSeconds: providerSeconds)
+                        providerSeconds: providerSeconds,
+                        purgeEpoch: purgeEpoch)
                     let recovery = CandidateGenerationRecovery(
                         rawPNG: output.data, sourceDataURI: source,
                         referenceEvidenceJSON: referenceEvidenceJSON,
@@ -1323,6 +1448,7 @@ extension AppDelegate {
                                             recovery: CandidateGenerationRecovery,
                                             outputRetained: Bool,
                                             salvageNearEdge: Bool = false) {
+        let purgeEpoch = generationPurgeEpoch
         let localStartedAt = Date()
         studioProgress(requestID: requestID, phase: "processing",
                        startedAt: localStartedAt,
@@ -1335,7 +1461,8 @@ extension AppDelegate {
             }
             let localSeconds = Date().timeIntervalSince(localStartedAt)
             DispatchQueue.main.async {
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .success(let board):
                     var warnings = self.boundaryWarnings(board.quality)
@@ -2161,6 +2288,7 @@ extension AppDelegate {
         // so the old "expr-<uuid>" form could never be matched and an in-flight
         // paid expression request was uncancellable.
         let requestID = UUID().uuidString.lowercased()
+        let purgeEpoch = generationPurgeEpoch
         expressionRunRequestID = requestID
         armExpressionRunWatchdog(characterID: characterID, requestID: requestID)
         let stageFrame = stagePNGs[stageIndex]
@@ -2187,13 +2315,17 @@ extension AppDelegate {
             personalityVisual: profile.promptFragment,
             quality: .medium,
             progress: { [weak self] phase, _, _ in
-                guard let self, self.expressionRunCharacterID == characterID else { return }
+                guard let self, self.expressionGenerationIsCurrent(
+                    characterID: characterID, requestID: requestID,
+                    purgeEpoch: purgeEpoch) else { return }
                 self.settingsCall("petExpressionProgress", [
                     "characterID": characterID, "stageIndex": stageIndex,
                     "phase": phase, "completed": completed, "total": total,
                 ])
             }, completion: { [weak self] result in
-                guard let self, self.expressionRunCharacterID == characterID else { return }
+                guard let self, self.expressionGenerationIsCurrent(
+                    characterID: characterID, requestID: requestID,
+                    purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .failure(let error):
                     // Cancellation ends the run rather than marching on to the
@@ -2217,6 +2349,7 @@ extension AppDelegate {
                                                 rawPNG: output.data,
                                                 completed: completed, total: total,
                                                 requestID: requestID,
+                                                purgeEpoch: purgeEpoch,
                                                 advance: advance)
                 }
             }
@@ -2226,8 +2359,12 @@ extension AppDelegate {
     private func installExpressionSheet(characterID: String, stageIndex: Int,
                                         rawPNG: Data, completed: Int, total: Int,
                                         requestID: String,
+                                        purgeEpoch: UInt64,
                                         salvageNearEdge: Bool = false,
                                         advance: @escaping (Bool) -> Void) {
+        guard expressionGenerationIsCurrent(
+            characterID: characterID, requestID: requestID,
+            purgeEpoch: purgeEpoch) else { return }
         settingsCall("petExpressionProgress", [
             "characterID": characterID, "stageIndex": stageIndex,
             "phase": "processing", "completed": completed, "total": total,
@@ -2238,7 +2375,7 @@ extension AppDelegate {
         if !salvageNearEdge {
             _ = retainRaw(rawPNG, requestID: requestID, phase: .expressionSheet,
                           quality: PetFinalGenerationQuality.medium.rawValue,
-                          providerSeconds: 0)
+                          providerSeconds: 0, purgeEpoch: purgeEpoch)
         }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = Result {
@@ -2246,7 +2383,9 @@ extension AppDelegate {
                                                     allowNearEdgeRecovery: salvageNearEdge)
             }
             DispatchQueue.main.async {
-                guard let self, self.expressionRunCharacterID == characterID else { return }
+                guard let self, self.expressionGenerationIsCurrent(
+                    characterID: characterID, requestID: requestID,
+                    purgeEpoch: purgeEpoch) else { return }
                 do {
                     let sheet = try result.get()
                     let spec = try self.customPetStore.installExpressionSheet(
@@ -2272,7 +2411,8 @@ extension AppDelegate {
                         self.installExpressionSheet(
                             characterID: characterID, stageIndex: stageIndex,
                             rawPNG: rawPNG, completed: completed, total: total,
-                            requestID: requestID, salvageNearEdge: true, advance: advance)
+                            requestID: requestID, purgeEpoch: purgeEpoch,
+                            salvageNearEdge: true, advance: advance)
                         return
                     }
                     self.settingsCall("petExpressionError", [
@@ -2297,6 +2437,7 @@ extension AppDelegate {
                                           draftFeedback: String,
                                           quality: PetFinalGenerationQuality) {
         guard reserveProviderGeneration(requestID) else { return }
+        let purgeEpoch = generationPurgeEpoch
         let startedAt = Date()
         let master = candidate.candidatePNGs[candidateIndex]
         let profile = CustomPetTemperaments.profile(for: candidate.temperamentID)
@@ -2312,11 +2453,13 @@ extension AppDelegate {
             personalityVisual: profile.promptFragment,
             likeness: candidate.likeness, quality: quality,
             progress: { [weak self] phase, partial, _ in
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 self.studioProgress(requestID: requestID, phase: phase,
                                     startedAt: startedAt, partial: partial)
             }, completion: { [weak self] result in
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .failure(let error):
                     self.studioProviderError(requestID: requestID, error: error,
@@ -2325,7 +2468,8 @@ extension AppDelegate {
                     let providerSeconds = Date().timeIntervalSince(startedAt)
                     let retained = self.retainRaw(
                         output.data, requestID: requestID, phase: .evolution,
-                        quality: quality.rawValue, providerSeconds: providerSeconds)
+                        quality: quality.rawValue, providerSeconds: providerSeconds,
+                        purgeEpoch: purgeEpoch)
                     let recovery = EvolutionGenerationRecovery(
                         rawPNG: output.data, masterPNG: master,
                         sourceDataURI: candidate.sourceDataURI,
@@ -2353,6 +2497,7 @@ extension AppDelegate {
                                             recovery: EvolutionGenerationRecovery,
                                             outputRetained: Bool,
                                             salvageNearEdge: Bool = false) {
+        let purgeEpoch = generationPurgeEpoch
         let localStartedAt = Date()
         studioProgress(requestID: requestID, phase: "processing",
                        startedAt: localStartedAt,
@@ -2365,7 +2510,8 @@ extension AppDelegate {
             }
             let localSeconds = Date().timeIntervalSince(localStartedAt)
             DispatchQueue.main.async {
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .success(let sheet):
                     var warnings = self.boundaryWarnings(sheet.quality)
@@ -2430,6 +2576,7 @@ extension AppDelegate {
                                         styleTuningNote: String,
                                         quality: PetFinalGenerationQuality) {
         guard reserveProviderGeneration(requestID) else { return }
+        let purgeEpoch = generationPurgeEpoch
         activeStageParents[requestID] = parentDraftID
         if var stored = pendingEvolutionSheets[parentDraftID] {
             stored.lastTouchedAt = Date()
@@ -2449,11 +2596,13 @@ extension AppDelegate {
             personalityVisual: profile.promptFragment, likeness: evolution.likeness,
             quality: quality,
             progress: { [weak self] phase, partial, _ in
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 self.studioProgress(requestID: requestID, phase: phase,
                                     startedAt: startedAt, partial: partial)
             }, completion: { [weak self] result in
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .failure(let error):
                     self.studioProviderError(requestID: requestID, error: error,
@@ -2463,7 +2612,8 @@ extension AppDelegate {
                     let retained = self.retainRaw(
                         output.data, requestID: requestID, phase: .replacement,
                         quality: quality.rawValue,
-                        providerSeconds: providerSeconds)
+                        providerSeconds: providerSeconds,
+                        purgeEpoch: purgeEpoch)
                     let recovery = StageGenerationRecovery(
                         rawPNG: output.data, parentDraftID: parentDraftID,
                         stage: stage, quality: quality,
@@ -2495,6 +2645,7 @@ extension AppDelegate {
                 canRetryLocally: false)
             return
         }
+        let purgeEpoch = generationPurgeEpoch
         let localStartedAt = Date()
         studioProgress(requestID: requestID, phase: "processing",
                        startedAt: localStartedAt,
@@ -2514,7 +2665,8 @@ extension AppDelegate {
             }
             let localSeconds = Date().timeIntervalSince(localStartedAt)
             DispatchQueue.main.async {
-                guard let self, self.studioGenerationLedger.activeRequestID == requestID else { return }
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
                 switch result {
                 case .success(let (sheet, stagePNG, recoveredNearEdge)):
                     if outputRetained {
@@ -2635,20 +2787,28 @@ extension AppDelegate {
     private func importPetReferenceURLs(_ urls: [URL],
                                         skippedDueToLimit: Int) {
         guard petReferenceImportQueue == nil, !urls.isEmpty else { return }
+        let privacyEpoch = generationPurgeEpoch
+        let privacyToken = StudioPrivacyGeneration.token(for: privacyEpoch)
         settingsCall("petReferenceImportStarted", [
             "count": urls.count,
             "skippedDueToLimit": max(0, skippedDueToLimit),
+            "studioPrivacyGeneration": privacyToken,
         ])
         let queue = PetReferenceImportQueue(
             items: urls,
             delivery: { [weak self] url, delivered in
-                DispatchQueue.global(qos: .userInitiated).async {
+                guard let self, self.generationPurgeEpoch == privacyEpoch else {
+                    delivered()
+                    return
+                }
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                     let scoped = url.startAccessingSecurityScopedResource()
                     let uri = petReferenceDataURI(url)
                     if scoped { url.stopAccessingSecurityScopedResource() }
                     let name = url.deletingPathExtension().lastPathComponent
-                    DispatchQueue.main.async {
-                        guard let self else {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self,
+                              self.generationPurgeEpoch == privacyEpoch else {
                             delivered()
                             return
                         }
@@ -2656,16 +2816,19 @@ extension AppDelegate {
                             self.settingsCall("petReferenceImportSkipped", [
                                 "messageZh": "有一张图片太大、尺寸异常或无法读取；已跳过它。",
                                 "messageEn": "One image was too large, had unsafe dimensions, or could not be read, so it was skipped.",
+                                "studioPrivacyGeneration": privacyToken,
                             ])
                             delivered()
                             return
                         }
-                        let script = "enqueuePetImageData(\(jsonStr(uri)), \(jsonStr(name)))"
+                        let script = "enqueuePetImageData(\(jsonStr(uri)), \(jsonStr(name)), \(jsonStr(privacyToken)))"
                         web.evaluateJavaScript(script) { [weak self] _, error in
-                            if error != nil {
+                            if error != nil,
+                               self?.generationPurgeEpoch == privacyEpoch {
                                 self?.settingsCall("petReferenceImportSkipped", [
                                     "messageZh": "有一张图片没有成功加入参考集；已跳过它。",
                                     "messageEn": "One image could not be added to the reference set and was skipped.",
+                                    "studioPrivacyGeneration": privacyToken,
                                 ])
                             }
                             delivered()
@@ -2674,6 +2837,7 @@ extension AppDelegate {
                 }
             },
             completion: { [weak self] in
+                guard self?.generationPurgeEpoch == privacyEpoch else { return }
                 self?.petReferenceImportQueue = nil
             })
         petReferenceImportQueue = queue
@@ -2682,7 +2846,14 @@ extension AppDelegate {
 
     func handleSettings(_ body: [String: Any]) {
         let d = UserDefaults.standard
-        switch body["type"] as? String ?? "" {
+        let type = body["type"] as? String ?? ""
+        if Self.studioPrivacyScopedSettingsTypes.contains(type),
+           !acceptsStudioPrivacyGeneration(body) {
+            // Fail silently: this is an erase-before-delivery message from the
+            // old settings state, not a user-visible provider failure.
+            return
+        }
+        switch type {
         case "pick":
             if let id = body["id"] as? String {
                 let builtins: Set<String> = ["lulu", "clawd", "nat"]
@@ -3449,34 +3620,45 @@ extension AppDelegate {
         case "retention":
             if let days = body["days"] as? Int {
                 d.set(days, forKey: "retentionDays")
-                pruneOldLogs()
+                let result = pruneOldLogs()
+                if result.removedAny { reflectionBrowser.activityArchiveDidPrune() }
+                if !result.succeeded { warnEraseIncomplete() }
                 pushSettingsState()
             }
         case "forget":
             switch body["span"] as? String ?? "" {
             case "hour":
                 let ts = Date().timeIntervalSince1970 * 1000 - 3_600_000
-                let erased = eraseSince(ts); js("famEraseSince(\(ts))")
-                if !erased { warnEraseIncomplete() }
+                let erased = performActivityLogErase(after: ts) { eraseSince(ts) }
+                let reflectionCleared = reflectionBrowser.activityHistoryDidChange()
+                if !erased || !reflectionCleared { warnEraseIncomplete() }
             case "today":
                 let start = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000
-                let erased = eraseSince(start); js("famEraseSince(\(start))")
-                if !erased { warnEraseIncomplete() }
+                let erased = performActivityLogErase(after: start) { eraseSince(start) }
+                let reflectionCleared = reflectionBrowser.activityHistoryDidChange()
+                if !erased || !reflectionCleared { warnEraseIncomplete() }
             case "all":
                 let a = NSAlert()
                 a.messageText = voice("删除全部历史记录？", "Delete all history?")
-                a.informativeText = voice("所有活动记录和未采用的生成草稿都会消失；已采用的伴灵会保留。此操作无法撤销。",
-                                         "Every day of activity and every unadopted generation draft will be deleted; adopted familiars stay. No undo.")
+                a.informativeText = voice("所有活动记录、导入的 Notion 本机缓存、回望草稿和未采用的生成草稿都会消失；Notion 原文与已采用的伴灵会保留。此操作无法撤销。",
+                                         "All activity, imported Notion cache, reflection drafts, and unadopted generation drafts will be deleted; Notion originals and adopted familiars stay. No undo.")
                 a.addButton(withTitle: voice("全部删除", "Delete Everything"))
                 a.addButton(withTitle: voice("取消", "Cancel"))
                 a.alertStyle = .warning
                 if a.runModal() == .alertFirstButtonReturn {
-                    eraseAllHistory()
-                    // Generated drafts are derived from the user's own uploaded
-                    // photos and live for up to 24h. A "delete everything"
-                    // framed as a privacy eraser must not leave them behind.
-                    _ = try? generationDraftStore.purgeExpired(now: .distantFuture)
-                    js("famEraseSince(0)")
+                    // Advance the generation fence and cancel producers before
+                    // deleting files, so a late paid/local callback cannot
+                    // recreate a draft after the privacy erase completes.
+                    let generationCleared = purgeUnadoptedGenerationStateForErase()
+                    var erased = performActivityLogErase(after: 0) { eraseAllHistory() }
+                    if !generationCleared { erased = false }
+                    SmartClassifier.shared.eraseAllDerivedData()
+                    d.removeObject(forKey: "seenItems")
+                    rulesKeys.removeAll()
+                    rulesTable?.reloadData()
+                    let reflectionCleared = reflectionBrowser.activityHistoryDidChange(
+                        removeNotionCache: true)
+                    if !erased || !reflectionCleared { warnEraseIncomplete() }
                 }
             default: break
             }

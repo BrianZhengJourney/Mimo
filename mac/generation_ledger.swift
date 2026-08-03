@@ -2,6 +2,21 @@
 
 import Foundation
 
+/// Stable bridge token for settings-side generation requests.
+///
+/// JavaScript can queue a `petGenerate*` message before Delete Everything while
+/// AppKit is blocked by its confirmation alert. Native receives that message
+/// only after the erase. Binding every start message to the epoch visible when
+/// it was created lets native reject the stale request instead of treating it
+/// as brand-new post-erase work.
+enum StudioPrivacyGeneration {
+    static func token(for epoch: UInt64) -> String { String(epoch) }
+
+    static func accepts(_ candidate: String?, currentEpoch: UInt64) -> Bool {
+        candidate == token(for: currentEpoch)
+    }
+}
+
 enum StudioGenerationReservationDecision: Equatable {
     case accepted
     case duplicateActive

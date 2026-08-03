@@ -19,7 +19,7 @@ rm -rf build
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$MODULE_CACHE"
 
 cp Info.plist "$APP/Contents/"
-cp overlay.html settings.html "$APP/Contents/Resources/"
+cp overlay.html settings.html reflection.html "$APP/Contents/Resources/"
 cp AppIcon.icns "$APP/Contents/Resources/"
 cp -R assets/style-reference "$APP/Contents/Resources/style-reference"
 cp -R assets/motion-reference "$APP/Contents/Resources/motion-reference"
@@ -45,6 +45,6 @@ echo "built: $PWD/$APP"
 if [ "${MIMO_SERVE:-0}" = "1" ]; then
   SERVE_DIR=/private/tmp/mimo-serve/mac
   mkdir -p "$SERVE_DIR"
-  cp overlay.html settings.html "$SERVE_DIR/"
+  cp overlay.html settings.html reflection.html "$SERVE_DIR/"
   echo "preview assets: $SERVE_DIR"
 fi

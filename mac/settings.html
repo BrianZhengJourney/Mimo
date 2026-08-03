@@ -922,6 +922,19 @@ const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],pri
   importing:0,
   expr:null};
 
+// Every Studio start is bound to the native privacy epoch that produced this
+// settings state. A message posted before Delete Everything may reach native
+// after the confirmation alert; its old token must stay distinguishable from
+// an intentional request made after the erase.
+let studioPrivacyGeneration='0';
+function adoptStudioPrivacyGeneration(value){
+  const next=Number(value),current=Number(studioPrivacyGeneration);
+  if(!Number.isSafeInteger(next)||next<0||next<current)return false;
+  studioPrivacyGeneration=String(next);return true;
+}
+const isCurrentStudioPrivacyEvent=event=>String(event?.studioPrivacyGeneration??'')===studioPrivacyGeneration;
+function sendStudio(message){send({...message,studioPrivacyGeneration})}
+
 const studioBusy=()=>petLab.status==='busy'||petLab.status==='installing';
 let referenceBatchDepth=0;
 const referencesImporting=()=>Math.max(0,+petLab.importing||0)>0||referenceBatchDepth>0;
@@ -959,7 +972,7 @@ function requestPetReference(){
   if(petLab.references.length>=MAX_PET_REFERENCES){
     setupStudioError(tx('最多可以添加 8 张参考图。','You can add up to 8 reference images.'));return;
   }
-  send({type:'petUpload',remaining:MAX_PET_REFERENCES-petLab.references.length});
+  sendStudio({type:'petUpload',remaining:MAX_PET_REFERENCES-petLab.references.length});
 }
 function syncPrimaryReference(){
   if(!Array.isArray(petLab.references))petLab.references=[];
@@ -1114,6 +1127,27 @@ function invalidatePetDraft(){
     recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,
     model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,
     startedAt:null,finishedElapsed:null,adoptedCharacterID:null,adoptedName:''});closeCandidateLightbox();renderPetLab();
+}
+function petPrivacyReset(event){
+  if(!adoptStudioPrivacyGeneration(event?.studioPrivacyGeneration))return;
+  clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;
+  candidateAutoGenerateSignature='';referenceBatchDepth=0;
+  // Detach every pre-erase decode/import continuation. Each continuation also
+  // captures the old token and therefore cannot refill petLab when it settles.
+  petReferenceLoadQueue=Promise.resolve();visibleDraftSignature='';
+  if(S&&typeof S==='object')S.generationRecoveryCount=0;
+  Object.assign(petLab,{
+    source:null,sourceName:'',references:[],primaryReferenceID:null,importing:0,
+    requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
+    sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false,
+    status:'idle',operation:null,phase:'',phaseMessage:'',error:'',errorKind:'',errorCode:'',
+    outputRetained:false,warnings:[],partialImage:null,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,
+    recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,stageBusyIndex:null,
+    providerSeconds:null,localSeconds:null,providerCompleted:false,model:null,size:null,partialImages:null,
+    referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,startedAt:null,finishedElapsed:null,
+    cancelArmedUntil:0,adoptedCharacterID:null,adoptedName:'',referenceNoticeZh:'',referenceNoticeEn:'',expr:null
+  });
+  closeCandidateLightbox();renderPetLab();
 }
 function selectTemperament(id){if(!studioBusy()&&!referencesImporting()&&TEMPERAMENTS.some(t=>t.id===id)&&id!==petLab.temperamentID){invalidatePetDraft();petLab.temperamentID=id;renderPetLab()}}
 function renderKeyState(){
@@ -1338,7 +1372,7 @@ function finishStudioOperation(event){
 }
 function generateCandidates(){
   if(!canGenerate())return;candidateAutoGenerateSignature=candidateReferenceSignature();const requestID=beginStudioOperation('candidates');
-  send({type:'petGenerateCandidates',requestID,source:petLab.source,name:petLab.name,
+  sendStudio({type:'petGenerateCandidates',requestID,source:petLab.source,name:petLab.name,
     temperamentID:petLab.temperamentID,likeness:0.70,
     stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),styleTuningCustomized:!!petLab.styleTuningCustomized,...buildReferenceBridgePayload()});
 }
@@ -1353,7 +1387,7 @@ function generateEvolution(){
   if(!canGenerate())return;const index=petLab.candidateIndex;
   if(!petLab.candidateDraftID||index===null){setupStudioError(tx('先从三个草稿里选一个主角。','Choose one character from the three drafts.'));return}
   const requestID=beginStudioOperation('evolution');
-  send({type:'petGenerateEvolution',requestID,candidateDraftID:petLab.candidateDraftID,
+  sendStudio({type:'petGenerateEvolution',requestID,candidateDraftID:petLab.candidateDraftID,
     candidateIndex:index,draftFeedback:draftFeedbackForBridge(index),quality:'medium',
     stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
 }
@@ -1364,7 +1398,7 @@ function retryStudioOperation(){
   return generateCandidates();
 }
 function continueStudioInBackground(){
-  if(petLab.status==='busy')send({type:'petContinueInBackground',requestID:petLab.requestID});
+  if(petLab.status==='busy')sendStudio({type:'petContinueInBackground',requestID:petLab.requestID});
 }
 function cancelStudioOperation(){
   if(petLab.status!=='busy'||!petLab.requestID)return;const cancelledRequestID=petLab.requestID;
@@ -1404,7 +1438,7 @@ function retryLocalProcessing(){
   }
   Object.assign(petLab,{requestID:petLab.recoveryRequestID,status:'busy',phase:'extracting',phaseMessage:tx('使用已经生成的图片，只在这台 Mac 上重新去背景与检查边缘。','Using the existing image; only matte removal and edge checks run again on this Mac.'),
     error:'',errorKind:'',localRetry:true,localSeconds:null,partialImage:petLab.rawPreview,startedAt:Date.now(),finishedElapsed:null});
-  renderPetLab();send({type:'petRetryLocalProcessing',requestID:petLab.recoveryRequestID});
+  renderPetLab();sendStudio({type:'petRetryLocalProcessing',requestID:petLab.recoveryRequestID});
 }
 function petStudioProgress(event){
   if(event.requestID!==petLab.requestID)return;petLab.status='busy';petLab.phase=event.phase||'generating';
@@ -1468,7 +1502,7 @@ function petStudioError(event){
 }
 function installCharacterSheet(){
   if(!petLab.draftID||!petLab.sheet||studioBusy())return;petLab.status='installing';renderPetLab();
-  send({type:'petInstallRaster',draftID:petLab.draftID,name:petLab.name,temperamentID:petLab.temperamentID});
+  sendStudio({type:'petInstallRaster',draftID:petLab.draftID,name:petLab.name,temperamentID:petLab.temperamentID});
 }
 function petInstallError(event){
   const expired=event.code==='preview_expired';Object.assign(petLab,{status:'error',operation:'install',errorKind:expired?'setup':'local',errorCode:event.code||'install_failed',resetTo:expired?'candidates':null,
@@ -1511,7 +1545,7 @@ function petExpressionDone(event){
 function regenerateExpressions(){
   const characterID=petLab.expr?.characterID||S.character;
   if(!characterID||!String(characterID).startsWith('custom:'))return;
-  send({type:'petRegenerateExpressions',characterID});
+  sendStudio({type:'petRegenerateExpressions',characterID});
 }
 function expressionStatusHTML(){
   const ex=petLab.expr;if(!ex)return '';
@@ -1601,6 +1635,7 @@ function decodePetReference(url,sourceName){
 }
 let petReferenceLoadQueue=Promise.resolve();
 function petReferenceImportStarted(event){
+  if(!isCurrentStudioPrivacyEvent(event))return;
   const count=Math.max(0,Math.min(MAX_PET_REFERENCES,+event?.count||0));
   petLab.importing=Math.max(0,+petLab.importing||0)+count;
   const skipped=Math.max(0,+event?.skippedDueToLimit||0);
@@ -1609,6 +1644,7 @@ function petReferenceImportStarted(event){
   renderPetLab();
 }
 function petReferenceImportSkipped(event){
+  if(!isCurrentStudioPrivacyEvent(event))return;
   petLab.importing=Math.max(0,(+petLab.importing||1)-1);
   petLab.referenceNoticeZh=event?.messageZh||'有一张图片无法读取，已跳过。';
   petLab.referenceNoticeEn=event?.messageEn||'One image could not be read and was skipped.';
@@ -1616,24 +1652,29 @@ function petReferenceImportSkipped(event){
 }
 // Return a primitive immediately so native can wait for WebKit to accept this
 // payload before delivering the next large data URI.
-function enqueuePetImageData(url,sourceName){
-  void loadPetImageData(url,sourceName,{append:true,importReserved:true});
+function enqueuePetImageData(url,sourceName,privacyGeneration){
+  if(String(privacyGeneration??'')!==studioPrivacyGeneration)return false;
+  void loadPetImageData(url,sourceName,{append:true,importReserved:true,privacyGeneration});
   return true;
 }
 function loadPetImageData(url,sourceName,options={append:true}){
   const append=options?.append!==false;
   const importReserved=options?.importReserved===true;
+  const privacyGeneration=String(options?.privacyGeneration??studioPrivacyGeneration);
+  if(privacyGeneration!==studioPrivacyGeneration)return Promise.resolve(false);
   if(!importReserved)petLab.importing=Math.max(0,+petLab.importing||0)+1;
   renderPetLab();
   const task=petReferenceLoadQueue.then(async()=>{
-    if(studioBusy())return false;
+    if(privacyGeneration!==studioPrivacyGeneration||studioBusy())return false;
     if(append&&petLab.references.length>=MAX_PET_REFERENCES){
       petLab.referenceNoticeZh='已达到 8 张上限；没有添加更多图片。';petLab.referenceNoticeEn='8-image limit reached; no more images were added.';renderReferenceSet();return false;
     }
     let reference;
     try{reference=await decodePetReference(url,sourceName)}catch(error){
+      if(privacyGeneration!==studioPrivacyGeneration)return false;
       setupStudioError(error.message==='unsafe_dimensions'?tx('图片像素尺寸太大，请先缩小。','The image pixel dimensions are too large; resize it first.'):tx('这张图片无法读取，请换一张 PNG、JPEG 或 WebP。','This image could not be read. Try a PNG, JPEG, or WebP.'));return false;
     }
+    if(privacyGeneration!==studioPrivacyGeneration)return false;
     const wasEmpty=!petLab.references.length;
     petLab.references=append?[...petLab.references,reference]:[reference];
     if(wasEmpty||!append||!petLab.primaryReferenceID)petLab.primaryReferenceID=reference.id;
@@ -1643,6 +1684,7 @@ function loadPetImageData(url,sourceName,options={append:true}){
     invalidatePetDraft();return true;
   });
   petReferenceLoadQueue=task.finally(()=>{
+    if(privacyGeneration!==studioPrivacyGeneration)return;
     petLab.importing=Math.max(0,(+petLab.importing||1)-1);
     if(Math.max(0,+petLab.importing||0)>0){
       petLab.referenceNoticeZh=`正在导入参考图 · 还剩 ${petLab.importing} 张`;
@@ -1660,15 +1702,23 @@ async function addPetReferenceFiles(fileList){
   if(!images.length){setupStudioError(tx('请拖入 PNG、JPEG 或 WebP 图片。','Drop PNG, JPEG, or WebP images.'));return}
   const available=Math.max(0,MAX_PET_REFERENCES-petLab.references.length),selected=images.slice(0,available);
   if(!selected.length){petLab.referenceNoticeZh='已达到 8 张上限；没有添加更多图片。';petLab.referenceNoticeEn='8-image limit reached; no more images were added.';renderReferenceSet();return}
+  const privacyGeneration=studioPrivacyGeneration;
   let skipped=images.length-selected.length,added=0;referenceBatchDepth++;
   try{
     for(const file of selected){
+      if(privacyGeneration!==studioPrivacyGeneration)break;
       if(file.size>20*1024*1024){skipped++;continue}
-      try{const data=await fileDataURL(file),ok=await loadPetImageData(data,file.name,{append:true});if(ok)added++;else skipped++}catch(error){skipped++}
+      try{
+        const data=await fileDataURL(file);if(privacyGeneration!==studioPrivacyGeneration)break;
+        const ok=await loadPetImageData(data,file.name,{append:true,privacyGeneration});
+        if(privacyGeneration!==studioPrivacyGeneration)break;
+        if(ok)added++;else skipped++;
+      }catch(error){if(privacyGeneration===studioPrivacyGeneration)skipped++}
     }
   }finally{
-    referenceBatchDepth=Math.max(0,referenceBatchDepth-1);
+    if(privacyGeneration===studioPrivacyGeneration)referenceBatchDepth=Math.max(0,referenceBatchDepth-1);
   }
+  if(privacyGeneration!==studioPrivacyGeneration)return;
   if(added&&petLab.status==='error'&&petLab.errorKind==='setup')invalidatePetDraft();
   if(skipped){
     petLab.referenceNoticeZh=`已添加可用图片；另有 ${skipped} 张因超过上限、20 MB 或无法读取而跳过。`;
@@ -1909,6 +1959,7 @@ function renderRules(){
 /* Swift pushes the whole state here */
 function initSettings(state){
   S = state;
+  adoptStudioPrivacyGeneration(state.studioPrivacyGeneration);
   reconcilePetManagerState();
   LANG = state.language === 'en' ? 'en' : 'zh';
   applySettingsTypography(state.settingsFontFamily,state.settingsFontWeight);

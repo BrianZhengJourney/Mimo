@@ -33,6 +33,10 @@ APP_SOURCES=(
   reference_preprocessor.swift
   settings_typography.swift
   diy_style_preset.swift
+  reflection_core.swift
+  notion_reflection.swift
+  reflection_model.swift
+  reflection_browser.swift
   main.swift
   product.swift
   consistency_metric.swift

@@ -33,10 +33,18 @@ compile_only() {
   grep -q '^// compile-only:' "tests/$1.swift" 2>/dev/null
 }
 
+# Real AppKit/WKWebView checks need an unlocked GUI session and WebContent XPC
+# services that managed/sandboxed test runners intentionally cannot launch.
+# They are always compiled; opt into execution on a suitable Mac with
+# MIMO_RUN_GUI_TESTS=1.
+gui_only() {
+  grep -q '^// gui-only:' "tests/$1.swift" 2>/dev/null
+}
+
 frameworks=()
 for framework in "${APP_FRAMEWORKS[@]}"; do frameworks+=(-framework "$framework"); done
 
-pass=0; fail=0; failed_names=()
+pass=0; fail=0; gui_skip=0; failed_names=()
 for path in tests/*.swift; do
   name="$(basename "$path" .swift)"
   [ -n "$FILTER" ] && [[ "$name" != *"$FILTER"* ]] && continue
@@ -60,6 +68,11 @@ for path in tests/*.swift; do
     pass=$((pass + 1)); continue
   fi
 
+  if gui_only "$name" && [ "${MIMO_RUN_GUI_TESTS:-0}" != "1" ]; then
+    echo "· $name — compiled (GUI run skipped; set MIMO_RUN_GUI_TESTS=1)"
+    gui_skip=$((gui_skip + 1)); continue
+  fi
+
   # tests resolve fixture paths like `mac/assets/...` relative to the repo root
   if (cd .. && "$binary") >"$OUT/$name.out" 2>&1; then
     echo "✓ $name"
@@ -73,8 +86,12 @@ done
 
 echo
 if [ "$fail" -eq 0 ]; then
-  echo "all green — $pass passed"
+  if [ "$gui_skip" -gt 0 ]; then
+    echo "all green — $pass passed, $gui_skip GUI-skipped"
+  else
+    echo "all green — $pass passed"
+  fi
 else
-  echo "$fail failed (${failed_names[*]}), $pass passed"
+  echo "$fail failed (${failed_names[*]}), $pass passed, $gui_skip GUI-skipped"
   exit 1
 fi

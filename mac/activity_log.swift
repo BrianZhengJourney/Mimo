@@ -62,3 +62,39 @@ func logDaysToErase(after ts: Double, now: Date = Date(),
     }
     return days
 }
+
+/// Native generation fence for WebKit activity-log messages.
+///
+/// `WKScriptMessage` delivery is asynchronous. A checkpoint posted before the
+/// user chooses Forget can therefore reach native code after the JSONL rewrite
+/// and recreate the entry that was just erased. Starting an erase advances the
+/// generation immediately and blocks every append until the rewrite finishes.
+/// The overlay receives that new generation only after the rewrite, starts a
+/// fresh segment, and all already-queued messages remain permanently stale.
+struct ActivityLogWriteFence {
+    private(set) var generation: Int
+    private(set) var isErasing = false
+
+    init(generation: Int = 0) {
+        self.generation = max(0, generation)
+    }
+
+    @discardableResult
+    mutating func beginErase() -> Int {
+        // A user cannot approach Int.max erases in one process lifetime. Avoid
+        // wrapping because a wrapped generation could match a very old payload.
+        precondition(generation < Int.max, "activity log generation exhausted")
+        generation += 1
+        isErasing = true
+        return generation
+    }
+
+    mutating func finishErase(generation completedGeneration: Int) {
+        guard completedGeneration == generation else { return }
+        isErasing = false
+    }
+
+    func accepts(generation candidate: Int?) -> Bool {
+        !isErasing && candidate == generation
+    }
+}

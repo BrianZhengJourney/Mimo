@@ -82,6 +82,24 @@ struct ActivityLogTests {
         expect(future.count == 1,
                "a cutoff in the future still sweeps today rather than looping forever")
 
+        // ── a queued WebKit checkpoint must not recreate erased JSONL ──
+        var fence = ActivityLogWriteFence(generation: 7)
+        let queuedCheckpointGeneration = fence.generation
+        expect(fence.accepts(generation: queuedCheckpointGeneration),
+               "the current generation appends normally before an erase")
+
+        let freshGeneration = fence.beginErase()
+        expect(!fence.accepts(generation: queuedCheckpointGeneration),
+               "a checkpoint queued before erase is blocked while JSONL is rewritten")
+        expect(!fence.accepts(generation: freshGeneration),
+               "even the fresh generation stays blocked until the rewrite completes")
+
+        fence.finishErase(generation: freshGeneration)
+        expect(!fence.accepts(generation: queuedCheckpointGeneration),
+               "a queued checkpoint arriving after erase remains stale and is dropped")
+        expect(fence.accepts(generation: freshGeneration),
+               "the post-erase generation resumes appends from a fresh segment")
+
         print("activity log tests passed")
     }
 }

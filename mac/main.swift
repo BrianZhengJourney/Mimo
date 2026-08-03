@@ -249,7 +249,8 @@ final class SmartClassifier {
     static let shared = SmartClassifier()
     private var cache: [String: String] =
         UserDefaults.standard.dictionary(forKey: "aiVerdicts")?.compactMapValues { $0 as? String } ?? [:]
-    private var inFlight = Set<String>()
+    private var inFlight: [String: UInt64] = [:]
+    private var epoch: UInt64 = 0
 
     // local OpenAI-compatible fallback (e.g. `mlx_lm.server --port 8080`)
     private let endpoint = UserDefaults.standard.string(forKey: "aiEndpoint") ?? "http://127.0.0.1:8080/v1"
@@ -268,6 +269,17 @@ final class SmartClassifier {
         if appleAvailable { return "AI: Apple on-device model active" }
         if localAlive { return "AI: local model at \(endpoint)" }
         return "AI: off — heuristics only (run mlx_lm.server on :8080)"
+    }
+
+    /// Erase only automatically derived classifier state. Manual ruleOverrides
+    /// live outside this type and deliberately survive Delete Everything.
+    func eraseAllDerivedData() {
+        precondition(Thread.isMainThread,
+                     "SmartClassifier.eraseAllDerivedData() must run on the main thread")
+        epoch &+= 1
+        cache.removeAll(keepingCapacity: false)
+        inFlight.removeAll(keepingCapacity: false)
+        UserDefaults.standard.removeObject(forKey: "aiVerdicts")
     }
 
     func pingLocal() {
@@ -294,12 +306,16 @@ final class SmartClassifier {
 
     private func classifyInBackground(key: String, host: String, title: String, onDone: @escaping () -> Void) {
         pingLocal()
-        guard !inFlight.contains(key), appleAvailable || localAlive else { return }
-        inFlight.insert(key)
+        guard inFlight[key] == nil, appleAvailable || localAlive else { return }
+        let requestEpoch = epoch
+        inFlight[key] = requestEpoch
         let prompt = "Site: \(host)\nTab title: \(title)"
         let finish: (String?) -> Void = { reply in
             DispatchQueue.main.async {
-                self.inFlight.remove(key)
+                if self.inFlight[key] == requestEpoch {
+                    self.inFlight.removeValue(forKey: key)
+                }
+                guard self.epoch == requestEpoch else { return }
                 guard let reply else { return }
                 let line = reply.split(separator: "\n").first.map(String.init) ?? ""
                 let parts = line.split(separator: "|", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
@@ -398,6 +414,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var contextGlobalDismissMonitor: Any?
     var contextLocalDismissMonitor: Any?
     var paused = false
+    var activityLogWriteFence = ActivityLogWriteFence()
     // drag / hide state
     var hoverTimer: Timer?
     var dragTimer: Timer?
@@ -410,6 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var activationToken: NSObjectProtocol?  // MUST retain, or the observer dies
     var settingsWin: NSWindow?
     var settingsWeb: WKWebView?
+    lazy var reflectionBrowser = ReflectionBrowserController(root: logDir)
     let gitWatcher = GitWatcher()
     let petGenerator = PetGenerationCoordinator()
     let customPetStore = CustomPetStore(root: logDir)
@@ -440,6 +458,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var pendingCandidateBoards: [String: PendingCandidateBoardDraft] = [:]
     var pendingEvolutionSheets: [String: PendingEvolutionSheetDraft] = [:]
     var pendingLocalRecoveries: [String: PendingLocalGenerationRecovery] = [:]
+    /// The provider/local request that is allowed to create an unadopted
+    /// generation draft. Starter-action work for an adopted familiar uses the
+    /// shared ledger too, so it is deliberately tracked separately here.
+    var activeStudioDraftRequestID: String?
+    /// Privacy erasure advances this fence before cancelling work or removing
+    /// files. Every asynchronous provider/local callback captures an epoch and
+    /// must still match it before writing any recovered generation output.
+    var generationPurgeEpoch: UInt64 = 0
     /// Retained until every selected photo has crossed the WKWebView bridge.
     var petReferenceImportQueue: PetReferenceImportQueue<URL>?
     /// Character currently receiving post-adoption expression sheets (one
@@ -464,6 +490,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             andSelector: #selector(handleQuitAppleEvent(_:withReplyEvent:)),
             forEventClass: AEEventClass(kCoreEventClass),
             andEventID: AEEventID(kAEQuitApplication))
+        if reflectionBrowser.isFixtureMode {
+            // A native visual fixture is hermetic: do not watch apps, prune or
+            // read activity, refresh Notion, start generation cleanup, or make
+            // any other production-side request before showing the fixture.
+            DispatchQueue.main.async { [weak self] in
+                self?.reflectionBrowser.present()
+            }
+            return
+        }
         buildPanel()
         buildMainMenu()
         buildStatusItem()
@@ -471,8 +506,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         registerHotKey()
         startHoverTracking()
         startNativeCompanionIfAvailable()
-        pruneOldLogs()
+        let pruning = pruneOldLogs()
+        if pruning.removedAny { reflectionBrowser.activityArchiveDidPrune() }
+        if !pruning.succeeded {
+            DispatchQueue.main.async { warnEraseIncomplete() }
+        }
         startStudioCleanup()
+        reflectionBrowser.refreshFromNotionIfConfigured()
         DispatchQueue.main.async { [weak self] in
             self?.resumePostInstallStarterActions()
         }
@@ -599,6 +639,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let settings = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        let reflection = NSMenuItem(title: voice("深度回望…", "Open Reflection Browser…"),
+                                    action: #selector(openReflectionBrowser), keyEquivalent: "r")
+        reflection.target = self
+        appMenu.addItem(reflection)
         appMenu.addItem(NSMenuItem.separator())
         appMenu.delegate = self
 
@@ -634,6 +678,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         let menu = NSMenu()
         menu.addItem(item(voice("刚才在做什么？  (⌥Space)", "What was I doing?  (⌥Space)"), #selector(openJournal), "j", "book"))
+        menu.addItem(item(voice("深度回望…", "Open Reflection Browser…"),
+                          #selector(openReflectionBrowser), "r", "rectangle.split.3x1"))
 
         let focusMenu = NSMenu()
         for min in [25, 50] {
@@ -787,6 +833,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
     @objc func toggleContextMenu() { showJournal() }
     @objc func openJournal() { showJournal() }
+    @objc func openReflectionBrowser() { reflectionBrowser.present() }
 
     private func positionJournal(near screenPoint: CGPoint?) {
         guard let screenPoint else { return }
@@ -1221,6 +1268,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     @objc func togglePause(_ sender: NSMenuItem) {
         paused.toggle()
         js("famPause(\(paused))")
+        if !paused {
+            // Pausing closes the open segment. Seed a fresh one immediately on
+            // resume instead of waiting for another app-activation event.
+            lastSent = ""
+            if let front = NSWorkspace.shared.frontmostApplication { send(app: front) }
+        }
     }
     @objc func toggleOverlay(_ sender: NSMenuItem) {
         overlayHidden.toggle()
@@ -1332,6 +1385,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         webView.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    /// Fence WebKit log delivery around a destructive JSONL rewrite. The new
+    /// generation is exposed to the overlay only after the erase completes, so
+    /// a checkpoint already queued under the previous generation cannot be
+    /// appended back to disk.
+    @discardableResult
+    func performActivityLogErase(after cutoffMS: Double,
+                                 operation: () -> Bool) -> Bool {
+        let generation = activityLogWriteFence.beginErase()
+        let succeeded = operation()
+        activityLogWriteFence.finishErase(generation: generation)
+        js("famEraseSince(\(cutoffMS), \(generation))")
+        return succeeded
+    }
+
     func isBundledWebResource(_ url: URL?) -> Bool {
         guard let url, url.isFileURL, let root = Bundle.main.resourceURL?.standardizedFileURL.path else { return false }
         let path = url.standardizedFileURL.path
@@ -1357,6 +1424,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             showJournal()
         case "openPage":
             openJournalPage()
+        case "openReflection":
+            openReflectionBrowser()
         case "companionArt":
             updateCompanionArt(stage: body["stage"] as? Int ?? 0,
                                expression: body["expression"] as? Int ?? 0,
@@ -1373,7 +1442,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "ctxMenu":
             showCompanionMenu()
         case "log":
-            if let entry = body["entry"] as? [String: Any] { appendLog(entry) }
+            if let entry = body["entry"] as? [String: Any],
+               activityLogWriteFence.accepts(generation: body["generation"] as? Int) {
+                appendLog(entry)
+            }
         case "sound":
             let map = ["focus": "Ping", "celebrate": "Ping", "poison": "Basso"]
             if let n = body["name"] as? String, let snd = map[n] { playSound(snd) }
@@ -1406,6 +1478,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         applyCompanionDisplayScale()
         syncNativeHosting()
         restoreCustomPetIfNeeded()
+        js("famSetLogGeneration(\(activityLogWriteFence.generation))")
         js("famLoadHistory(\(readTodayLog()))")
         js("famLoadWeek(\(readWeekLog()))")
         if let front = NSWorkspace.shared.frontmostApplication { send(app: front) }
