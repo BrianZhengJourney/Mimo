@@ -826,7 +826,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     // — actions —
     @objc func pickCharacter(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
+        guard let id = sender.representedObject as? String,
+              (try? PetLibraryStateStore.shared.load().isSelectable(id)) == true else { return }
         js("famSetCharacter(\(jsonStr(id)))")
         UserDefaults.standard.set(id, forKey: "character")
         refreshNativeCompanion()
@@ -1062,6 +1063,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let builtins: Set<String> = ["lulu", "clawd", "nat"]
         let requested = UserDefaults.standard.string(forKey: "character") ?? "lulu"
         if builtins.contains(requested) { return nil }
+        guard (try? PetLibraryStateStore.shared.load().isSelectable(requested)) == true
+        else { return nil }
         if requested == "prototype" { return storedCustomPetSpec() }
         return try? customPetStore.runtimeSpec(characterID: requested)
     }

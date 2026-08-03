@@ -38,7 +38,7 @@ struct PetLibraryUITests {
 
         expect(common.contains("custom_pet.swift\n  pet_library.swift"),
                "the app target should compile the independent pet-library state")
-        for key in ["recentIDs", "activeIDs", "archivedIDs", "categories", "metadata"] {
+        for key in ["recentIDs", "activeIDs", "archivedIDs", "deletedIDs", "categories", "metadata"] {
             expect(product.contains("\"\(key)\""),
                    "native Settings state should include canonical pet-library \(key)")
         }
@@ -47,10 +47,13 @@ struct PetLibraryUITests {
                "native code should own persisted library ordering and metadata")
         expect(product.contains("row[\"displayName\"] = displayName"),
                "native metadata should expose the persisted familiar alias")
-        expect(product.contains("markPetLibraryUsed(id)") &&
-               product.contains("markPetLibraryUsed(characterID)") &&
-               product.contains("markPetLibraryUsed(\"prototype\")"),
-               "pick and every adoption path should update persisted recency")
+        expect(!product.contains("markPetLibraryUsed(id)") &&
+               product.contains("case \"petLibraryReorder\"") &&
+               product.contains("setActiveOrder(orderedCharacterIDs") &&
+               product.contains("settingsCall(\"petLibraryReorderFailed\"") &&
+               product.contains("\"requestID\": requestID") &&
+               product.contains("try $0.markUsed(\"prototype\")"),
+               "selection should not reorder cards; only the reorder bridge persists order")
 
         expect(occurrences("id=\"petLibraryToggle\"", in: settings) == 1 &&
                settings.contains("onclick=\"togglePetLibrary()\"") &&
@@ -65,23 +68,31 @@ struct PetLibraryUITests {
             settings, from: "function petLibraryItem(", to: "const filters =")
         expect(libraryRendering.contains("library.activeIDs") &&
                libraryRendering.contains("library.archivedIDs") &&
+               libraryRendering.contains("library.deletedIDs") &&
                libraryRendering.contains("library.metadata") &&
                !libraryRendering.contains(".sort("),
                "JS should filter native canonical IDs without inventing order")
         expect(libraryRendering.contains("pet-library-filter") &&
                libraryRendering.contains("setPetLibraryCategory") &&
-               libraryRendering.contains("setPetLibraryView('archived')"),
-               "expanded library should expose compact category and hidden filters")
+               libraryRendering.contains("setPetLibraryView('archived')") &&
+               libraryRendering.contains("setPetLibraryView('trash')"),
+               "expanded library should expose category, Hidden, and Recently Deleted filters")
 
         expect(libraryRendering.contains("const manage=`") &&
                libraryRendering.contains("class=\"card-manage\"") &&
                libraryRendering.contains("openPetManager('") &&
                libraryRendering.contains("metadata.displayName||m.name") &&
-               libraryRendering.contains("onclick=\"pick('") &&
+               libraryRendering.contains("onclick=\"pick(event,'") &&
+               libraryRendering.contains("startPetLibraryDrag") &&
+               libraryRendering.contains("dropPetLibraryCard") &&
+               libraryRendering.contains("type:'petLibraryReorder',requestID,orderedCharacterIDs") &&
+               libraryRendering.contains("petLibraryReorderFailed") &&
+               libraryRendering.contains("pending.timeout=setTimeout") &&
+               libraryRendering.contains("Date.now()<petLibraryDrag.suppressPickUntil") &&
                !libraryRendering.contains("card-rename") &&
                !libraryRendering.contains("card-library-action") &&
                !libraryRendering.contains("card-category"),
-               "cards should remain selectable while exposing exactly one compact management entry")
+               "cards should select without reordering and expose drag ordering plus one management entry")
 
         expect(settings.contains("id=\"petManagerOverlay\"") &&
                settings.contains("role=\"dialog\" aria-modal=\"true\"") &&
@@ -105,14 +116,17 @@ struct PetLibraryUITests {
                !settings.contains("send({type:'petLibraryCategory'"),
                "one atomic manager update should persist names and typed or existing categories without partial saves")
         expect(settings.contains("type:archived?'petLibraryUnarchive':'petLibraryArchive'") &&
-               settings.contains("archive.textContent=archived?tx('恢复','Restore'):tx('隐藏','Hide')"),
-               "the manager should preserve reversible Hide and Restore")
+               settings.contains("tx('恢复到已隐藏','Restore to Hidden')") &&
+               settings.contains("tx('恢复伴灵','Restore familiar')") &&
+               settings.contains("archived?tx('取消隐藏','Unhide'):tx('隐藏','Hide')"),
+               "the manager should keep Hide separate from deleted-item restoration")
         expect(settings.contains("id=\"petDeleteConfirm\"") &&
-               settings.contains("确认永久删除") &&
-               settings.contains("无法撤销") &&
-               settings.contains("tx('移出资料库','Remove from library')") &&
-               settings.contains("之后可以在「已隐藏」中恢复") &&
-               settings.contains("!petManagerUI.deletePermanent&&managedPetMetadata().archived===true") &&
+               settings.contains("移到最近删除") &&
+               settings.contains("7 天内可以恢复") &&
+               settings.contains("type:'petLibraryRestoreDeleted',characterID") &&
+               settings.contains("managedPetMetadata().deleted===true") &&
+               settings.contains("function dispatchPetManagerOperation(message)") &&
+               settings.contains("petManagerUI.timeout=setTimeout") &&
                settings.contains("function setPetManagerFormDisabled(disabled)") &&
                settings.contains("form.inert=!!disabled") &&
                settings.contains("hidden=false;setPetManagerFormDisabled(true)") &&
@@ -123,7 +137,7 @@ struct PetLibraryUITests {
                settings.contains("function petLibraryDeleteFailed(event)") &&
                settings.contains("type:'petLibraryDelete'") &&
                !settings.contains("type:'petDelete'"),
-               "DIY deletion should be irreversible while built-ins clearly use recoverable removal")
+               "all deletion should remain recoverable for seven days without replacing Hide")
 
         let adoption = section(
             settings, from: "function customPetAdopted(",
@@ -161,8 +175,10 @@ struct PetLibraryUITests {
         expect(product.contains("case \"petLibraryCategory\"") &&
                product.contains("case \"petLibraryArchive\"") &&
                product.contains("case \"petLibraryUnarchive\"") &&
+               product.contains("case \"petLibraryRestoreDeleted\"") &&
+               product.contains("purgeExpiredPetLibraryDeletions") &&
                product.contains("Keep at least one familiar visible."),
-               "native bridge should validate filing and preserve one visible familiar")
+               "native bridge should validate filing, restoration, expiry, and preserve one visible familiar")
         expect(settings.contains("var(--surface-raised)") &&
                settings.contains("var(--accent-soft)"),
                "the compact library should reuse Mimo's warm minimal surface tokens")

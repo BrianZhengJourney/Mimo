@@ -71,7 +71,11 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .card{ position:relative; min-width:0; border:1px solid var(--line); border-radius:14px;
   padding:11px 8px 10px; text-align:center; cursor:pointer; transition:border-color .16s,background .16s; }
 .card.archived{ opacity:.72; cursor:default; }
+.card.deleted{ opacity:.78; cursor:default; border-style:dashed; }
 .card.sel{ border-color:var(--accent); }
+.card.dragging{ opacity:.38; transform:scale(.97); }
+.card.drop-before{ box-shadow:-4px 0 0 var(--accent); }
+.card.drop-after{ box-shadow:4px 0 0 var(--accent); }
 .card svg{ width:72px; height:72px; overflow:visible; }
 .card-sheet{ width:72px; height:72px; margin:auto; overflow:hidden; }
 .card-sheet img{ display:block; width:216px; height:72px; max-width:none; image-rendering:auto; }
@@ -79,6 +83,12 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
   display:grid; place-items:center; border-radius:9px; color:var(--dim); background:var(--surface-raised);
   font-size:15px; line-height:1; letter-spacing:.04em; opacity:.82; }
 .card:hover .card-manage,.card-manage:focus-visible{ opacity:1; color:var(--accent); border-color:var(--accent); }
+.card-reorder{ position:absolute; z-index:2; left:6px; top:6px; width:24px; height:27px; padding:0;
+  display:grid; place-items:center; border:0; color:var(--dim); background:transparent; cursor:grab;
+  font-size:13px; letter-spacing:-.12em; opacity:.55; }
+.card:hover .card-reorder,.card-reorder:focus-visible{ opacity:1; color:var(--accent); }
+.card-reorder:active{ cursor:grabbing; }
+.pet-library-order-status{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 .card .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:600; margin-top:5px; }
 .card .ds{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:var(--dim); margin-top:2px; }
 .pet-library-empty{ padding:13px; color:var(--dim); text-align:center; font-size:10px;
@@ -559,7 +569,8 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 <div class="sec">
   <div class="pet-library-head"><h2><span class="ico">🐾</span><span data-zh="你的伴灵" data-en="Your familiar">你的伴灵</span></h2><button class="pet-library-toggle" id="petLibraryToggle" type="button" onclick="togglePetLibrary()" data-zh="展开" data-en="Expand">展开</button></div>
   <div class="pet-library-filters" id="petLibraryFilters" aria-label="Familiar library filters"></div>
-  <div class="cards" id="cards"></div>
+  <div class="cards" id="cards" role="list"></div>
+  <div class="pet-library-order-status" id="petLibraryOrderStatus" role="status" aria-live="polite"></div>
 </div>
 
 <div class="sec" id="petLab">
@@ -1223,6 +1234,7 @@ function closeCandidateLightbox(){
 }
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'){
+    if(petLibraryDrag.sourceID){event.preventDefault();endPetLibraryDrag();return}
     const manager=document.getElementById('petManagerOverlay');
     if(manager&&!manager.hidden)closePetManager();else closeCandidateLightbox();
   }
@@ -1567,8 +1579,18 @@ function showPetManagerError(message){
 function showPetManagerProgress(message){
   const status=document.getElementById('petManagerStatus');if(status){status.dataset.tone='busy';status.textContent=message}
 }
+function clearPetManagerTimeout(){if(petManagerUI.timeout)clearTimeout(petManagerUI.timeout);petManagerUI.timeout=null}
+function failPetManagerOperation(message){
+  clearPetManagerTimeout();petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingRestoreDeleted=false;petManagerUI.pendingDelete=false;
+  setPetManagerBusy(false);showPetManagerError(message||tx('连接超时；这次更改没有保存。','Connection timed out; this change was not saved.'));
+}
+function dispatchPetManagerOperation(message){
+  clearPetManagerTimeout();
+  if(!send(message)){failPetManagerOperation(tx('无法连接到 Mimo；这次更改没有保存。','Could not reach Mimo; this change was not saved.'));return false}
+  petManagerUI.timeout=setTimeout(()=>failPetManagerOperation(),8000);return true;
+}
 function petDeleteFailed(event){
-  petManagerUI.pendingDelete=false;setPetManagerBusy(false);
+  clearPetManagerTimeout();petManagerUI.pendingDelete=false;setPetManagerBusy(false);
   setPetManagerFormDisabled(true);
   showPetManagerError(event?.message||tx('无法删除伴灵。','Could not delete familiar.'));
 }
@@ -1584,6 +1606,20 @@ function petLibraryDeleted(event){
       canRetryLocally:false,providerCompleted:false,startedAt:null,finishedElapsed:null});
     closeCandidateLightbox();renderPetLab();
   }
+}
+function petLibraryRestored(event){
+  if(!event?.characterID||event.characterID===petManagerUI.characterID)closePetManager();
+}
+function petLibraryReordered(event){
+  const pending=petLibraryUI.pendingOrder;if(!pending||event?.requestID!==pending.requestID)return;
+  clearTimeout(pending.timeout);petLibraryUI.pendingOrder=null;
+  const status=document.getElementById('petLibraryOrderStatus');if(status)status.textContent=tx('伴灵顺序已保存。','Familiar order saved.');
+}
+function petLibraryReorderFailed(event){
+  const pending=petLibraryUI.pendingOrder;if(!pending||event?.requestID!==pending.requestID)return;
+  clearTimeout(pending.timeout);S.petLibrary=S.petLibrary||{};S.petLibrary.activeIDs=pending.activeIDs;S.petLibrary.recentIDs=pending.recentIDs;petLibraryUI.pendingOrder=null;renderCards();
+  const status=document.getElementById('petLibraryOrderStatus');if(status)status.textContent=(LANG==='zh'?event?.messageZh:event?.messageEn)||tx('顺序没有保存，已恢复。','Order was not saved and has been restored.');
+  requestAnimationFrame(()=>document.querySelector(`[data-character-id="${CSS.escape(pending.movedID)}"]`)?.focus());
 }
 function applyPetLibraryUpdate(event){
   if(event?.spec)S.customPets=(S.customPets||[]).filter(
@@ -1604,14 +1640,15 @@ function petLibraryUpdated(event){
   if(!event?.characterID||event.characterID===petManagerUI.characterID)closePetManager();
 }
 function petRenameFailed(event){
-  petManagerUI.pendingSave=null;setPetManagerBusy(false);
+  clearPetManagerTimeout();petManagerUI.pendingSave=null;setPetManagerBusy(false);
   showPetManagerError(event?.message||tx('请输入 1–28 个字的名称。','Use a name between 1 and 28 characters.'));
 }
 function petLibraryUpdateFailed(event){petRenameFailed(event)}
 function petLibraryError(event){
   if(event?.characterID&&event.characterID!==petManagerUI.characterID)return;
+  clearPetManagerTimeout();
   const wasDeleting=petManagerUI.pendingDelete;
-  petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingDelete=false;setPetManagerBusy(false);
+  petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingRestoreDeleted=false;petManagerUI.pendingDelete=false;setPetManagerBusy(false);
   if(wasDeleting&&!document.getElementById('petDeleteConfirm')?.hidden)setPetManagerFormDisabled(true);
   showPetManagerError((LANG==='zh'?event?.messageZh:event?.messageEn)||event?.message||tx('伴灵库没有保存这次更改。','The familiar library could not save this change.'));
 }
@@ -1742,7 +1779,8 @@ const kinds = () => [['code',tx('⌨️ 专注 · 编程','⌨️ focus · code'
 const KIND_ICO = { code:'⌨️', term:'💻', cad:'📐', paper:'📖', notes:'📝', neutral:'😐', distraction:'🕳️' };
 
 function send(msg){
-  try { window.webkit.messageHandlers.settings.postMessage(msg); } catch(e) { console.warn('Settings bridge unavailable:', msg?.type || 'unknown'); }
+  try { window.webkit.messageHandlers.settings.postMessage(msg);return true; }
+  catch(e) { console.warn('Settings bridge unavailable:', msg?.type || 'unknown');return false; }
 }
 
 let companionScaleTimer=null;
@@ -1754,8 +1792,9 @@ function changeCompanionScale(value){
 }
 
 let S = { character: 'lulu' };
-const petLibraryUI={expanded:false,view:'active',category:null};
-const petManagerUI={characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingDelete:false,deletePermanent:false};
+const petLibraryUI={expanded:false,view:'active',category:null,pendingOrder:null};
+const petManagerUI={characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingRestoreDeleted:false,pendingDelete:false,timeout:null};
+const petLibraryDrag={sourceID:null,targetID:null,after:false,suppressPickUntil:0};
 // Keep harmless global receivers while older native builds can still deliver
 // action-job events to an already-open Settings web view.
 function starterActionJobUpdated(){}
@@ -1790,25 +1829,21 @@ function setPetManagerBusy(busy){
 }
 function syncPetManagerLanguage(){
   const overlay=document.getElementById('petManagerOverlay');if(!overlay||overlay.hidden||!petManagerUI.characterID)return;
-  const metadata=managedPetMetadata(),archived=metadata.archived===true,permanent=petManagerUI.deletePermanent;
+  const metadata=managedPetMetadata(),archived=metadata.archived===true,deleted=metadata.deleted===true;
   const archive=document.getElementById('petManagerArchive'),remove=document.getElementById('petManagerDelete');
-  if(archive){archive.hidden=!permanent&&!archived;archive.textContent=archived?tx('恢复','Restore'):tx('隐藏','Hide')}
-  if(remove){remove.hidden=!permanent&&archived;remove.textContent=permanent?tx('删除','Delete'):tx('移出资料库','Remove from library')}
+  if(archive){archive.hidden=false;archive.textContent=deleted?(archived?tx('恢复到已隐藏','Restore to Hidden'):tx('恢复伴灵','Restore familiar')):archived?tx('取消隐藏','Unhide'):tx('隐藏','Hide')}
+  if(remove){remove.hidden=deleted;remove.textContent=tx('删除','Delete')}
   const title=document.getElementById('petDeleteConfirmTitle'),copy=document.getElementById('petDeleteConfirmCopy');
-  if(title)title.textContent=permanent
-    ?tx(`确定永久删除「${managedPetName()}」？`,`Permanently delete “${managedPetName()}”?`)
-    :tx(`将「${managedPetName()}」移出资料库？`,`Remove “${managedPetName()}” from the library?`);
-  if(copy)copy.textContent=permanent
-    ?tx('它会从你的伴灵库中永久删除，且无法撤销。','It will be permanently removed from your familiar library. This cannot be undone.')
-    :tx('这只内置伴灵会被隐藏，之后可以在「已隐藏」中恢复。','This built-in familiar will be hidden. You can restore it later from Hidden.');
+  if(title)title.textContent=tx(`删除「${managedPetName()}」？`,`Delete “${managedPetName()}”?`);
+  if(copy)copy.textContent=tx('它会进入「最近删除」，7 天内可以恢复；之后系统会自动永久删除。','It will stay in Recently Deleted for 7 days, then be removed automatically.');
   const confirm=document.getElementById('petDeleteConfirmButton');
-  if(confirm)confirm.textContent=permanent?tx('确认永久删除','Delete permanently'):tx('确认移出','Remove');
+  if(confirm)confirm.textContent=tx('移到最近删除','Move to Recently Deleted');
 }
 function openPetManager(characterID,trigger){
   const pet=petLibraryItem(characterID);if(!pet)return;
   const metadata=S.petLibrary?.metadata?.[characterID]||{},overlay=document.getElementById('petManagerOverlay');
   petManagerUI.characterID=characterID;petManagerUI.returnFocus=trigger||document.activeElement;
-  petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingDelete=false;petManagerUI.deletePermanent=pet.custom===true;
+  petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingRestoreDeleted=false;petManagerUI.pendingDelete=false;
   document.getElementById('petManagerTitle').textContent=metadata.displayName||pet.m.name||tx('伴灵','Familiar');
   document.getElementById('petManagerName').value=metadata.displayName||pet.m.name||'';
   document.getElementById('petManagerCategory').value=metadata.category||'';
@@ -1822,7 +1857,7 @@ function openPetManager(characterID,trigger){
 function closePetManager(){
   const overlay=document.getElementById('petManagerOverlay');if(overlay)overlay.hidden=true;
   const focus=petManagerUI.returnFocus;
-  Object.assign(petManagerUI,{characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingDelete:false,deletePermanent:false});
+  clearPetManagerTimeout();Object.assign(petManagerUI,{characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingRestoreDeleted:false,pendingDelete:false,timeout:null});
   if(focus&&document.contains(focus))focus.focus();
 }
 function savePetManager(event){
@@ -1835,14 +1870,19 @@ function savePetManager(event){
   if(name===currentName&&category===(metadata.category||'')){closePetManager();return}
   petManagerUI.pendingSave={name,category};setPetManagerBusy(true);
   showPetManagerProgress(tx('正在保存…','Saving…'));
-  send({type:'petLibraryUpdate',characterID,name,category});
+  dispatchPetManagerOperation({type:'petLibraryUpdate',characterID,name,category});
 }
 function toggleManagedPetArchive(){
   const characterID=petManagerUI.characterID;if(!characterID)return;
-  const archived=managedPetMetadata().archived===true;
+  const metadata=managedPetMetadata(),deleted=metadata.deleted===true,archived=metadata.archived===true;
+  if(deleted){
+    petManagerUI.pendingRestoreDeleted=true;setPetManagerBusy(true);
+    showPetManagerProgress(tx('正在恢复…','Restoring…'));
+    dispatchPetManagerOperation({type:'petLibraryRestoreDeleted',characterID});return;
+  }
   petManagerUI.pendingArchive=!archived;setPetManagerBusy(true);
   showPetManagerProgress(archived?tx('正在恢复…','Restoring…'):tx('正在隐藏…','Hiding…'));
-  send({type:archived?'petLibraryUnarchive':'petLibraryArchive',characterID});
+  dispatchPetManagerOperation({type:archived?'petLibraryUnarchive':'petLibraryArchive',characterID});
 }
 function beginPetDelete(){
   document.getElementById('petDeleteConfirm').hidden=false;setPetManagerFormDisabled(true);syncPetManagerLanguage();
@@ -1856,27 +1896,26 @@ function cancelPetDelete(){
 function confirmPetDelete(){
   const characterID=petManagerUI.characterID;if(!characterID)return;
   petManagerUI.pendingDelete=true;setPetManagerBusy(true);
-  showPetManagerProgress(tx('正在删除…','Deleting…'));
-  send({type:'petLibraryDelete',characterID});
+  showPetManagerProgress(tx('正在移到最近删除…','Moving to Recently Deleted…'));
+  dispatchPetManagerOperation({type:'petLibraryDelete',characterID});
 }
 function reconcilePetManagerState(){
   const characterID=petManagerUI.characterID;if(!characterID)return;
-  if(petManagerUI.pendingDelete&&(
-    (petManagerUI.deletePermanent&&!petLibraryItem(characterID))||
-    (!petManagerUI.deletePermanent&&managedPetMetadata().archived===true))){closePetManager();return}
+  if(petManagerUI.pendingDelete&&managedPetMetadata().deleted===true){closePetManager();return}
   const metadata=managedPetMetadata(),pet=managedPet();
   if(petManagerUI.pendingSave&&pet){
     const currentName=metadata.displayName||pet.m.name||'';
     if(currentName===petManagerUI.pendingSave.name&&(metadata.category||'')===petManagerUI.pendingSave.category){closePetManager();return}
   }
   if(petManagerUI.pendingArchive!==null&&metadata.archived===petManagerUI.pendingArchive)closePetManager();
+  if(petManagerUI.pendingRestoreDeleted&&metadata.deleted!==true)closePetManager();
 }
 function petLibraryIDs(){
   const library=S.petLibrary||{};
   if(!petLibraryUI.expanded)return Array.isArray(library.recentIDs)?library.recentIDs.slice(0,3):[];
-  const source=petLibraryUI.view==='archived'?library.archivedIDs:library.activeIDs;
+  const source=petLibraryUI.view==='trash'?library.deletedIDs:petLibraryUI.view==='archived'?library.archivedIDs:library.activeIDs;
   const ordered=Array.isArray(source)?source:[];
-  if(!petLibraryUI.category)return ordered;
+  if(petLibraryUI.view!=='active'||!petLibraryUI.category)return ordered;
   return ordered.filter(id=>library.metadata?.[id]?.category===petLibraryUI.category);
 }
 function togglePetLibrary(){
@@ -1884,7 +1923,7 @@ function togglePetLibrary(){
   if(!petLibraryUI.expanded){petLibraryUI.view='active';petLibraryUI.category=null}
   renderCards();
 }
-function setPetLibraryView(view){petLibraryUI.view=view==='archived'?'archived':'active';renderCards()}
+function setPetLibraryView(view){petLibraryUI.view=['active','archived','trash'].includes(view)?view:'active';if(view!=='active')petLibraryUI.category=null;renderCards()}
 function setPetLibraryCategory(index){
   const categories=S.petLibrary?.categories||[];
   petLibraryUI.category=index<0?null:(categories[index]||null);renderCards();
@@ -1898,27 +1937,81 @@ function renderPetLibraryFilters(){
   if(!petLibraryUI.expanded){box.innerHTML='';return}
   const library=S.petLibrary||{},categories=Array.isArray(library.categories)?library.categories:[];
   if(petLibraryUI.category&&!categories.includes(petLibraryUI.category))petLibraryUI.category=null;
-  const active=petLibraryUI.view==='active',all=petLibraryUI.category===null;
+  const active=petLibraryUI.view==='active',hidden=petLibraryUI.view==='archived',trash=petLibraryUI.view==='trash',all=petLibraryUI.category===null;
   const categoryButtons=categories.map((category,index)=>`<button type="button" class="pet-library-filter ${petLibraryUI.category===category?'sel':''}" onclick="setPetLibraryCategory(${index})">${esc(category)}</button>`).join('');
-  box.innerHTML=`<button type="button" class="pet-library-filter ${active&&all?'sel':''}" onclick="setPetLibraryView('active');setPetLibraryCategory(-1)">${tx('全部','All')}</button>${categoryButtons}<button type="button" class="pet-library-filter ${!active?'sel':''}" onclick="setPetLibraryView('archived')">${tx(`已隐藏 ${library.archivedIDs?.length||0}`,`Hidden ${library.archivedIDs?.length||0}`)}</button>`;
+  box.innerHTML=`<button type="button" class="pet-library-filter ${active&&all?'sel':''}" onclick="setPetLibraryView('active');setPetLibraryCategory(-1)">${tx('全部','All')}</button>${active?categoryButtons:''}<button type="button" class="pet-library-filter ${hidden?'sel':''}" onclick="setPetLibraryView('archived')">${tx(`已隐藏 ${library.archivedIDs?.length||0}`,`Hidden ${library.archivedIDs?.length||0}`)}</button><button type="button" class="pet-library-filter ${trash?'sel':''}" onclick="setPetLibraryView('trash')">${tx(`最近删除 ${library.deletedIDs?.length||0}`,`Recently Deleted ${library.deletedIDs?.length||0}`)}</button>`;
+}
+function deletedPetTime(metadata){
+  const deadline=Date.parse(metadata?.deletesAt||'');if(!Number.isFinite(deadline))return tx('7 天内可恢复','Recoverable for 7 days');
+  const hours=Math.max(1,Math.ceil((deadline-Date.now())/3600000));
+  return hours>24?tx(`${Math.ceil(hours/24)} 天后删除`,`${Math.ceil(hours/24)}d until removal`):tx(`${hours} 小时后删除`,`${hours}h until removal`);
+}
+function clearPetLibraryDropMarks(){document.querySelectorAll('#cards .card').forEach(card=>card.classList.remove('dragging','drop-before','drop-after'))}
+function startPetLibraryDrag(event,characterID){
+  if(petLibraryUI.pendingOrder||petLibraryUI.view!=='active'||event.target.closest('button,input,textarea,select')){event.preventDefault();return}
+  petLibraryDrag.sourceID=characterID;petLibraryDrag.targetID=null;petLibraryDrag.after=false;
+  event.currentTarget.classList.add('dragging');event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',characterID);
+}
+function overPetLibraryCard(event,characterID){
+  if(!petLibraryDrag.sourceID||characterID===petLibraryDrag.sourceID)return;
+  event.preventDefault();event.dataTransfer.dropEffect='move';clearPetLibraryDropMarks();
+  document.querySelector(`[data-character-id="${CSS.escape(petLibraryDrag.sourceID)}"]`)?.classList.add('dragging');
+  const card=event.currentTarget,rect=card.getBoundingClientRect(),after=event.clientX>=rect.left+rect.width/2;
+  card.classList.add(after?'drop-after':'drop-before');petLibraryDrag.targetID=characterID;petLibraryDrag.after=after;
+}
+function mergeVisiblePetOrder(visibleOrder){
+  const full=Array.isArray(S.petLibrary?.activeIDs)?S.petLibrary.activeIDs.slice():[],visible=new Set(visibleOrder),queue=visibleOrder.slice();
+  return full.map(id=>visible.has(id)?queue.shift():id);
+}
+function commitPetLibraryOrder(visibleOrder,movedID){
+  if(petLibraryUI.pendingOrder)return;
+  const orderedCharacterIDs=mergeVisiblePetOrder(visibleOrder),previousActive=(S.petLibrary?.activeIDs||[]).slice(),previousRecent=(S.petLibrary?.recentIDs||[]).slice();
+  if(orderedCharacterIDs.join('\n')===previousActive.join('\n'))return;
+  const requestID=newRequestID(),pending={requestID,activeIDs:previousActive,recentIDs:previousRecent,movedID,timeout:null};petLibraryUI.pendingOrder=pending;
+  S.petLibrary.activeIDs=orderedCharacterIDs;S.petLibrary.recentIDs=orderedCharacterIDs.slice(0,3);
+  const status=document.getElementById('petLibraryOrderStatus'),name=S.petLibrary?.metadata?.[movedID]?.displayName||petLibraryItem(movedID)?.m?.name||tx('伴灵','Familiar');
+  if(status)status.textContent=tx(`已移动「${name}」；正在保存顺序。`,`Moved “${name}”; saving order.`);
+  renderCards();requestAnimationFrame(()=>document.querySelector(`[data-character-id="${CSS.escape(movedID)}"]`)?.focus());
+  if(!send({type:'petLibraryReorder',requestID,orderedCharacterIDs})){
+    petLibraryReorderFailed({requestID,messageZh:'无法连接到 Mimo；顺序没有保存，已恢复。',messageEn:'Could not reach Mimo; order was not saved and has been restored.'});return;
+  }
+  pending.timeout=setTimeout(()=>petLibraryReorderFailed({requestID,messageZh:'保存顺序超时，已恢复。',messageEn:'Saving order timed out; the previous order was restored.'}),6000);
+}
+function dropPetLibraryCard(event,characterID){
+  event.preventDefault();const sourceID=petLibraryDrag.sourceID,targetID=characterID;if(!sourceID||sourceID===targetID)return endPetLibraryDrag();
+  const visible=petLibraryIDs().filter(id=>id!==sourceID),targetIndex=visible.indexOf(targetID);
+  if(targetIndex<0)return endPetLibraryDrag();
+  visible.splice(targetIndex+(petLibraryDrag.after?1:0),0,sourceID);petLibraryDrag.suppressPickUntil=Date.now()+400;
+  endPetLibraryDrag();commitPetLibraryOrder(visible,sourceID);
+}
+function endPetLibraryDrag(){clearPetLibraryDropMarks();petLibraryDrag.sourceID=null;petLibraryDrag.targetID=null;petLibraryDrag.after=false}
+function movePetCardWithKeyboard(event,characterID){
+  if(event.target!==event.currentTarget)return;
+  if(!event.altKey&&['Enter',' '].includes(event.key)){event.preventDefault();pick(null,characterID);return}
+  if(!event.altKey||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||petLibraryUI.pendingOrder||petLibraryUI.view!=='active')return;
+  event.preventDefault();const visible=petLibraryIDs(),from=visible.indexOf(characterID),delta=['ArrowLeft','ArrowUp'].includes(event.key)?-1:1,to=from+delta;
+  if(from<0||to<0||to>=visible.length)return;[visible[from],visible[to]]=[visible[to],visible[from]];commitPetLibraryOrder(visible,characterID);
 }
 function renderCards(){
   renderPetLibraryFilters();
-  const library=S.petLibrary||{},archivedView=petLibraryUI.expanded&&petLibraryUI.view==='archived';
+  const library=S.petLibrary||{},archivedView=petLibraryUI.expanded&&petLibraryUI.view==='archived',trashView=petLibraryUI.expanded&&petLibraryUI.view==='trash';
   const items=petLibraryIDs().map(petLibraryItem).filter(Boolean);
   document.getElementById('cards').innerHTML=items.map(({characterID,m,custom,legacy})=>{
     const metadata=library.metadata?.[characterID]||{};
-    const archived=metadata.archived===true;
+    const archived=metadata.archived===true,deleted=metadata.deleted===true;
     const category=metadata.category||'';
     const displayName=metadata.displayName||m.name;
     const art=legacy?miniSVG(m):custom?`<div class="card-sheet"><img src="${esc(m.assetURL)}" alt=""></div>`:miniSVG(m);
     const temperament=TEMPERAMENTS.find(t=>t.id===m.temperamentID);
     const desc=custom?(legacy?tx('旧版像素 DNA','legacy pixel DNA'):(temperament?(LANG==='zh'?temperament.zh:temperament.en):tx('DIY 伴灵','DIY familiar'))):(LANG==='zh'?m.descZh:m.desc);
-    const manage=`<button type="button" class="card-manage" aria-label="${esc(tx(`管理 ${displayName}`,`Manage ${displayName}`))}" onclick="event.preventDefault();event.stopPropagation();openPetManager('${characterID}',this)">···</button>`;
-    return `<div class="card ${archived?'archived':''} ${S.character===characterID?'sel':''}" ${archived?'':`onclick="pick('${characterID}')"`}>${manage}${art}<div class="nm">${esc(displayName)}</div><div class="ds">${esc(category||desc)}</div></div>`;
-  }).join('')||`<div class="pet-library-empty">${archivedView?tx('没有隐藏的伴灵','No hidden familiars'):tx('这个分类还是空的','This category is empty')}</div>`;
+    const selectable=!archived&&!deleted&&petLibraryUI.view==='active',draggable=selectable;
+    const manage=`<button type="button" draggable="false" class="card-manage" aria-label="${esc(tx(`管理 ${displayName}`,`Manage ${displayName}`))}" onclick="event.preventDefault();event.stopPropagation();openPetManager('${characterID}',this)">···</button>`;
+    const grip=draggable?`<span class="card-reorder" aria-hidden="true">⠿</span>`:'';
+    const detail=deleted?deletedPetTime(metadata):(category||desc);
+    return `<div role="listitem" tabindex="${selectable?'0':'-1'}" data-character-id="${characterID}" class="card ${archived?'archived':''} ${deleted?'deleted':''} ${S.character===characterID?'sel':''}" draggable="${draggable}" aria-selected="${S.character===characterID}" aria-label="${esc(selectable?tx(`${displayName}；拖动排序，Option 加方向键也可移动`,`${displayName}; drag to reorder, or use Option plus an arrow key`):displayName)}" ${selectable?`onclick="pick(event,'${characterID}')" onkeydown="movePetCardWithKeyboard(event,'${characterID}')" ondragstart="startPetLibraryDrag(event,'${characterID}')" ondragover="overPetLibraryCard(event,'${characterID}')" ondrop="dropPetLibraryCard(event,'${characterID}')" ondragend="endPetLibraryDrag()"`:''}>${manage}${grip}${art}<div class="nm">${esc(displayName)}</div><div class="ds">${esc(detail)}</div></div>`;
+  }).join('')||`<div class="pet-library-empty">${trashView?tx('最近 7 天没有删除伴灵','No familiars deleted in the last 7 days'):archivedView?tx('没有隐藏的伴灵','No hidden familiars'):tx('这个分类还是空的','This category is empty')}</div>`;
 }
-function pick(id){ S.character = id; renderCards(); send({ type: 'pick', id }); }
+function pick(event,id){if(Date.now()<petLibraryDrag.suppressPickUntil||event?.defaultPrevented)return;S.character=id;renderCards();send({type:'pick',id})}
 
 const filters = () => [['all',tx('全部','all')],['deep',tx('🎯 专注','🎯 focus')],
   ['neutral',tx('\u{1F610} 日常','\u{1F610} everyday')],['distraction',tx('\u{1F573}\uFE0F 分心坑','\u{1F573}\uFE0F pit')]];
@@ -1959,6 +2052,10 @@ function renderRules(){
 /* Swift pushes the whole state here */
 function initSettings(state){
   S = state;
+  if(petLibraryUI.pendingOrder){
+    clearTimeout(petLibraryUI.pendingOrder.timeout);petLibraryUI.pendingOrder=null;
+    const orderStatus=document.getElementById('petLibraryOrderStatus');if(orderStatus)orderStatus.textContent=tx('伴灵顺序已保存。','Familiar order saved.');
+  }
   adoptStudioPrivacyGeneration(state.studioPrivacyGeneration);
   reconcilePetManagerState();
   LANG = state.language === 'en' ? 'en' : 'zh';

@@ -61,6 +61,11 @@ struct PetLibraryMetadata: Codable, Equatable, Sendable {
     var category: String?
     var archivedAt: Date?
     var lastUsedAt: Date?
+    var deletedAt: Date? = nil
+    /// Bundled art cannot be removed from the signed app. After the recovery
+    /// window this tombstone keeps it out of the library without pretending
+    /// the bundle asset itself was physically erased.
+    var purgedAt: Date? = nil
 }
 
 enum PetLibraryStateError: LocalizedError, Equatable {
@@ -69,6 +74,8 @@ enum PetLibraryStateError: LocalizedError, Equatable {
     case invalidDisplayName
     case invalidCategory
     case invalidDate
+    case deletionExpired
+    case invalidOrder
     case tooManyEntries
     case invalidPayload
     case payloadTooLarge
@@ -80,6 +87,8 @@ enum PetLibraryStateError: LocalizedError, Equatable {
         case .invalidDisplayName: return "The familiar name is invalid."
         case .invalidCategory: return "The pet library category is invalid."
         case .invalidDate: return "The pet library contains an invalid date."
+        case .deletionExpired: return "This familiar's seven-day recovery window has expired."
+        case .invalidOrder: return "The familiar order is invalid."
         case .tooManyEntries: return "The pet library contains too many entries."
         case .invalidPayload: return "The saved pet library is invalid."
         case .payloadTooLarge: return "The saved pet library is too large."
@@ -92,6 +101,7 @@ enum PetLibraryStateError: LocalizedError, Equatable {
 struct PetLibraryState: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let recentLimit = 3
+    static let deletionRetention: TimeInterval = 7 * 24 * 60 * 60
     static let maximumEntries = 1_024
     static let maximumDisplayNameCharacters = 28
     static let maximumDisplayNameBytes = 256
@@ -100,10 +110,15 @@ struct PetLibraryState: Codable, Equatable, Sendable {
 
     private let schemaVersion: Int
     private var metadataByCharacterID: [String: PetLibraryMetadata]
+    /// Optional so schema-v1 payloads written before manual ordering decode
+    /// without a migration. The first Settings payload freezes their current
+    /// recency order; after that only an explicit drag changes this array.
+    private var explicitOrder: [String]?
 
     init() {
         schemaVersion = Self.schemaVersion
         metadataByCharacterID = [:]
+        explicitOrder = nil
     }
 
     func metadata(for characterID: String) -> PetLibraryMetadata? {
@@ -152,17 +167,126 @@ struct PetLibraryState: Codable, Equatable, Sendable {
         store(metadata, for: characterID)
     }
 
+    mutating func moveToTrash(_ characterID: String, at date: Date = Date()) throws {
+        try Self.validateCharacterID(characterID)
+        try Self.validate(date)
+        var metadata = metadataByCharacterID[characterID]
+            ?? PetLibraryMetadata(category: nil, archivedAt: nil, lastUsedAt: nil)
+        metadata.deletedAt = date
+        metadata.purgedAt = nil
+        metadataByCharacterID[characterID] = metadata
+    }
+
+    mutating func restoreFromTrash(_ characterID: String, now: Date = Date()) throws {
+        try Self.validateCharacterID(characterID)
+        try Self.validate(now)
+        guard var metadata = metadataByCharacterID[characterID],
+              metadata.purgedAt == nil,
+              let deletedAt = metadata.deletedAt,
+              now < deletedAt.addingTimeInterval(Self.deletionRetention) else {
+            throw PetLibraryStateError.deletionExpired
+        }
+        metadata.deletedAt = nil
+        store(metadata, for: characterID)
+    }
+
+    mutating func markBundledPurged(_ characterID: String,
+                                    at date: Date = Date()) throws {
+        try Self.validateCharacterID(characterID)
+        try Self.validate(date)
+        metadataByCharacterID[characterID] = PetLibraryMetadata(
+            category: nil, archivedAt: nil, lastUsedAt: nil,
+            deletedAt: nil, purgedAt: date)
+        explicitOrder?.removeAll { $0 == characterID }
+    }
+
     mutating func removeMetadata(for characterID: String) throws {
         try Self.validateCharacterID(characterID)
         metadataByCharacterID.removeValue(forKey: characterID)
+        explicitOrder?.removeAll { $0 == characterID }
     }
 
     func isArchived(_ characterID: String) -> Bool {
         metadataByCharacterID[characterID]?.archivedAt != nil
     }
 
-    /// Active pets ordered by last use, then character ID. Never-used pets
-    /// follow used pets in stable ID order so a new library still shows three.
+    func isDeleted(_ characterID: String) -> Bool {
+        metadataByCharacterID[characterID]?.deletedAt != nil
+            || metadataByCharacterID[characterID]?.purgedAt != nil
+    }
+
+    func isSelectable(_ characterID: String) -> Bool {
+        let metadata = metadataByCharacterID[characterID]
+        return metadata?.archivedAt == nil && metadata?.deletedAt == nil
+            && metadata?.purgedAt == nil
+    }
+
+    func deletionDeadline(for characterID: String) -> Date? {
+        metadataByCharacterID[characterID]?.deletedAt?.addingTimeInterval(
+            Self.deletionRetention)
+    }
+
+    func recoverableDeletedCharacterIDs(validIDs: Set<String>,
+                                         now: Date = Date()) -> [String] {
+        orderedValidCharacterIDs(validIDs: validIDs).filter { characterID in
+            metadataByCharacterID[characterID]?.purgedAt == nil
+                && deletionDeadline(for: characterID).map { now < $0 } == true
+        }
+    }
+
+    func expiredDeletedCharacterIDs(validIDs: Set<String>,
+                                     now: Date = Date()) -> [String] {
+        orderedValidCharacterIDs(validIDs: validIDs).filter { characterID in
+            metadataByCharacterID[characterID]?.purgedAt == nil
+                && deletionDeadline(for: characterID).map { now >= $0 } == true
+        }
+    }
+
+    /// Expiry cleanup is driven by durable tombstones, not by whichever asset
+    /// directories happen to enumerate successfully. This lets a later sweep
+    /// finish metadata/job cleanup after a partial physical deletion.
+    func expiredDeletedCharacterIDs(now: Date = Date()) -> [String] {
+        let knownIDs = Set(metadataByCharacterID.keys)
+        return orderedValidCharacterIDs(validIDs: knownIDs).filter { characterID in
+            metadataByCharacterID[characterID]?.purgedAt == nil
+                && deletionDeadline(for: characterID).map { now >= $0 } == true
+        }
+    }
+
+    /// Freeze the pre-manual-order library once, then append newly installed
+    /// familiars without letting selection recency reshuffle existing cards.
+    mutating func reconcileOrder(validIDs: Set<String>) throws {
+        for characterID in validIDs { try Self.validateCharacterID(characterID) }
+        if explicitOrder == nil {
+            explicitOrder = validIDs.sorted(by: recencyOrder)
+            return
+        }
+        let known = Set(explicitOrder ?? [])
+        let additions = validIDs.subtracting(known).sorted(by: recencyOrder)
+        explicitOrder?.append(contentsOf: additions)
+    }
+
+    /// The bridge sends the complete active library, not a filtered subset.
+    /// Hidden and deleted slots stay in place so restoring returns a familiar
+    /// to the position it had before removal.
+    mutating func setActiveOrder(_ orderedCharacterIDs: [String],
+                                 validIDs: Set<String>) throws {
+        try reconcileOrder(validIDs: validIDs)
+        let currentActive = Set(libraryCharacterIDs(
+            validIDs: validIDs, archive: .active, expanded: true))
+        guard orderedCharacterIDs.count == currentActive.count,
+              Set(orderedCharacterIDs).count == orderedCharacterIDs.count,
+              Set(orderedCharacterIDs) == currentActive else {
+            throw PetLibraryStateError.invalidOrder
+        }
+        var iterator = orderedCharacterIDs.makeIterator()
+        explicitOrder = (explicitOrder ?? []).map { characterID in
+            currentActive.contains(characterID) ? (iterator.next() ?? characterID) : characterID
+        }
+    }
+
+    /// The collapsed top three in manual order. The legacy "recent" name is
+    /// retained only for bridge compatibility; clicking no longer changes it.
     func recentCharacterIDs(validIDs: Set<String>) -> [String] {
         Array(libraryCharacterIDs(
             validIDs: validIDs, archive: .active,
@@ -185,9 +309,9 @@ struct PetLibraryState: Codable, Equatable, Sendable {
             normalizedCategory = nil
         }
 
-        let filtered = validIDs.filter { characterID in
-            guard Self.isValidCharacterID(characterID) else { return false }
+        let filtered = orderedValidCharacterIDs(validIDs: validIDs).filter { characterID in
             let metadata = metadataByCharacterID[characterID]
+            if metadata?.deletedAt != nil || metadata?.purgedAt != nil { return false }
             switch archive {
             case .active where metadata?.archivedAt != nil: return false
             case .archived where metadata?.archivedAt == nil: return false
@@ -198,7 +322,7 @@ struct PetLibraryState: Codable, Equatable, Sendable {
             case .uncategorized: return metadata?.category == nil
             case .named: return metadata?.category == normalizedCategory
             }
-        }.sorted(by: recencyOrder)
+        }
         return expanded ? filtered : Array(filtered.prefix(Self.recentLimit))
     }
 
@@ -217,6 +341,13 @@ struct PetLibraryState: Codable, Equatable, Sendable {
         guard metadataByCharacterID.count <= Self.maximumEntries else {
             throw PetLibraryStateError.tooManyEntries
         }
+        if let explicitOrder {
+            guard explicitOrder.count <= Self.maximumEntries,
+                  Set(explicitOrder).count == explicitOrder.count else {
+                throw PetLibraryStateError.invalidOrder
+            }
+            for characterID in explicitOrder { try Self.validateCharacterID(characterID) }
+        }
         for (characterID, metadata) in metadataByCharacterID {
             try Self.validateCharacterID(characterID)
             if let category = metadata.category {
@@ -231,6 +362,8 @@ struct PetLibraryState: Codable, Equatable, Sendable {
             }
             if let date = metadata.archivedAt { try Self.validate(date) }
             if let date = metadata.lastUsedAt { try Self.validate(date) }
+            if let date = metadata.deletedAt { try Self.validate(date) }
+            if let date = metadata.purgedAt { try Self.validate(date) }
         }
         return self
     }
@@ -238,7 +371,7 @@ struct PetLibraryState: Codable, Equatable, Sendable {
     private mutating func store(_ metadata: PetLibraryMetadata,
                                 for characterID: String) {
         if metadata.displayName == nil && metadata.category == nil && metadata.archivedAt == nil
-            && metadata.lastUsedAt == nil {
+            && metadata.lastUsedAt == nil && metadata.deletedAt == nil && metadata.purgedAt == nil {
             metadataByCharacterID.removeValue(forKey: characterID)
         } else {
             metadataByCharacterID[characterID] = metadata
@@ -254,6 +387,15 @@ struct PetLibraryState: Codable, Equatable, Sendable {
             return left! > right!
         }
         return lhs < rhs
+    }
+
+    private func orderedValidCharacterIDs(validIDs: Set<String>) -> [String] {
+        let fallbackOrder = validIDs.filter(Self.isValidCharacterID).sorted(by: recencyOrder)
+        let ranked = explicitOrder ?? fallbackOrder
+        let rankedSet = Set(ranked)
+        return (ranked + fallbackOrder.filter { !rankedSet.contains($0) }).filter {
+            validIDs.contains($0) && Self.isValidCharacterID($0)
+        }
     }
 
     private static func normalizedCategory(_ value: String) throws -> String {

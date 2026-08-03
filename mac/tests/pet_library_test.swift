@@ -65,13 +65,77 @@ struct PetLibraryTests {
         expect(state.libraryCharacterIDs(
             validIDs: valid, archive: .archived, expanded: true) == ["custom:beta"],
                "archive filtering should expose archived pets explicitly")
+        expect(state.recoverableDeletedCharacterIDs(
+            validIDs: valid,
+            now: base.addingTimeInterval(40 + 6 * 86_400)).isEmpty,
+               "hiding and deleting should remain separate states")
+        try state.moveToTrash("custom:beta", at: base.addingTimeInterval(40))
+        expect(state.recoverableDeletedCharacterIDs(
+            validIDs: valid,
+            now: base.addingTimeInterval(40 + 6 * 86_400)) == ["custom:beta"],
+               "deleted familiars should remain recoverable for seven days")
+        expect(state.expiredDeletedCharacterIDs(
+            validIDs: valid,
+            now: base.addingTimeInterval(40 + 7 * 86_400)) == ["custom:beta"],
+               "the seven-day boundary should make deletion irreversible")
+        expect(state.deletionDeadline(for: "custom:beta")
+            == base.addingTimeInterval(40 + 7 * 86_400),
+               "each deleted familiar should expose its exact purge deadline")
         expect(state.metadata(for: "custom:beta")?.category == "Friends",
-               "archiving should preserve category metadata")
+               "deleting should preserve category metadata")
+        try state.restoreFromTrash(
+            "custom:beta", now: base.addingTimeInterval(40 + 6 * 86_400))
+        expect(state.isArchived("custom:beta"),
+               "restoring a previously hidden familiar should return it to Hidden")
         try state.unarchive("custom:beta")
         expect(!state.isArchived("custom:beta"), "unarchive should restore visibility")
         expect(state.metadata(for: "custom:beta")?.lastUsedAt
             == base.addingTimeInterval(20),
                "unarchive should preserve recency metadata")
+
+        let manualOrder = [
+            "custom:gamma", "nat", "lulu", "custom:beta", "custom:alpha",
+        ]
+        try state.setActiveOrder(manualOrder, validIDs: valid)
+        expect(state.libraryCharacterIDs(validIDs: valid, expanded: true) == manualOrder,
+               "an explicit drag order should become the canonical library order")
+        try state.markUsed("lulu", at: base.addingTimeInterval(500))
+        expect(state.libraryCharacterIDs(validIDs: valid, expanded: true) == manualOrder,
+               "using or selecting a familiar must not change an explicit drag order")
+        expect(state.recentCharacterIDs(validIDs: valid)
+            == Array(manualOrder.prefix(PetLibraryState.recentLimit)),
+               "the collapsed three should follow manual order rather than click recency")
+        expectThrows("a reorder cannot omit active familiars") {
+            try state.setActiveOrder(Array(manualOrder.dropLast()), validIDs: valid)
+        }
+        expectThrows("a reorder cannot duplicate familiars") {
+            try state.setActiveOrder(
+                ["custom:gamma", "nat", "lulu", "custom:beta", "custom:beta"],
+                validIDs: valid)
+        }
+        try state.archive("custom:beta", at: base.addingTimeInterval(600))
+        try state.setActiveOrder(
+            ["custom:alpha", "custom:gamma", "nat", "lulu"], validIDs: valid)
+        try state.unarchive("custom:beta")
+        expect(state.libraryCharacterIDs(validIDs: valid, expanded: true)
+            == ["custom:alpha", "custom:gamma", "nat", "custom:beta", "lulu"],
+               "hidden familiars should retain their order slot across other drags")
+
+        var lifecycle = state
+        try lifecycle.moveToTrash("nat", at: base.addingTimeInterval(700))
+        expectThrows("restore should close exactly at the seven-day boundary") {
+            try lifecycle.restoreFromTrash(
+                "nat", now: base.addingTimeInterval(700 + 7 * 86_400))
+        }
+        expect(lifecycle.expiredDeletedCharacterIDs(
+            now: base.addingTimeInterval(700 + 7 * 86_400)) == ["nat"],
+               "expiry cleanup should be driven by tombstones even when assets do not enumerate")
+        try lifecycle.markBundledPurged(
+            "nat", at: base.addingTimeInterval(700 + 7 * 86_400))
+        expect(!lifecycle.isSelectable("nat") &&
+               !lifecycle.recoverableDeletedCharacterIDs(
+                validIDs: valid, now: base.addingTimeInterval(700 + 8 * 86_400)).contains("nat"),
+               "expired bundled pets should retain only a non-recoverable tombstone")
 
         expectThrows("control characters must not enter a category") {
             try state.setCategory("bad\u{0000}name", for: "custom:alpha")
@@ -129,6 +193,14 @@ struct PetLibraryTests {
         let json = String(decoding: data, as: UTF8.self)
         expect(json.contains("\"displayName\":\"米墨\""),
                "display aliases for every familiar should survive persistence")
+        defaults.set(Data("{\"schemaVersion\":1,\"metadataByCharacterID\":{}}".utf8),
+                     forKey: PetLibraryStateStore.defaultKey)
+        var legacy = try store.load()
+        try legacy.reconcileOrder(validIDs: ["lulu", "clawd", "nat"])
+        try store.save(legacy)
+        let migratedLegacy = try store.load()
+        expect(migratedLegacy == legacy,
+               "schema-v1 payloads without an explicit order should migrate in place")
         defaults.set(Data("{\"schemaVersion\":99,\"metadataByCharacterID\":{}}".utf8),
                      forKey: PetLibraryStateStore.defaultKey)
         expectThrows("unsupported persisted schemas must fail closed") {

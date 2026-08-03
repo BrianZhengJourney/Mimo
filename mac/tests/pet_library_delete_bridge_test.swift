@@ -36,18 +36,28 @@ struct PetLibraryDeleteBridgeTests {
                && occurrences("famSetCustomPet(\\(json))", in: product) == 1,
                "only adoption may select a custom familiar; edits and action installs only register it")
         expect(product.contains("settingsCall(\"petLibraryDeleted\"")
-               && product.contains("\"permanent\": result.permanent"),
+               && product.contains("\"deletesAt\": ISO8601DateFormatter()"),
                "successful deletion should explicitly close the Settings transaction")
         expect(product.contains("reportPetLibraryError(error, characterID: characterID)")
                && product.contains("settingsCall(\"petLibraryError\""),
                "all deletion failures should return through petLibraryError")
-        expect(product.contains("try library.archive(characterID)")
-               && product.contains("case .builtin:"),
-               "bundled familiar deletion should be a reversible archive")
+        expect(product.contains("try $0.moveToTrash(characterID, at: deletedAt)")
+               && product.contains("case \"petLibraryRestoreDeleted\"")
+               && product.contains("restoreDeletedPetLibraryCharacter(characterID)"),
+               "deletion should enter a reversible seven-day state for every familiar")
         expect(product.contains("stopPetWorkForDeletion(characterID: canonicalID)")
+               && product.contains("purgeExpiredPetLibraryDeletions(now: Date = Date())")
+               && product.contains("library.expiredDeletedCharacterIDs(now: now)")
+               && product.contains("try customPetStore.delete(characterID: canonicalID)")
                && product.contains("actionGenerationJobStore.deleteJobs(characterID: canonicalID)")
-               && product.contains("starterActionJobStore.deleteJobs(characterID: canonicalID)"),
-               "custom deletion should cancel producers and purge only associated action data")
+               && product.contains("starterActionJobStore.deleteJobs(characterID: canonicalID)")
+               && !product.contains("try? actionGenerationJobStore.deleteJobs(characterID: canonicalID)")
+               && !product.contains("try? starterActionJobStore.deleteJobs(characterID: canonicalID)"),
+               "custom deletion should cancel producers immediately but purge assets and jobs only at expiry")
+        expect(product.contains("Mimo pet library restore fail-closed")
+               && product.contains("Mimo pet library fail-closed")
+               && product.contains("PetLibraryStateStore.shared.load().isSelectable(active)"),
+               "corrupt lifecycle state and custom work entry points should fail closed")
         expect(product.contains("settingsCall(\"petExpressionCancelled\"")
                && product.contains("endExpressionRun(continuePostInstallActions: false)"),
                "deleting during expression generation should clear Settings' busy state")

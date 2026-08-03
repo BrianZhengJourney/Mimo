@@ -414,18 +414,28 @@ extension AppDelegate {
         return ids
     }
 
-    private func petLibraryPayload(customPets: [[String: Any]]) -> [String: Any] {
+    private func petLibraryPayload(customPets: [[String: Any]]) throws -> [String: Any] {
         let validIDs = petLibraryValidIDs(customPets: customPets)
-        let library = (try? PetLibraryStateStore.shared.load()) ?? PetLibraryState()
+        let library = try PetLibraryStateStore.shared.update {
+            try $0.reconcileOrder(validIDs: validIDs)
+        }
         var metadata: [String: [String: Any]] = [:]
         let formatter = ISO8601DateFormatter()
         for characterID in validIDs {
             let value = library.metadata(for: characterID)
-            var row: [String: Any] = ["archived": value?.archivedAt != nil]
+            var row: [String: Any] = [
+                "archived": value?.archivedAt != nil,
+                "deleted": value?.deletedAt != nil,
+            ]
             if let displayName = value?.displayName { row["displayName"] = displayName }
             if let category = value?.category { row["category"] = category }
             if let lastUsedAt = value?.lastUsedAt {
                 row["lastUsedAt"] = formatter.string(from: lastUsedAt)
+            }
+            if let deletedAt = value?.deletedAt {
+                row["deletedAt"] = formatter.string(from: deletedAt)
+                row["deletesAt"] = formatter.string(
+                    from: deletedAt.addingTimeInterval(PetLibraryState.deletionRetention))
             }
             metadata[characterID] = row
         }
@@ -435,6 +445,8 @@ extension AppDelegate {
                 validIDs: validIDs, archive: .active, expanded: true),
             "archivedIDs": library.libraryCharacterIDs(
                 validIDs: validIDs, archive: .archived, expanded: true),
+            "deletedIDs": library.recoverableDeletedCharacterIDs(
+                validIDs: validIDs),
             "categories": library.categories(validIDs: validIDs, archive: .all),
             "metadata": metadata,
         ]
@@ -548,80 +560,42 @@ extension AppDelegate {
         finishPostInstallStarterActions(characterID: characterID)
     }
 
-    /// One deletion policy serves Settings and the legacy bridge alias.
-    /// Bundled pets are reversibly archived; user-generated assets and their
-    /// per-character action checkpoints are removed from app-owned storage.
+    /// Delete is deliberately reversible for seven days. Generated assets and
+    /// action checkpoints stay intact until the expiry sweeper runs; hiding is
+    /// a separate, indefinite library state.
     private func deletePetLibraryCharacter(_ characterID: String) throws
-        -> (permanent: Bool, cleanupError: Error?) {
+        -> Date {
         let target = try PetLibraryDeletionPolicy.target(for: characterID)
         let defaults = UserDefaults.standard
         let currentID = defaults.string(forKey: "character") ?? "lulu"
         let isCurrent = currentID == characterID
-        let permanent: Bool
-        switch target {
-        case .builtin: permanent = false
-        case .legacyPrototype, .custom: permanent = true
+        let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
+        let validIDs = petLibraryValidIDs(customPets: customPets)
+        guard validIDs.contains(characterID) else {
+            throw PetLibraryDeletionError.invalidCharacterID
         }
-        var postDeleteValidIDs = petLibraryValidIDs(
-            customPets: (try? customPetStore.listRuntimeSpecs()) ?? [])
-        if permanent { postDeleteValidIDs.remove(characterID) }
-        var cleanupError: Error?
+        let currentLibrary = try PetLibraryStateStore.shared.load()
+        guard !currentLibrary.isDeleted(characterID) else {
+            throw PetLibraryDeletionError.invalidCharacterID
+        }
+        let remaining = currentLibrary.libraryCharacterIDs(
+            validIDs: validIDs, archive: .active, expanded: true)
+            .filter { $0 != characterID }
+        guard !remaining.isEmpty else { throw PetLibraryStateError.invalidOrder }
 
-        switch target {
-        case .builtin:
-            break
-        case .legacyPrototype:
-            defaults.removeObject(forKey: "customPetSpec")
-        case .custom(let canonicalID):
-            // Validate and remove the primary app-owned pet first. Related job
-            // cleanup is idempotent and best-effort: stale telemetry must not
-            // resurrect or block removal of the familiar itself.
-            _ = try customPetStore.validateDeletionTarget(
-                characterID: canonicalID)
+        if case .custom(let canonicalID) = target {
+            guard try customPetStore.validateDeletionTarget(characterID: canonicalID) else {
+                throw PetLibraryDeletionError.invalidCharacterID
+            }
             stopPetWorkForDeletion(characterID: canonicalID)
-            try customPetStore.delete(characterID: canonicalID)
-            do {
-                _ = try actionGenerationJobStore.deleteJobs(characterID: canonicalID)
-            } catch {
-                cleanupError = error
-            }
-            do {
-                _ = try starterActionJobStore.deleteJobs(characterID: canonicalID)
-            } catch {
-                if cleanupError == nil { cleanupError = error }
-            }
         }
 
-        var fallback: String?
-        do {
-            _ = try PetLibraryStateStore.shared.update { library in
-                if permanent {
-                    try library.removeMetadata(for: characterID)
-                } else {
-                    try library.archive(characterID)
-                }
-                guard isCurrent else { return }
-                fallback = library.libraryCharacterIDs(
-                    validIDs: postDeleteValidIDs, archive: .active,
-                    expanded: true).first
-                if fallback == nil {
-                    let bundled = PetLibraryDeletionPolicy.safeBuiltinFallback(
-                        excluding: characterID)
-                    try library.unarchive(bundled)
-                    fallback = bundled
-                }
-            }
-        } catch {
-            // An archive exists only in metadata, so failure means the bundled
-            // delete did not happen. Permanent asset deletion, however, has
-            // already completed; keep runtime safe and report cleanup failure.
-            guard permanent else { throw error }
-            if cleanupError == nil { cleanupError = error }
-            if isCurrent {
-                fallback = PetLibraryDeletionPolicy.safeBuiltinFallback(
-                    excluding: characterID)
-            }
+        let deletedAt = Date()
+        let updated = try PetLibraryStateStore.shared.update {
+            try $0.moveToTrash(characterID, at: deletedAt)
         }
+        let fallback = isCurrent ? updated.libraryCharacterIDs(
+            validIDs: validIDs, archive: .active, expanded: true).first : nil
 
         switch target {
         case .builtin:
@@ -639,22 +613,121 @@ extension AppDelegate {
             refreshNativeCompanion()
         }
         pushSettingsState()
-        return (permanent, cleanupError)
+        return deletedAt.addingTimeInterval(PetLibraryState.deletionRetention)
+    }
+
+    /// Physical removal happens only after the undo deadline. Failures leave
+    /// the expired entry unavailable and are retried by the periodic sweep.
+    @discardableResult
+    private func purgeExpiredPetLibraryDeletions(now: Date = Date()) -> [String] {
+        guard let library = try? PetLibraryStateStore.shared.load() else { return [] }
+        let expired = library.expiredDeletedCharacterIDs(now: now)
+        for characterID in expired {
+            do {
+                switch try PetLibraryDeletionPolicy.target(for: characterID) {
+                case .builtin:
+                    _ = try PetLibraryStateStore.shared.update {
+                        try $0.markBundledPurged(characterID, at: now)
+                    }
+                case .legacyPrototype:
+                    UserDefaults.standard.removeObject(forKey: "customPetSpec")
+                    _ = try PetLibraryStateStore.shared.update {
+                        try $0.removeMetadata(for: characterID)
+                    }
+                    js("famUnregisterPrototypePet()")
+                case .custom(let canonicalID):
+                    stopPetWorkForDeletion(characterID: canonicalID)
+                    try customPetStore.delete(characterID: canonicalID)
+                    _ = try actionGenerationJobStore.deleteJobs(characterID: canonicalID)
+                    _ = try starterActionJobStore.deleteJobs(characterID: canonicalID)
+                    _ = try PetLibraryStateStore.shared.update {
+                        try $0.removeMetadata(for: canonicalID)
+                    }
+                    js("famUnregisterCustomPet(\(jsonStr(canonicalID)))")
+                }
+            } catch {
+                NSLog("Mimo familiar expiry cleanup warning (%@): %@",
+                      characterID, error.localizedDescription)
+            }
+        }
+        // Return attempted IDs, including failures, so Settings refreshes and
+        // removes expired undo affordances while the next sweep retries IO.
+        return expired
+    }
+
+    private func restoreDeletedPetLibraryCharacter(_ characterID: String,
+                                                    now: Date = Date()) throws {
+        let target = try PetLibraryDeletionPolicy.target(for: characterID)
+        let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
+        let validIDs = petLibraryValidIDs(customPets: customPets)
+        guard validIDs.contains(characterID) else {
+            throw PetLibraryDeletionError.invalidCharacterID
+        }
+        // Validate every asset needed for registration before removing the
+        // durable tombstone. A failed restore therefore stays recoverable and
+        // remains eligible for the expiry sweeper.
+        let registrationJSON: String?
+        switch target {
+        case .builtin:
+            registrationJSON = nil
+        case .legacyPrototype:
+            guard let spec = storedCustomPetSpec(),
+                  let data = try? JSONSerialization.data(withJSONObject: spec),
+                  let json = String(data: data, encoding: .utf8) else {
+                throw PetLibraryDeletionError.invalidCharacterID
+            }
+            registrationJSON = json
+        case .custom(let canonicalID):
+            let spec = try customPetStore.runtimeSpec(characterID: canonicalID)
+            guard let data = try? JSONSerialization.data(withJSONObject: spec),
+                  let json = String(data: data, encoding: .utf8) else {
+                throw PetLibraryDeletionError.invalidCharacterID
+            }
+            registrationJSON = json
+        }
+        _ = try PetLibraryStateStore.shared.update {
+            try $0.restoreFromTrash(characterID, now: now)
+        }
+        switch (target, registrationJSON) {
+        case (.legacyPrototype, .some(let json)):
+            js("famRegisterPrototypePet(\(json), false)")
+        case (.custom, .some(let json)):
+            js("famRegisterCustomPet(\(json), false)")
+        default:
+            break
+        }
+        pushSettingsState()
     }
 
     func restoreCustomPetIfNeeded() {
+        purgeExpiredPetLibraryDeletions()
         // Repair legacy sheets once, off the main thread, instead of letting
         // every image load rewrite them from inside the store lock.
         DispatchQueue.global(qos: .utility).async { [weak self] in
             self?.customPetStore.repairStoredSheets()
         }
-        if let spec = storedCustomPetSpec(),
+        let library: PetLibraryState
+        do {
+            library = try PetLibraryStateStore.shared.load()
+        } catch {
+            // Never interpret a corrupt/unsupported deletion ledger as "no
+            // deletions". Keep generated assets unregistered and fall back to
+            // signed bundled art until the library can be repaired.
+            UserDefaults.standard.set("lulu", forKey: "character")
+            js("famUnregisterPrototypePet()")
+            js("famSetCharacter(\(jsonStr("lulu")))")
+            NSLog("Mimo pet library restore fail-closed: %@", error.localizedDescription)
+            return
+        }
+        if !library.isDeleted("prototype"), let spec = storedCustomPetSpec(),
            let data = try? JSONSerialization.data(withJSONObject: spec),
            let json = String(data: data, encoding: .utf8) {
             js("famRegisterPrototypePet(\(json), false)")
         }
         let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
         for spec in customPets {
+            guard let characterID = spec["characterID"] as? String,
+                  !library.isDeleted(characterID) else { continue }
             guard let data = try? JSONSerialization.data(withJSONObject: spec),
                   let json = String(data: data, encoding: .utf8) else { continue }
             js("famRegisterCustomPet(\(json), false)")
@@ -662,14 +735,13 @@ extension AppDelegate {
         let builtins: Set<String> = ["lulu", "clawd", "nat"]
         let customIDs = Set(customPets.compactMap { $0["characterID"] as? String })
         let validIDs = petLibraryValidIDs(customPets: customPets)
-        let library = (try? PetLibraryStateStore.shared.load()) ?? PetLibraryState()
         let requested = UserDefaults.standard.string(forKey: "character") ?? "lulu"
         let valid = builtins.contains(requested)
             || (requested == "prototype" && storedCustomPetSpec() != nil)
             || customIDs.contains(requested)
-        let fallback = library.recentCharacterIDs(validIDs: validIDs).first
-            ?? (library.isArchived("lulu") ? validIDs.sorted().first ?? "lulu" : "lulu")
-        let selected = valid && !library.isArchived(requested) ? requested : fallback
+        let fallback = library.libraryCharacterIDs(
+            validIDs: validIDs, archive: .active, expanded: true).first ?? "lulu"
+        let selected = valid && library.isSelectable(requested) ? requested : fallback
         if selected != requested { UserDefaults.standard.set(selected, forKey: "character") }
         if library.metadata(for: selected)?.lastUsedAt == nil {
             markPetLibraryUsed(selected)
@@ -797,12 +869,33 @@ extension AppDelegate {
         state["settingsFontFamily"] = typography.family.rawValue
         state["settingsFontWeight"] = typography.weight.rawValue
         state["diyStylePresets"] = DIYStylePreset.runtimeDictionaries
-        if let customPet = storedCustomPetSpec() { state["customPet"] = customPet }
         let customPets = (try? customPetStore.listRuntimeSpecs()) ?? []
-        state["customPets"] = customPets
-        state["petLibrary"] = petLibraryPayload(customPets: customPets)
-        for characterID in customPets.compactMap({ $0["characterID"] as? String }) {
-            _ = try? starterActionJobStore.ensureJobs(characterID: characterID)
+        do {
+            state["petLibrary"] = try petLibraryPayload(customPets: customPets)
+            let petLibrary = try PetLibraryStateStore.shared.load()
+            state["customPets"] = customPets
+            if !petLibrary.isDeleted("prototype"), let customPet = storedCustomPetSpec() {
+                state["customPet"] = customPet
+            }
+            for characterID in customPets.compactMap({ $0["characterID"] as? String }) {
+                guard !petLibrary.isDeleted(characterID) else { continue }
+                _ = try? starterActionJobStore.ensureJobs(characterID: characterID)
+            }
+        } catch {
+            // The lifecycle ledger is authoritative. Treating unreadable state
+            // as an empty library would resurrect deleted assets and jobs.
+            state["customPets"] = [[String: Any]]()
+            state["petLibrary"] = [
+                "recentIDs": [String](), "activeIDs": [String](),
+                "archivedIDs": [String](), "deletedIDs": [String](),
+                "categories": [String](), "metadata": [String: Any](),
+                "error": error.localizedDescription,
+            ]
+            d.set("lulu", forKey: "character")
+            state["character"] = "lulu"
+            js("famSetCharacter(\(jsonStr("lulu")))")
+            refreshNativeCompanion()
+            NSLog("Mimo pet library fail-closed: %@", error.localizedDescription)
         }
         state["actionJobs"] = actionGenerationJobStore.runtimeDictionaries()
         state["starterActionJobs"] = starterActionJobStore.runtimeDictionaries()
@@ -829,6 +922,7 @@ extension AppDelegate {
         let active = UserDefaults.standard.string(forKey: "character") ?? ""
         if let requested = requested as? String, requested != active { return nil }
         guard active.hasPrefix(CustomPetStore.characterPrefix),
+              (try? PetLibraryStateStore.shared.load().isSelectable(active)) == true,
               (try? customPetStore.runtimeSpec(characterID: active)) != nil else { return nil }
         return active
     }
@@ -926,6 +1020,10 @@ extension AppDelegate {
         studioCleanupTimer?.invalidate()
         studioCleanupTimer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
             self?.pruneStudioState()
+            guard let self else { return }
+            if !self.purgeExpiredPetLibraryDeletions().isEmpty {
+                self.pushSettingsState()
+            }
         }
     }
 
@@ -1535,7 +1633,8 @@ extension AppDelegate {
                 forKey: postInstallStarterActionDefaultsKey)
         }
         guard let characterID = postInstallStarterActionCharacterID else { return }
-        guard (try? customPetStore.runtimeSpec(characterID: characterID)) != nil else {
+        guard (try? PetLibraryStateStore.shared.load().isSelectable(characterID)) == true,
+              (try? customPetStore.runtimeSpec(characterID: characterID)) != nil else {
             finishPostInstallStarterActions(characterID: characterID)
             return
         }
@@ -2860,13 +2959,44 @@ extension AppDelegate {
                 let allowed = builtins.contains(id)
                     || (id == "prototype" && storedCustomPetSpec() != nil)
                     || (try? customPetStore.runtimeSpec(characterID: id)) != nil
-                if allowed {
+                let selectable = (try? PetLibraryStateStore.shared.load()
+                    .isSelectable(id)) ?? false
+                if allowed && selectable {
                     js("famSetCharacter(\(jsonStr(id)))")
                     d.set(id, forKey: "character")
-                    markPetLibraryUsed(id)
                     refreshNativeCompanion()
                     pushSettingsState()
                 }
+            }
+        case "petLibraryReorder":
+            let rawRequestID = body["requestID"] as? String ?? ""
+            guard let requestID = generationRequestID(rawRequestID),
+                  let orderedCharacterIDs = body["orderedCharacterIDs"] as? [String]
+            else {
+                settingsCall("petLibraryReorderFailed", [
+                    "requestID": rawRequestID,
+                    "messageZh": "伴灵顺序请求无效，已恢复原顺序。",
+                    "messageEn": "The familiar order request was invalid; the previous order was restored.",
+                ])
+                return
+            }
+            let validIDs = petLibraryValidIDs(
+                customPets: (try? customPetStore.listRuntimeSpecs()) ?? [])
+            do {
+                _ = try PetLibraryStateStore.shared.update {
+                    try $0.setActiveOrder(orderedCharacterIDs, validIDs: validIDs)
+                }
+                settingsCall("petLibraryReordered", [
+                    "requestID": requestID,
+                    "orderedCharacterIDs": orderedCharacterIDs,
+                ])
+                pushSettingsState()
+            } catch {
+                settingsCall("petLibraryReorderFailed", [
+                    "requestID": requestID,
+                    "messageZh": "伴灵顺序没有保存：\(error.localizedDescription)",
+                    "messageEn": "The familiar order was not saved: \(error.localizedDescription)",
+                ])
             }
         case "petPrototype":
             if let spec = body["spec"] as? [String: Any],
@@ -2874,9 +3004,17 @@ extension AppDelegate {
                JSONSerialization.isValidJSONObject(spec),
                let data = try? JSONSerialization.data(withJSONObject: spec),
                let json = String(data: data, encoding: .utf8) {
+                do {
+                    _ = try PetLibraryStateStore.shared.update {
+                        try $0.removeMetadata(for: "prototype")
+                        try $0.markUsed("prototype")
+                    }
+                } catch {
+                    reportPetLibraryError(error, characterID: "prototype")
+                    return
+                }
                 d.set(json, forKey: "customPetSpec")
                 d.set("prototype", forKey: "character")
-                markPetLibraryUsed("prototype")
                 js("famSetPrototypePet(\(json))")
                 refreshNativeCompanion()
                 pushSettingsState()
@@ -3378,7 +3516,8 @@ extension AppDelegate {
                 ])
             }
         case "petRegenerateExpressions":
-            guard let characterID = body["characterID"] as? String else { return }
+            guard let characterID = activeCustomCharacterID(
+                requested: body["characterID"]) else { return }
             do {
                 let spec = try customPetStore.runtimeSpec(characterID: characterID)
                 guard let assetURLString = spec["assetURL"] as? String,
@@ -3475,6 +3614,9 @@ extension AppDelegate {
             guard validIDs.contains(characterID) else { return }
             do {
                 let current = try PetLibraryStateStore.shared.load()
+                guard !current.isDeleted(characterID) else {
+                    throw PetLibraryDeletionError.invalidCharacterID
+                }
                 let remaining = current.libraryCharacterIDs(
                     validIDs: validIDs, archive: .active, expanded: true)
                     .filter { $0 != characterID }
@@ -3506,10 +3648,24 @@ extension AppDelegate {
                     customPets: (try? customPetStore.listRuntimeSpecs()) ?? [])
                     .contains(characterID) else { return }
             do {
-                _ = try PetLibraryStateStore.shared.update {
-                    try $0.unarchive(characterID)
+                _ = try PetLibraryStateStore.shared.update { library in
+                    guard !library.isDeleted(characterID) else {
+                        throw PetLibraryDeletionError.invalidCharacterID
+                    }
+                    try library.unarchive(characterID)
                 }
                 pushSettingsState()
+            } catch {
+                reportPetLibraryError(error, characterID: characterID)
+            }
+        case "petLibraryRestoreDeleted":
+            guard let characterID = body["characterID"] as? String else {
+                reportPetLibraryError(PetLibraryDeletionError.invalidCharacterID)
+                return
+            }
+            do {
+                try restoreDeletedPetLibraryCharacter(characterID)
+                settingsCall("petLibraryRestored", ["characterID": characterID])
             } catch {
                 reportPetLibraryError(error, characterID: characterID)
             }
@@ -3519,15 +3675,11 @@ extension AppDelegate {
                 return
             }
             do {
-                let result = try deletePetLibraryCharacter(characterID)
+                let deletesAt = try deletePetLibraryCharacter(characterID)
                 settingsCall("petLibraryDeleted", [
                     "characterID": characterID,
-                    "permanent": result.permanent,
+                    "deletesAt": ISO8601DateFormatter().string(from: deletesAt),
                 ])
-                if let cleanupError = result.cleanupError {
-                    NSLog("Mimo familiar cleanup warning (%@): %@",
-                          characterID, cleanupError.localizedDescription)
-                }
             } catch {
                 reportPetLibraryError(error, characterID: characterID)
             }
