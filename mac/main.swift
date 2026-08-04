@@ -492,7 +492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             andEventID: AEEventID(kAEQuitApplication))
         if reflectionBrowser.isFixtureMode {
             // A native visual fixture is hermetic: do not watch apps, prune or
-            // read activity, refresh Notion, start generation cleanup, or make
+            // read activity, start generation cleanup, or make
             // any other production-side request before showing the fixture.
             DispatchQueue.main.async { [weak self] in
                 self?.reflectionBrowser.present()
@@ -512,7 +512,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             DispatchQueue.main.async { warnEraseIncomplete() }
         }
         startStudioCleanup()
-        reflectionBrowser.refreshFromNotionIfConfigured()
         DispatchQueue.main.async { [weak self] in
             self?.resumePostInstallStarterActions()
         }
@@ -639,7 +638,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let settings = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
-        let reflection = NSMenuItem(title: voice("深度回望…", "Open Reflection Browser…"),
+        let reflection = NSMenuItem(title: voice("今日轨迹…", "Open Daily Trail…"),
                                     action: #selector(openReflectionBrowser), keyEquivalent: "r")
         reflection.target = self
         appMenu.addItem(reflection)
@@ -678,7 +677,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         let menu = NSMenu()
         menu.addItem(item(voice("刚才在做什么？  (⌥Space)", "What was I doing?  (⌥Space)"), #selector(openJournal), "j", "book"))
-        menu.addItem(item(voice("深度回望…", "Open Reflection Browser…"),
+        menu.addItem(item(voice("今日轨迹…", "Open Daily Trail…"),
                           #selector(openReflectionBrowser), "r", "rectangle.split.3x1"))
 
         let focusMenu = NSMenu()

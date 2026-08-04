@@ -1504,7 +1504,7 @@ function jSessKey(e, id){
 function jSetView(v){ J.view = v; J.openSess = null; renderJournal(); }
 function jToggleSec(s){ J.open[s] = !J.open[s]; renderJournal(); }
 function reflectionBrowserEntry(){
-  return `<div class="j-reflect"><span>${tx('把手记和真实轨迹放在一起','compare writing with the real trail')}</span><button onclick="openReflectionBrowser()">${tx('深度回望 ↗','open reflection ↗')}</button></div>`;
+  return `<div class="j-reflect"><span>${tx('把今天的碎片整理成真正做过的事','turn today’s fragments into meaningful activity')}</span><button onclick="openReflectionBrowser()">${tx('今日轨迹 ↗','daily trail ↗')}</button></div>`;
 }
 function openReflectionBrowser(){
   famCloseJournal();
