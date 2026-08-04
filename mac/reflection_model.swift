@@ -1,4 +1,4 @@
-// Mimo Daily Trail — optional AI enrichment boundary.
+// Mimo Today Journal — optional AI enrichment boundary.
 //
 // Raw activity stays local until the user explicitly confirms one request.
 // The adapter sends bounded metadata only, scrubs URLs, disables provider

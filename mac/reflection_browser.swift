@@ -1,4 +1,4 @@
-// Mimo Daily Trail — native AppKit/WKWebView host.
+// Mimo Today Journal — native AppKit/WKWebView host.
 //
 // The surface is local-first: raw activity is read from Mimo's archive and
 // transformed on device. Optional AI enrichment requires a native scope
@@ -138,7 +138,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         let window = NSWindow(contentRect: frame,
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = preferredLanguage.hasPrefix("zh") ? "Mimo · 今日轨迹" : "Mimo · Daily Trail"
+        window.title = preferredLanguage.hasPrefix("zh") ? "Mimo · 今日手记" : "Mimo · Today Journal"
         window.minSize = NSSize(width: 940, height: 640)
         window.contentView = webView
         window.isReleasedWhenClosed = false
@@ -148,7 +148,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         self.window = window
 
         guard let resourceRoot = Bundle.main.resourceURL else {
-            showNativeError("Daily Trail resources are unavailable.")
+            showNativeError("Today Journal resources are unavailable.")
             return
         }
         let html = resourceRoot.appendingPathComponent("reflection.html", isDirectory: false)
@@ -587,7 +587,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
     private func showNativeError(_ message: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Mimo Daily Trail"
+        alert.messageText = preferredLanguage.hasPrefix("zh") ? "Mimo 今日手记" : "Mimo Today Journal"
         alert.informativeText = message
         alert.runModal()
     }

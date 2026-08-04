@@ -427,7 +427,7 @@ body[data-char="pixel"] .shadow{ display:none; }
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="journal" id="journal">
     <div class="j-head">
-      <span id="journalTitle">✦ 今日手记</span>
+      <span id="journalTitle">✦ 快览</span>
       <span style="flex:1"></span>
       <button class="j-close" id="openPageButton" title="在新页面打开" onclick="bridge({type:'openPage'})">&#8599;</button>
       <button class="j-close" onclick="famToggleJournal()">✕</button>
@@ -448,7 +448,7 @@ function famSetLanguage(lang){
   document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en';
   document.title = LANG === 'zh' ? 'Mimo 米墨' : 'Mimo';
   const title = document.getElementById('journalTitle');
-  if (title) title.textContent = tx('✦ 今日手记', "✦ today's journal");
+  if (title) title.textContent = tx('✦ 快览', "✦ quick look");
   const page = document.getElementById('openPageButton');
   if (page) page.title = tx('在新页面打开', 'open as a page');
   const pomo = document.getElementById('pomoChip');
@@ -1504,7 +1504,7 @@ function jSessKey(e, id){
 function jSetView(v){ J.view = v; J.openSess = null; renderJournal(); }
 function jToggleSec(s){ J.open[s] = !J.open[s]; renderJournal(); }
 function reflectionBrowserEntry(){
-  return `<div class="j-reflect"><span>${tx('把今天的碎片整理成真正做过的事','turn today’s fragments into meaningful activity')}</span><button onclick="openReflectionBrowser()">${tx('今日轨迹 ↗','daily trail ↗')}</button></div>`;
+  return `<div class="j-reflect"><span>${tx('从快览进入完整的一天','step from the glance into the full day')}</span><button onclick="openReflectionBrowser()">${tx('今日手记 ↗','today journal ↗')}</button></div>`;
 }
 function openReflectionBrowser(){
   famCloseJournal();
@@ -1515,7 +1515,7 @@ function renderTabs(){
   const title = document.getElementById('journalTitle');
   if (title) title.textContent = J.view === 'week'
     ? tx('✦ 本周', '✦ this week')
-    : tx('✦ 今日手记', "✦ today's journal");
+    : tx('✦ 快览', "✦ quick look");
   document.getElementById('journalTabs').innerHTML =
     J_VIEWS.map(v =>
       `<button class="j-tab ${J.view === v.id ? 'cur' : ''}" onclick="jSetView('${v.id}')">${tx(v.zh,v.en)}</button>`).join('');
@@ -2034,7 +2034,7 @@ function famExportHTML(){
   const css = document.querySelector('style').textContent;
   return `<!DOCTYPE html><html lang="${LANG === 'zh' ? 'zh-CN' : 'en'}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${tx('Mimo 今日手记','Mimo Journal')} — ${new Date().toDateString()}</title>
+<title>${tx('Mimo 快览归档','Mimo Quick Look Archive')} — ${new Date().toDateString()}</title>
 <style>${css}</style>
 <style>
   html, body{ overflow:auto !important; height:auto !important;
@@ -2058,7 +2058,7 @@ function famExportHTML(){
   .page .j-block .tm, .page .j-block .du{ color:#b9b3d6; }
 </style></head>
 <body><div class="page">
-  <h1>✦ ${tx('Mimo 今日手记','Mimo Journal')}</h1>
+  <h1>✦ ${tx('Mimo 快览归档','Mimo Quick Look Archive')}</h1>
   <div class="meta">${new Date().toDateString()} · ${tx('米墨替你记下','recorded by Mimo')} ·
     <b style="color:#7df0cf">${st.pct}% ${tx('专注','focus')}</b> · ${fmtDur(st.deep)} ${tx('专注','focus')}</div>
   <h2>${tx('一天留下的纹理','the day, hour by hour')}</h2>

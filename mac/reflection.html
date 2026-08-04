@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Mimo · Daily Trail</title>
+<title>Mimo · Today Journal</title>
 <style>
 :root{
   color-scheme:light;
@@ -45,10 +45,14 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .overview-summary{color:var(--muted);font-size:14px;max-width:740px;margin:0}
 .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}
 .metric{border-top:1px solid var(--line);padding-top:14px;min-width:0}
+.metric{transition:transform .2s ease,border-color .2s ease}
+.metric:hover{transform:translateY(-3px);border-color:var(--accent)}
 .metric strong{display:block;font:600 25px/1 Georgia,"Songti SC",serif;white-space:nowrap}
 .metric span{display:block;color:var(--muted);font-size:11px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .distribution{padding:23px;display:grid;grid-template-columns:134px 1fr;gap:21px;align-items:center}
 .donut{width:134px;height:134px;border-radius:50%;position:relative;background:var(--line-soft);box-shadow:inset 0 0 0 1px rgba(0,0,0,.03)}
+.donut{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease}
+.distribution:hover .donut{transform:rotate(4deg) scale(1.035);box-shadow:inset 0 0 0 1px rgba(0,0,0,.03),0 12px 28px rgba(74,58,39,.12)}
 .donut:after{content:"";position:absolute;inset:23px;background:var(--paper-2);border-radius:50%;box-shadow:0 0 0 1px var(--line-soft)}
 .donut-center{position:absolute;inset:0;z-index:1;display:grid;place-content:center;text-align:center}
 .donut-center strong{font:600 22px/1 Georgia,serif}.donut-center span{font-size:10px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
@@ -57,6 +61,26 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .legend-row{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:8px;align-items:center;color:var(--muted);font-size:12px}
 .legend-row i{width:8px;height:8px;border-radius:3px;background:var(--category)}
 .legend-row strong{font-weight:650;color:var(--ink)}
+.journey-map{position:relative;z-index:6;margin-bottom:18px;padding:19px 22px 21px;overflow:visible}
+.journey-map-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:14px}
+.journey-map-copy{display:flex;align-items:baseline;gap:11px;min-width:0}
+.journey-map-copy p{margin:0;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.journey-hint{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:800;white-space:nowrap}
+.journey-ribbon{display:flex;align-items:stretch;gap:5px;min-height:48px;position:relative;padding:6px 0}
+.journey-ribbon:before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 5px,transparent 5px 10px)}
+.journey-ribbon:after{content:"";position:absolute;right:-1px;top:50%;width:7px;height:7px;border-radius:50%;background:var(--accent);transform:translateY(-50%);box-shadow:0 0 0 5px var(--accent-soft)}
+.journey-segment{--category:var(--admin);position:relative;z-index:1;flex-basis:0;min-width:24px;height:36px;padding:0;border:1px solid color-mix(in srgb,var(--category),white 58%);border-radius:10px;background:color-mix(in srgb,var(--category),white 84%);display:flex;align-items:center;justify-content:center;color:var(--category);font:inherit;transition:transform .22s cubic-bezier(.2,.8,.2,1),background .22s,border-color .22s;cursor:pointer}
+.journey-segment.muted{opacity:.24;filter:saturate(.45)}
+.journey-segment:hover,.journey-segment:focus-visible{z-index:12;transform:translateY(-5px) scaleY(1.08);background:color-mix(in srgb,var(--category),white 72%);border-color:var(--category);outline:none}
+.journey-segment .journey-symbol{font:700 12px Georgia,serif;opacity:.9}
+.journey-segment .journey-label{font-size:10px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px;display:none}
+.journey-segment.wide .journey-label{display:block}.journey-segment.wide .journey-symbol{display:none}
+.journey-popover{position:absolute;left:50%;bottom:calc(100% + 11px);width:240px;padding:12px 13px;border:1px solid color-mix(in srgb,var(--category),white 55%);border-radius:13px;background:rgba(255,253,248,.98);box-shadow:0 18px 42px rgba(52,39,27,.18);color:var(--ink);opacity:0;transform:translate(-50%,8px) scale(.96);pointer-events:none;transition:opacity .16s,transform .2s;transform-origin:bottom center;text-align:left}
+.journey-segment:hover .journey-popover,.journey-segment:focus-visible .journey-popover{opacity:1;transform:translate(-50%,0) scale(1)}
+.journey-popover:after{content:"";position:absolute;left:50%;bottom:-5px;width:9px;height:9px;background:var(--paper-2);border-right:1px solid color-mix(in srgb,var(--category),white 55%);border-bottom:1px solid color-mix(in srgb,var(--category),white 55%);transform:translateX(-50%) rotate(45deg)}
+.journey-popover small{display:block;color:var(--category);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.journey-popover strong{display:block;font:600 16px/1.25 Georgia,"Songti SC",serif}
+.journey-popover span{display:block;color:var(--muted);font-size:10px;margin-top:7px}
 .workspace{display:grid;grid-template-columns:minmax(0,1.48fr) minmax(340px,.72fr);gap:18px;align-items:start}
 .trail-panel,.reflection-panel{padding:22px}
 .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}
@@ -64,11 +88,16 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .category-filters{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .filter-chip{border:1px solid var(--line);background:transparent;color:var(--muted);padding:5px 9px;border-radius:99px;font-size:11px}
 .filter-chip.active{border-color:var(--ink);background:var(--ink);color:#fff}
-.timeline{position:relative;padding-left:18px}
-.timeline:before{content:"";position:absolute;left:4px;top:10px;bottom:10px;width:1px;background:var(--line)}
+.timeline{position:relative;padding-left:24px}
+.timeline:before{content:"";position:absolute;left:6px;top:10px;bottom:10px;width:2px;background:linear-gradient(180deg,var(--building),var(--learning) 38%,var(--planning) 68%,var(--entertainment));opacity:.28;border-radius:99px}
+.journey-phase{position:relative;display:flex;align-items:center;gap:9px;margin:19px 0 10px;color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:800}
+.journey-phase:first-child{margin-top:3px}
+.journey-phase:before{content:"";position:absolute;left:-22px;width:10px;height:10px;border-radius:50%;background:var(--paper-2);border:2px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.journey-phase:after{content:"";height:1px;background:var(--line-soft);flex:1}
 .activity-card{--category:var(--admin);position:relative;margin:0 0 11px;border:1px solid var(--line-soft);border-radius:16px;background:#fffdfa;transition:.18s ease}
-.activity-card:before{content:"";position:absolute;left:-18px;top:23px;width:9px;height:9px;border-radius:50%;background:var(--category);box-shadow:0 0 0 4px var(--paper-2)}
-.activity-card:hover{transform:translateY(-1px);border-color:var(--line);box-shadow:0 9px 22px rgba(70,55,39,.07)}
+.activity-card:before{content:"";position:absolute;left:-24px;top:23px;width:10px;height:10px;border-radius:50%;background:var(--category);box-shadow:0 0 0 4px var(--paper-2);transition:transform .2s,box-shadow .2s}
+.activity-card:hover,.activity-card:focus-within{transform:translateX(4px) translateY(-2px);border-color:color-mix(in srgb,var(--category),white 58%);box-shadow:0 13px 28px rgba(70,55,39,.1)}
+.activity-card:hover:before,.activity-card:focus-within:before{transform:scale(1.25);box-shadow:0 0 0 5px color-mix(in srgb,var(--category),white 84%),0 0 18px color-mix(in srgb,var(--category),transparent 55%)}
 .activity-card.located{outline:2px solid color-mix(in srgb,var(--category),white 25%);outline-offset:2px}
 .activity-main{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:14px;align-items:center;padding:15px 16px}
 .activity-time{font:600 12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)}
@@ -79,6 +108,15 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .raw-toggle{border:0;background:transparent;color:var(--muted);font-size:11px;padding:8px 16px 12px;text-align:left;width:100%;border-top:1px solid var(--line-soft)}
 .raw-events{display:none;border-top:1px solid var(--line-soft);padding:5px 16px 12px}
 .activity-card.open .raw-events{display:block}.activity-card.open .raw-toggle{color:var(--accent)}
+.activity-hover{position:absolute;z-index:40;left:calc(100% + 15px);top:-3px;width:270px;padding:15px;border:1px solid color-mix(in srgb,var(--category),white 58%);border-radius:15px;background:rgba(255,253,248,.98);box-shadow:0 20px 55px rgba(48,38,27,.2);opacity:0;transform:translateX(-8px) scale(.97);pointer-events:none;transition:opacity .17s,transform .22s cubic-bezier(.2,.8,.2,1)}
+.activity-card:hover .activity-hover,.activity-card:focus-within .activity-hover{opacity:1;transform:translateX(0) scale(1)}
+.activity-hover .hover-kicker{color:var(--category);font-size:9px;letter-spacing:.11em;text-transform:uppercase;font-weight:800}
+.activity-hover h5{font:600 18px/1.25 Georgia,"Songti SC",serif;margin:6px 0 10px}
+.hover-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.hover-stat{padding:7px 5px;background:color-mix(in srgb,var(--category),white 94%);border-radius:8px;text-align:center}
+.hover-stat strong{display:block;font-size:11px}.hover-stat span{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.hover-tools{font-size:10px;color:var(--muted);border-top:1px solid var(--line-soft);padding-top:9px}
+.hover-foot{font-size:9px;color:var(--accent);margin-top:8px}
 .raw-event{display:grid;grid-template-columns:60px 105px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line-soft);font-size:11px;color:var(--muted);align-items:center}
 .raw-event:last-child{border-bottom:0}.raw-event strong{color:var(--ink);font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .raw-link{border:0;background:transparent;color:var(--accent);padding:2px 0;font-size:11px}
@@ -103,7 +141,10 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .primary-btn:disabled{opacity:.42;cursor:not-allowed}
 .materials{margin-top:18px;padding:22px}
 .materials-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.material-card{border:1px solid var(--line-soft);border-radius:17px;background:#fffdfa;padding:17px;min-width:0;display:flex;flex-direction:column;min-height:210px}
+.material-card{--material-accent:var(--learning);position:relative;overflow:hidden;border:1px solid var(--line-soft);border-radius:17px;background:#fffdfa;padding:17px;min-width:0;display:flex;flex-direction:column;min-height:220px;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
+.material-card:hover,.material-card:focus-within{transform:translateY(-6px);border-color:color-mix(in srgb,var(--material-accent),white 58%);box-shadow:0 18px 38px rgba(64,51,37,.14)}
+.material-card:before{content:"";position:absolute;width:120px;height:120px;border-radius:50%;right:-58px;bottom:-63px;border:22px solid color-mix(in srgb,var(--material-accent),white 91%);transition:transform .35s}
+.material-card:hover:before{transform:scale(1.35)}
 .material-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .material-kind{color:var(--learning);background:color-mix(in srgb,var(--learning),white 89%);border-radius:99px;padding:4px 8px;text-transform:uppercase;letter-spacing:.07em;font-size:9px;font-weight:800}
 .material-time{font:600 12px Georgia,serif;color:var(--accent)}
@@ -113,6 +154,12 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .material-ideas{margin:0 0 10px;padding-left:16px;font-size:11px;display:grid;gap:5px}
 .material-relevance{font-size:11px;padding:8px 9px;border-left:2px solid var(--learning);background:color-mix(in srgb,var(--learning),white 94%);margin-top:auto}
 .material-open{align-self:flex-start;border:0;background:transparent;color:var(--accent);padding:10px 0 0;font-size:11px}
+.material-peek-hint{margin-top:auto;padding-top:12px;color:var(--material-accent);font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.material-insight-overlay{position:absolute;z-index:4;inset:8px;padding:15px;border:1px solid color-mix(in srgb,var(--material-accent),white 62%);border-radius:13px;background:rgba(255,253,248,.985);box-shadow:0 18px 45px rgba(52,42,30,.16);opacity:0;transform:translateY(15px) scale(.98);pointer-events:none;transition:opacity .18s,transform .24s cubic-bezier(.2,.8,.2,1);overflow:auto}
+.material-card:hover .material-insight-overlay,.material-card:focus-within .material-insight-overlay{opacity:1;transform:none;pointer-events:auto}
+.material-insight-overlay .overlay-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--material-accent);font-weight:800}
+.material-insight-overlay h5{font:600 17px/1.25 Georgia,"Songti SC",serif;margin:6px 0 8px}
+.material-insight-overlay p{font-size:11px;color:var(--muted);margin:0 0 9px;line-height:1.5}
 .privacy-note{margin-top:18px;text-align:center;color:var(--muted);font-size:10px}
 .modal-backdrop{display:none;position:fixed;inset:0;z-index:60;background:rgba(37,32,27,.32);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
 .modal-backdrop.open{display:flex}
@@ -121,14 +168,16 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .field{margin-bottom:14px}.field label{display:block;font-size:11px;font-weight:700;margin-bottom:6px}.field textarea{width:100%;min-height:80px;resize:vertical;border:1px solid var(--line);border-radius:11px;background:var(--paper);padding:10px;outline:none}.field textarea:focus{border-color:var(--accent)}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px}.secondary-btn{border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 12px}
 .loading .activity-card{opacity:.62}
+@media(max-width:1180px){.activity-hover{left:auto;right:14px;top:64px}.activity-card.open .activity-hover{display:none}}
 @media(max-width:1080px){.hero,.workspace{grid-template-columns:1fr}.distribution{grid-template-columns:134px 1fr}.reflection-panel{position:relative;top:auto;max-height:none}.materials-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.topbar{padding:14px 16px;align-items:flex-start}.brand{min-width:0}.range-controls{flex-wrap:wrap;justify-content:flex-end}.brand .eyebrow{display:none}main{padding:18px 14px 44px}.metrics{grid-template-columns:repeat(2,1fr)}.materials-grid{grid-template-columns:1fr}.activity-main{grid-template-columns:62px minmax(0,1fr)}.activity-main .duration{grid-column:2}.raw-event{grid-template-columns:50px 80px minmax(0,1fr)}.raw-link{display:none}}
+@media(max-width:760px){.topbar{padding:14px 16px;align-items:flex-start}.brand{min-width:0}.range-controls{flex-wrap:wrap;justify-content:flex-end}.brand .eyebrow{display:none}main{padding:18px 14px 44px}.metrics{grid-template-columns:repeat(2,1fr)}.journey-map-copy p,.journey-hint{display:none}.journey-segment{min-width:14px}.journey-segment.wide .journey-label{display:none}.journey-segment.wide .journey-symbol{display:block}.materials-grid{grid-template-columns:1fr}.activity-main{grid-template-columns:62px minmax(0,1fr)}.activity-main .duration{grid-column:2}.activity-hover{display:none}.raw-event{grid-template-columns:50px 80px minmax(0,1fr)}.raw-link{display:none}}
+@media(hover:none){.material-insight-overlay{position:relative;inset:auto;opacity:1;transform:none;pointer-events:auto;box-shadow:none;margin-top:12px}.material-card{min-height:0}}
 </style>
 </head>
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark">M</div><div><div class="eyebrow">Local evidence</div><h1 id="brandTitle">今日轨迹</h1></div></div>
+    <div class="brand"><div class="brand-mark">M</div><div><div class="eyebrow">Your day, remembered</div><h1 id="brandTitle">今日手记</h1></div></div>
     <div class="range-controls">
       <div class="segmented" id="rangeTabs">
         <button data-range="today" class="active">今天</button>
@@ -160,9 +209,17 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
       </div>
     </section>
 
+    <section class="card journey-map" aria-labelledby="journeyMapTitle">
+      <div class="journey-map-head">
+        <div class="journey-map-copy"><h3 class="section-title" id="journeyMapTitle">一天的形状</h3><p id="journeyMapSubtitle">每一段长度对应真实投入；悬停即可回到当时。</p></div>
+        <span class="journey-hint" id="journeyHint">悬停回看</span>
+      </div>
+      <div class="journey-ribbon" id="journeyRibbon"></div>
+    </section>
+
     <div class="workspace">
       <section class="card trail-panel" aria-labelledby="trailTitle">
-        <div class="section-head"><div><h3 class="section-title" id="trailTitle">Meaningful activity trail</h3><p id="trailSubtitle">活动块是摘要；原始记录可随时展开。</p></div><div class="category-filters" id="categoryFilters"></div></div>
+        <div class="section-head"><div><h3 class="section-title" id="trailTitle">今日旅程 · Day journey</h3><p id="trailSubtitle">沿着一天走一遍；悬停看上下文，展开看原始证据。</p></div><div class="category-filters" id="categoryFilters"></div></div>
         <div class="timeline" id="timeline"></div>
       </section>
 
@@ -187,7 +244,7 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 </div>
 
 <div class="modal-backdrop" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
-  <div class="modal"><h3 id="privacyTitle">隐藏不想回看的内容</h3><p id="privacyDescription">每行一个 App 或 domain。过滤只影响 Daily Trail，不删除原始日志。</p>
+  <div class="modal"><h3 id="privacyTitle">隐藏不想回看的内容</h3><p id="privacyDescription">每行一个 App 或 domain。过滤只影响今日手记，不删除原始日志。</p>
     <div class="field"><label id="appsLabel" for="ignoredApps">忽略的 App</label><textarea id="ignoredApps" placeholder="WeChat\nPasswords"></textarea></div>
     <div class="field"><label id="domainsLabel" for="ignoredDomains">忽略的 Domain</label><textarea id="ignoredDomains" placeholder="example.com"></textarea></div>
     <div class="modal-actions"><button class="secondary-btn" id="cancelPrivacy">取消</button><button class="primary-btn" id="savePrivacy">保存并刷新</button></div>
@@ -210,6 +267,14 @@ const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const tx=(zh,en)=>language==='zh'?zh:en;
 const categoryLabel=id=>(labels[language]||labels.en)[id]||id;
+const categorySymbol=id=>({building:'◇',learning:'◌',communication:'↗',planning:'□',admin:'·',entertainment:'~'}[id]||'·');
+const phaseInfo=value=>{
+  const hour=new Date(value).getHours();
+  if(hour<5)return{id:'night',label:tx('深夜','Late night')};
+  if(hour<12)return{id:'morning',label:tx('上午','Morning')};
+  if(hour<18)return{id:'afternoon',label:tx('下午','Afternoon')};
+  return{id:'evening',label:tx('晚上','Evening')};
+};
 const fmtDuration=seconds=>{
   const total=Math.max(0,Math.round(Number(seconds)||0));
   if(total<60)return `${total}s`;
@@ -224,25 +289,29 @@ const unique=values=>[...new Set((values||[]).filter(Boolean))];
 function applyLanguage(){
   language=(state.config?.language||'zh').toLowerCase().startsWith('zh')?'zh':'en';
   document.documentElement.lang=language==='zh'?'zh-CN':'en';
-  $('brandTitle').textContent=tx('今日轨迹','Daily Trail');
+  $('brandTitle').textContent=tx('今日手记','Today Journal');
   $('activeLabel').textContent=tx('有效活动','Active time');$('focusLabel').textContent=tx('专注投入','Focused time');
   $('blockLabel').textContent=tx('有意义的活动','Meaningful blocks');$('switchLabel').textContent=tx('上下文切换','Context switches');
   $('materialLabel').textContent=tx('学习材料','materials');$('distributionTitle').textContent=tx('时间流向','Where time went');
-  $('trailSubtitle').textContent=tx('活动块是摘要；原始记录可随时展开。','Blocks are the summary; raw evidence stays expandable.');
+  $('journeyMapTitle').textContent=tx('一天的形状','The shape of the day');
+  $('journeyMapSubtitle').textContent=tx('每一段长度对应真实投入；悬停即可回到当时。','Segment length follows active time; hover to revisit the context.');
+  $('journeyHint').textContent=tx('悬停回看','Hover to revisit');
+  $('trailTitle').textContent=tx('今日旅程 · Day journey','Day journey');
+  $('trailSubtitle').textContent=tx('沿着一天走一遍；悬停看上下文，展开看原始证据。','Walk the day again; hover for context, expand for raw evidence.');
   $('aiDescription').textContent=tx('本地总结始终可用；AI 只在你确认后读取当前范围的活动元数据。','The local summary always works. AI reads range metadata only after confirmation.');
   $('prompt').placeholder=tx('可选：今天最值得回看的是什么？','Optional: what is most worth revisiting?');
   $('synthesizeBtn').textContent=tx('AI 深度总结','Enrich with AI');
   $('materialsSubtitle').textContent=tx('Paper、website、video 和 document，连同阅读投入与可验证摘要。','Papers, websites, videos, and documents with engagement and grounded summaries.');
   $('privacyNote').textContent=tx('活动原始记录留在本机 · 只有你主动确认的活动元数据才会用于 AI 总结','Raw activity stays on this Mac · AI sees metadata only after your confirmation');
-  $('privacyTitle').textContent=tx('隐藏不想回看的内容','Hide activity from Daily Trail');
-  $('privacyDescription').textContent=tx('每行一个 App 或 domain。过滤只影响 Daily Trail，不删除原始日志。','One app or domain per line. Filtering changes this view, not the raw log.');
+  $('privacyTitle').textContent=tx('隐藏不想回看的内容','Hide activity from Today Journal');
+  $('privacyDescription').textContent=tx('每行一个 App 或 domain。过滤只影响今日手记，不删除原始日志。','One app or domain per line. Filtering changes this journal, not the raw log.');
   $('appsLabel').textContent=tx('忽略的 App','Ignored apps');$('domainsLabel').textContent=tx('忽略的 Domain','Ignored domains');
   $('cancelPrivacy').textContent=tx('取消','Cancel');$('savePrivacy').textContent=tx('保存并刷新','Save & refresh');
   document.querySelector('[data-range=today]').textContent=tx('今天','Today');document.querySelector('[data-range=week]').textContent=tx('7 天','7 days');document.querySelector('[data-range=custom]').textContent=tx('自定义','Custom');
 }
 
 function render(){
-  applyLanguage();renderRange();renderNotice();renderOverview();renderDistribution();renderFilters();renderTimeline();renderReflection();renderMaterials();
+  applyLanguage();renderRange();renderNotice();renderOverview();renderDistribution();renderFilters();renderJourneyRibbon();renderTimeline();renderReflection();renderMaterials();
   document.body.classList.toggle('loading',state.status?.activity==='loading');
 }
 function renderRange(){
@@ -270,6 +339,17 @@ function renderDistribution(){
   $('donut').style.background=stops.length?`conic-gradient(${stops.join(',')})`:'var(--line-soft)';
   $('legend').innerHTML=categories.map(item=>`<div class="legend-row" style="--category:${colors[item.id]||colors.admin}"><i></i><span>${esc(categoryLabel(item.id))}</span><strong>${Math.round(item.share*100)}%</strong></div>`).join('')||`<span style="color:var(--muted);font-size:12px">${tx('等待活动','Waiting for activity')}</span>`;
 }
+function renderJourneyRibbon(){
+  const blocks=state.activityBlocks||[];
+  if(!blocks.length){$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('今天的旅程会从第一段活动开始。','The journey begins with your first activity.')}</span>`;return}
+  const total=blocks.reduce((sum,block)=>sum+Math.max(1,Number(block.activeSeconds)||0),0);
+  $('journeyRibbon').innerHTML=blocks.map(block=>{
+    const share=Math.max(1,Number(block.activeSeconds)||0)/total;const phase=phaseInfo(block.start);
+    const tools=unique([...(block.apps||[]),...(block.domains||[])]).slice(0,4).join(' · ');
+    const muted=activeCategory!=='all'&&block.category!==activeCategory;
+    return `<button type="button" class="journey-segment ${share>=.14?'wide':''} ${muted?'muted':''}" data-journey-block="${esc(block.id)}" style="--category:${colors[block.category]||colors.admin};flex-grow:${Math.max(1,Number(block.activeSeconds)||0)}" aria-label="${esc(block.title)} · ${fmtDuration(block.activeSeconds)}"><span class="journey-symbol">${categorySymbol(block.category)}</span><span class="journey-label">${esc(block.title)}</span><span class="journey-popover"><small>${esc(phase.label)} · ${esc(categoryLabel(block.category))}</small><strong>${esc(block.title)}</strong><span>${fmtTime(block.start)}—${fmtTime(block.end)} · ${fmtDuration(block.activeSeconds)}${tools?` · ${esc(tools)}`:''}</span></span></button>`;
+  }).join('');
+}
 function renderFilters(){
   const available=categoryOrder.filter(id=>(state.categories||[]).some(x=>x.id===id));
   const values=['all',...available];if(!values.includes(activeCategory))activeCategory='all';
@@ -278,12 +358,16 @@ function renderFilters(){
 function renderTimeline(){
   const blocks=(state.activityBlocks||[]).filter(x=>activeCategory==='all'||x.category===activeCategory);
   if(!blocks.length){$('timeline').innerHTML=`<div class="empty"><strong>${tx('这里还没有活动','No activity here yet')}</strong>${tx('工作、阅读或探索后，Mimo 会把本地记录整理成活动块。','Work, read, or explore and Mimo will shape local events into blocks.')}</div>`;return}
-  $('timeline').innerHTML=blocks.map(block=>{
-    const apps=unique(block.apps).slice(0,4).join(' · ');const raw=block.events||[];
-    return `<article class="activity-card" id="block-${esc(block.id)}" data-block="${esc(block.id)}" data-events="${esc((block.eventIDs||[]).join(','))}" style="--category:${colors[block.category]||colors.admin}">
-      <div class="activity-main"><div class="activity-time">${fmtTime(block.start)}<br><span style="opacity:.55">${fmtTime(block.end)}</span></div><div><div class="activity-title">${esc(block.title)}</div><div class="activity-meta"><span class="category-pill">${esc(categoryLabel(block.category))}</span><span>${esc(apps)}</span>${block.contextSwitches?`<span>↔ ${block.contextSwitches}</span>`:''}</div></div><div class="duration">${fmtDuration(block.activeSeconds)}</div></div>
+  let lastPhase='';
+  $('timeline').innerHTML=blocks.map((block,index)=>{
+    const apps=unique(block.apps).slice(0,4);const domains=unique(block.domains).slice(0,3);const raw=block.events||[];const phase=phaseInfo(block.start);
+    const phaseMarker=phase.id===lastPhase?'':`<div class="journey-phase"><span>${esc(phase.label)}</span><small>${fmtTime(block.start)}</small></div>`;lastPhase=phase.id;
+    const tools=[...apps,...domains].join(' · ')||tx('本地活动','Local activity');
+    return `${phaseMarker}<article class="activity-card" id="block-${esc(block.id)}" data-block="${esc(block.id)}" data-events="${esc((block.eventIDs||[]).join(','))}" style="--category:${colors[block.category]||colors.admin}">
+      <div class="activity-main"><div class="activity-time">${fmtTime(block.start)}<br><span style="opacity:.55">${fmtTime(block.end)}</span></div><div><div class="activity-title">${esc(block.title)}</div><div class="activity-meta"><span class="category-pill">${esc(categoryLabel(block.category))}</span><span>${esc(apps.join(' · '))}</span>${block.contextSwitches?`<span>↔ ${block.contextSwitches}</span>`:''}</div></div><div class="duration">${fmtDuration(block.activeSeconds)}</div></div>
       <button class="raw-toggle" data-toggle="${esc(block.id)}">${tx('查看','View')} ${raw.length} ${tx('条原始证据','raw events')} ↓</button>
       <div class="raw-events">${raw.map(event=>`<div class="raw-event"><span>${fmtTime(event.start)}</span><strong title="${esc(event.app)}">${esc(event.app)}</strong><span title="${esc(event.title)}">${esc(event.title||event.domain||'—')}</span>${event.url?`<button class="raw-link" data-url="${esc(event.url)}">${tx('打开','Open')} ↗</button>`:'<span></span>'}</div>`).join('')}</div>
+      <div class="activity-hover" aria-hidden="true"><div class="hover-kicker">#${index+1} · ${esc(phase.label)} · ${esc(categoryLabel(block.category))}</div><h5>${esc(block.title)}</h5><div class="hover-stats"><div class="hover-stat"><strong>${fmtDuration(block.activeSeconds)}</strong><span>${tx('投入','time')}</span></div><div class="hover-stat"><strong>${apps.length}</strong><span>${tx('工具','apps')}</span></div><div class="hover-stat"><strong>${block.contextSwitches||0}</strong><span>${tx('切换','switches')}</span></div></div><div class="hover-tools">${esc(tools)}</div><div class="hover-foot">${tx('这是当时的上下文快照 · 下方可展开原始证据','A context snapshot · expand raw evidence below')}</div></div>
     </article>`;
   }).join('');
 }
@@ -298,7 +382,7 @@ function renderReflection(){
 function renderMaterials(){
   const materials=state.learningMaterials||[];
   if(!materials.length){$('materialsGrid').innerHTML=`<div class="empty" style="grid-column:1/-1"><strong>${tx('还没有学习材料','No learning materials yet')}</strong>${tx('阅读 paper、website、video 或 document 后会出现在这里。','Papers, websites, videos, and documents will appear here.')}</div>`;return}
-  $('materialsGrid').innerHTML=materials.map(item=>`<article class="material-card"><div class="material-top"><span class="material-kind">${esc(item.kind)}</span><span class="material-time">${fmtDuration(item.durationSeconds)} · ${item.visits}×</span></div><h4>${esc(item.title)}</h4><div class="material-source">${esc(item.domain||tx('本地文档','Local document'))}</div><p class="material-overview">${esc(item.overview)}</p>${item.keyIdeas?.length?`<ul class="material-ideas">${item.keyIdeas.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${item.relevance?`<div class="material-relevance"><strong>${tx('与你的关联：','Why it matters: ')}</strong>${esc(item.relevance)}</div>`:''}${item.url?`<button class="material-open" data-url="${esc(item.url)}">${tx('打开来源','Open source')} ↗</button>`:''}</article>`).join('');
+  $('materialsGrid').innerHTML=materials.map(item=>`<article class="material-card" style="--material-accent:${colors.learning}"><div class="material-top"><span class="material-kind">${esc(item.kind)}</span><span class="material-time">${fmtDuration(item.durationSeconds)} · ${item.visits}×</span></div><h4>${esc(item.title)}</h4><div class="material-source">${esc(item.domain||tx('本地文档','Local document'))}</div><p class="material-overview">${esc(item.overview)}</p><div class="material-peek-hint">${tx('悬停看核心观点','Hover for key ideas')} ↗</div><div class="material-insight-overlay"><div class="overlay-label">${item.aiEnhanced?'AI + LOCAL':'LOCAL EVIDENCE'} · ${esc(item.kind)}</div><h5>${esc(item.title)}</h5><p>${esc(item.overview)}</p>${item.keyIdeas?.length?`<ul class="material-ideas">${item.keyIdeas.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${item.relevance?`<div class="material-relevance"><strong>${tx('与你的关联：','Why it matters: ')}</strong>${esc(item.relevance)}</div>`:''}${item.url?`<button class="material-open" data-url="${esc(item.url)}">${tx('打开来源','Open source')} ↗</button>`:''}</div></article>`).join('');
 }
 function locateEvidence(ids){
   const wanted=new Set(String(ids||'').split(',').filter(Boolean));if(!wanted.size)return;
@@ -312,7 +396,8 @@ function sendRange(mode){
 
 $('rangeTabs').addEventListener('click',event=>{const button=event.target.closest('[data-range]');if(!button)return;sendRange(button.dataset.range)});
 $('startDate').addEventListener('change',()=>{if($('endDate').value)sendRange('custom')});$('endDate').addEventListener('change',()=>{if($('startDate').value)sendRange('custom')});
-$('categoryFilters').addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(!button)return;activeCategory=button.dataset.filter;renderFilters();renderTimeline()});
+$('categoryFilters').addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(!button)return;activeCategory=button.dataset.filter;renderFilters();renderJourneyRibbon();renderTimeline()});
+$('journeyRibbon').addEventListener('click',event=>{const segment=event.target.closest('[data-journey-block]');if(!segment)return;if(activeCategory!=='all'){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline()}const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===segment.dataset.journeyBlock);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
 $('timeline').addEventListener('click',event=>{const toggle=event.target.closest('[data-toggle]');if(toggle){toggle.closest('.activity-card')?.classList.toggle('open');return}const link=event.target.closest('[data-url]');if(link)post({type:'openExternal',url:link.dataset.url})});
 $('reflectionSections').addEventListener('click',event=>{const button=event.target.closest('[data-evidence]');if(button)locateEvidence(button.dataset.evidence)});
 $('materialsGrid').addEventListener('click',event=>{const button=event.target.closest('[data-url]');if(button)post({type:'openExternal',url:button.dataset.url})});
@@ -325,27 +410,27 @@ $('savePrivacy').addEventListener('click',()=>{const lines=id=>$(id).value.split
 function fixturePayload(name='1'){
   if(name==='empty')return {...fixturePayload('1'),metrics:{activeSeconds:0,focusSeconds:0,contextSwitches:0,blockCount:0,materialCount:0},categories:[],activityBlocks:[],learningMaterials:[],reflection:{headline:'今天还没有轨迹',summary:'去做点什么，Mimo 会从本地证据开始整理。',aiEnhanced:false,sections:[]}};
   const error=name==='error';const noKey=name==='nokey'||name==='notoken';
-  const base=Date.now()-5*3600000,iso=ms=>new Date(ms).toISOString();
+  const fixtureDay=new Date();fixtureDay.setHours(8,30,0,0);const base=fixtureDay.getTime(),iso=ms=>new Date(ms).toISOString();
   const event=(id,offset,duration,app,title,url,category)=>({id,start:iso(base+offset*60000),end:iso(base+(offset+duration)*60000),durationSeconds:duration*60,app,title,url,domain:url?new URL(url).hostname:'',category,rawCategory:category});
   const e1=event('e1',0,18,'Arc','Activity tracking as sensemaking','https://example.com/activity-sensemaking','learning');
-  const e2=event('e2',20,24,'Cursor','Mimo · Daily Trail','', 'building');
+  const e2=event('e2',20,24,'Cursor','Mimo · Today Journal','', 'building');
   const e3=event('e3',44,16,'Claude','Mimo information architecture','', 'building');
-  const e4=event('e4',68,12,'WeChat','Product discussion','', 'communication');
-  const e5=event('e5',86,28,'Preview','Designing Data-Intensive Applications.pdf','file:///book.pdf','learning');
-  const e6=event('e6',122,17,'Safari','How to Take Smart Notes','https://example.com/smart-notes','learning');
+  const e4=event('e4',175,12,'WeChat','Product discussion','', 'communication');
+  const e5=event('e5',250,28,'Preview','Designing Data-Intensive Applications.pdf','file:///book.pdf','learning');
+  const e6=event('e6',390,17,'Safari','How to Take Smart Notes','https://example.com/smart-notes','learning');
   const blocks=[
     {id:'b1',title:'Activity tracking as sensemaking',category:'learning',start:e1.start,end:e1.end,activeSeconds:e1.durationSeconds,apps:['Arc'],domains:['example.com'],contextSwitches:0,eventIDs:['e1'],events:[e1]},
-    {id:'b2',title:'Mimo Daily Trail',category:'building',start:e2.start,end:e3.end,activeSeconds:e2.durationSeconds+e3.durationSeconds,apps:['Cursor','Claude'],domains:[],contextSwitches:2,eventIDs:['e2','e3'],events:[e2,e3]},
+    {id:'b2',title:'Mimo Today Journal',category:'building',start:e2.start,end:e3.end,activeSeconds:e2.durationSeconds+e3.durationSeconds,apps:['Cursor','Claude'],domains:[],contextSwitches:2,eventIDs:['e2','e3'],events:[e2,e3]},
     {id:'b3',title:'Product discussion',category:'communication',start:e4.start,end:e4.end,activeSeconds:e4.durationSeconds,apps:['WeChat'],domains:[],contextSwitches:1,eventIDs:['e4'],events:[e4]},
     {id:'b4',title:'Designing Data-Intensive Applications',category:'learning',start:e5.start,end:e5.end,activeSeconds:e5.durationSeconds,apps:['Preview'],domains:[],contextSwitches:1,eventIDs:['e5'],events:[e5]},
     {id:'b5',title:'How to Take Smart Notes',category:'learning',start:e6.start,end:e6.end,activeSeconds:e6.durationSeconds,apps:['Safari'],domains:['example.com'],contextSwitches:1,eventIDs:['e6'],events:[e6]}
   ];
   return {config:{language:'zh-CN',modelConfigured:!noKey,ignoredApps:[],ignoredDomains:[],fixture:true},range:{mode:'today',start:'2026-08-04',end:'2026-08-04'},metrics:{activeSeconds:115*60,focusSeconds:103*60,contextSwitches:5,blockCount:5,materialCount:3},categories:[{id:'learning',durationSeconds:63*60,blockCount:3,share:63/115},{id:'building',durationSeconds:40*60,blockCount:1,share:40/115},{id:'communication',durationSeconds:12*60,blockCount:1,share:12/115}],activityBlocks:blocks,learningMaterials:[
-    {id:'m1',title:'Activity tracking as sensemaking',kind:'website',domain:'example.com',url:e1.url,durationSeconds:e1.durationSeconds,visits:1,overview:'文章讨论 activity trail 如何从记录工具变成自我理解的界面。',keyIdeas:['原始事件只是证据，不是最终信息结构','回顾需要围绕有意义的活动，而不是 App'],relevance:'直接支持 Mimo Daily Trail 的产品方向。',aiEnhanced:true,evidenceIDs:['e1']},
+    {id:'m1',title:'Activity tracking as sensemaking',kind:'website',domain:'example.com',url:e1.url,durationSeconds:e1.durationSeconds,visits:1,overview:'文章讨论 activity trail 如何从记录工具变成自我理解的界面。',keyIdeas:['原始事件只是证据，不是最终信息结构','回顾需要围绕有意义的活动，而不是 App'],relevance:'直接支持 Mimo 今日手记的产品方向。',aiEnhanced:true,evidenceIDs:['e1']},
     {id:'m2',title:'Designing Data-Intensive Applications',kind:'document',domain:'Local PDF',durationSeconds:e5.durationSeconds,visits:1,overview:'本地 PDF 阅读记录；当前摘要仅基于标题和投入时间。',keyIdeas:[],aiEnhanced:false,evidenceIDs:['e5']},
     {id:'m3',title:'How to Take Smart Notes',kind:'website',domain:'example.com',url:e6.url,durationSeconds:e6.durationSeconds,visits:1,overview:'关于把阅读材料转化为长期可复用笔记的方法。',keyIdeas:['记录应该服务于未来使用','知识需要通过关联逐步生长'],relevance:'可用于设计 Mimo 的 learning material summary。',aiEnhanced:true,evidenceIDs:['e6']}
-  ],reflection:{headline:'今天主要在把 Mimo 从“记录”推进到“理解”',summary:'5 个活动块，核心投入集中在 Daily Trail 的设计与实现；学习材料与产品工作形成了清晰关联。',aiEnhanced:!noKey,sections:[
-    {id:'What I Did',statements:[{text:'围绕 Mimo Daily Trail 完成了一段连续的设计与开发工作。',kind:'inference',evidenceIDs:['e2','e3']},{text:'进行了一次产品讨论。',kind:'fact',evidenceIDs:['e4']}]},
+  ],reflection:{headline:'今天主要在把 Mimo 从“记录”推进到“理解”',summary:'5 个活动块，核心投入集中在今日手记的设计与实现；学习材料与产品工作形成了清晰关联。',aiEnhanced:!noKey,sections:[
+    {id:'What I Did',statements:[{text:'围绕 Mimo 今日手记完成了一段连续的设计与开发工作。',kind:'inference',evidenceIDs:['e2','e3']},{text:'进行了一次产品讨论。',kind:'fact',evidenceIDs:['e4']}]},
     {id:'Time & Attention',statements:[{text:'学习 63 分钟，创作 40 分钟；两者占据了绝大多数有效时间。',kind:'fact',evidenceIDs:['e1','e2','e3','e5','e6']}]},
     {id:'What I Learned',statements:[{text:'今天的阅读集中于 activity sensemaking、数据系统和智能笔记。',kind:'fact',evidenceIDs:['e1','e5','e6']}]},
     {id:'Open Loops',statements:[{text:'本地 PDF 只有阅读元数据，还没有内容级摘要。',kind:'inference',evidenceIDs:['e5']}]},

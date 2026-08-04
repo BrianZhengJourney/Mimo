@@ -19,9 +19,10 @@ The repository has moved beyond the original browser concept:
 - Native AppKit/CALayer companion with alpha hit testing, HiDPI rendering,
   drag/throw physics, screen surfaces, gaze, and data-driven behavior packs.
 - Local app/browser activity classification, 25/50-minute Focus timers,
-  a complete Today journal, Week view, and a full-page HTML archive.
-- Daily Trail turns raw local events into categorized activity blocks, time
-  visualizations, learning-material summaries, and evidence-linked reflection.
+  a bilingual Quick Look, Week view, and a full-page HTML archive.
+- Today Journal turns raw local events into a proportional day journey,
+  categorized activity blocks, hover context, learning-material summaries,
+  and evidence-linked reflection.
   Optional AI enrichment never blocks the fully local dashboard.
 - Mimo Studio reference preprocessing, canonical character generation,
   expression assets, provider abstraction, generation ledger, and recovery.
@@ -34,7 +35,7 @@ The repository has moved beyond the original browser concept:
 
 See the [current status](docs/companion/STATUS.md) and
 [custom pet integration plan](docs/companion/11-custom-pet-integration.md). The
-[Daily Trail guide](docs/daily-trail.md) documents its local data flow,
+[Today Journal guide](docs/daily-trail.md) documents its local data flow,
 visual model, and privacy boundaries.
 
 ## Build and test
@@ -51,7 +52,7 @@ macOS then re-prompts for browser Automation and invalidates the Keychain ACL
 on the stored API key. Set `MIMO_SIGN_IDENTITY` to a stable self-signed
 certificate in your login keychain to keep both across rebuilds.
 
-Activity history stays local. Optional Daily Trail AI enrichment sends bounded,
+Activity history stays local. Optional Today Journal AI enrichment sends bounded,
 URL-scrubbed metadata only after a native confirmation. Reference images leave
 the Mac only after the user confirms the identity board and starts a provider
 generation.
@@ -59,7 +60,7 @@ generation.
 ## Product flow
 
 ```text
-work context ──> local activity journal ──> Daily Trail + focus semantics
+work context ──> Quick Look ──> Today Journal + focus semantics
                                               │
 reference images ──> canonical familiar ──> behavior + action assets
                                               │
@@ -78,10 +79,12 @@ This resumable Studio workflow is now implemented for the four-action starter
 pack. Paid visual generation remains user-triggered; the app never silently
 spends, retries, or installs.
 
-### Full-page journal
+### Quick Look and Today Journal
 
-The ↗ button in Today renders the day timeline, complete lists, and week
-heatmap as a standalone HTML page in the browser. It writes one dated file to
+`⌥ Space` opens Quick Look for immediate context; its Today Journal link opens
+the full day journey, evidence trail, reflection, and learning-material cards.
+The export action still renders the day timeline, complete lists, and week
+heatmap as a standalone HTML page. It writes one dated file to
 `~/Library/Application Support/Mimo/exports/journal-YYYY-MM-DD.html`; opening
 it again updates that file instead of creating duplicates.
 

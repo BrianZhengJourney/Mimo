@@ -638,7 +638,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let settings = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
-        let reflection = NSMenuItem(title: voice("今日轨迹…", "Open Daily Trail…"),
+        let reflection = NSMenuItem(title: voice("今日手记…", "Open Today Journal…"),
                                     action: #selector(openReflectionBrowser), keyEquivalent: "r")
         reflection.target = self
         appMenu.addItem(reflection)
@@ -676,8 +676,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
 
         let menu = NSMenu()
-        menu.addItem(item(voice("刚才在做什么？  (⌥Space)", "What was I doing?  (⌥Space)"), #selector(openJournal), "j", "book"))
-        menu.addItem(item(voice("今日轨迹…", "Open Daily Trail…"),
+        menu.addItem(item(voice("快览  (⌥Space)", "Quick Look  (⌥Space)"), #selector(openJournal), "j", "eye"))
+        menu.addItem(item(voice("今日手记…", "Open Today Journal…"),
                           #selector(openReflectionBrowser), "r", "rectangle.split.3x1"))
 
         let focusMenu = NSMenu()

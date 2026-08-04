@@ -1,4 +1,4 @@
-// Mimo Daily Trail — local, deterministic activity domain core.
+// Mimo Today Journal — local, deterministic activity domain core.
 //
 // This file deliberately has no AppKit, WebKit, network, Keychain, or model
 // dependencies. Raw events remain the source of truth; every derived activity

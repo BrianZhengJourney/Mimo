@@ -3792,8 +3792,8 @@ extension AppDelegate {
             case "all":
                 let a = NSAlert()
                 a.messageText = voice("删除全部历史记录？", "Delete all history?")
-                a.informativeText = voice("所有活动记录、Daily Trail 本机设置和未采用的生成草稿都会消失；已采用的伴灵会保留。此操作无法撤销。",
-                                         "All activity, local Daily Trail settings, and unadopted generation drafts will be deleted; adopted familiars stay. No undo.")
+                a.informativeText = voice("所有活动记录、今日手记本机设置和未采用的生成草稿都会消失；已采用的伴灵会保留。此操作无法撤销。",
+                                         "All activity, local Today Journal settings, and unadopted generation drafts will be deleted; adopted familiars stay. No undo.")
                 a.addButton(withTitle: voice("全部删除", "Delete Everything"))
                 a.addButton(withTitle: voice("取消", "Cancel"))
                 a.alertStyle = .warning

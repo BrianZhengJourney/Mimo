@@ -22,10 +22,10 @@ struct ReflectionBrowserUITests {
         let build = try String(contentsOfFile: "mac/build.sh", encoding: .utf8)
         let product = try String(contentsOfFile: "mac/product.swift", encoding: .utf8)
 
-        for contract in ["Meaningful activity trail", "Daily reflection", "Learning materials",
+        for contract in ["今日手记", "Today Journal", "Day journey", "Daily reflection", "Learning materials",
                          "activityBlocks", "learningMaterials", "reflectionLoad",
                          "原始证据", "时间流向"] {
-            expect(html.contains(contract), "Daily Trail exposes \(contract)")
+            expect(html.contains(contract), "Today Journal exposes \(contract)")
         }
         for bridge in ["type:'ready'", "type:'setRange'", "type:'savePrivacy'",
                        "type:'synthesize'", "type:'openExternal'"] {
@@ -35,11 +35,15 @@ struct ReflectionBrowserUITests {
                && html.contains("class=\"timeline\"")
                && html.contains("materials-grid"),
                "the dashboard visualizes category share, chronology, and learning material cards")
+        expect(html.contains("journeyRibbon") && html.contains("journey-segment")
+               && html.contains("journey-popover") && html.contains("journey-phase")
+               && html.contains("activity-hover") && html.contains("material-insight-overlay"),
+               "the day journey supports proportional segments, time chapters, and hover overlays")
         expect(html.contains("raw-toggle") && html.contains("raw-events")
                && html.contains("data-evidence") && html.contains("locateEvidence"),
                "raw evidence stays expandable and reflection claims locate their source")
         expect(html.contains("ignoredApps") && html.contains("ignoredDomains")
-               && html.contains("过滤只影响 Daily Trail，不删除原始日志"),
+               && html.contains("过滤只影响今日手记，不删除原始日志"),
                "privacy exclusions remain visible and non-destructive")
         expect(html.contains("reflectionFixture") && html.contains("nokey")
                && html.contains("empty") && html.contains("error"),
@@ -61,12 +65,13 @@ struct ReflectionBrowserUITests {
                && model.contains("SensitiveURLScrubber.scrub"),
                "optional AI enrichment is honest, bounded, no-store, and URL-scrubbed")
 
-        expect(overlay.contains("openReflection") && overlay.contains("今日轨迹")
-               && overlay.contains("真正做过的事"),
-               "Today and Week journal link to the local Daily Trail")
+        expect(overlay.contains("openReflection") && overlay.contains("快览")
+               && overlay.contains("今日手记"),
+               "Quick Look links to the full Today Journal")
         expect(main.contains("ReflectionBrowserController(root: logDir)")
                && main.contains("openReflectionBrowser")
-               && main.contains("今日轨迹…")
+               && main.contains("快览  (⌥Space)")
+               && main.contains("今日手记…")
                && !main.contains("refreshFromNotionIfConfigured"),
                "the local dashboard is integrated without launch-time remote sync")
         let fixtureGuard = main.range(of: "if reflectionBrowser.isFixtureMode")
@@ -105,7 +110,7 @@ struct ReflectionBrowserUITests {
         expect(!common.contains("notion_reflection.swift"),
                "the removed integration is absent from release compilation")
         expect(build.contains("reflection.html"),
-               "the Daily Trail resource is bundled and previewable")
+               "the Today Journal resource is bundled and previewable")
         expect(overlay.contains("if (Fam.paused || !Fam.cur) return;")
                && overlay.contains("Fam.cur = {...Fam.cur, t0:Date.now()}"),
                "pause and forget cannot recreate erased activity through checkpoints")

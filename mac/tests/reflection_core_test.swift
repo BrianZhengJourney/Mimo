@@ -13,7 +13,7 @@ struct ReflectionCoreTests {
     static func main() throws {
         let jsonl = [
             #"{"app":"Arc","kind":"paper","detail":"Activity Sensemaking — Arc","canon":"Activity Sensemaking","url":"https://example.com/read?topic=mimo&token=secret#private","t0":60000,"t1":180000}"#,
-            #"{"app":"Cursor","kind":"code","detail":"Mimo Daily Trail","t0":190000,"t1":490000}"#,
+            #"{"app":"Cursor","kind":"code","detail":"Mimo Today Journal","t0":190000,"t1":490000}"#,
             #"{"app":"Claude","kind":"neutral","detail":"Mimo information architecture","t0":500000,"t1":680000}"#,
             #"{"app":"WeChat","kind":"neutral","detail":"Product discussion","t0":900000,"t1":1020000}"#,
             #"{"app":"Arc","kind":"paper","detail":"Activity Sensemaking — Arc","canon":"Activity Sensemaking","url":"https://example.com/read?topic=mimo&token=secret#private","t0":1100000,"t1":1220000}"#,

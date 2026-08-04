@@ -60,7 +60,7 @@ struct ReflectionBrowserDOMTests {
         expect(waiter.finished && !waiter.failed, "fixture loads in a real WKWebView")
         _ = evaluate("window.reflectionFixture('1')", in: webView)
 
-        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
+        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.journey-segment').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
                                in: webView) as? String
         let object = try JSONSerialization.jsonObject(
             with: Data((initial ?? "{}").utf8)) as? [String: Any]
@@ -69,8 +69,20 @@ struct ReflectionBrowserDOMTests {
                && object?["sections"] as? Int == 5
                && object?["raw"] as? Int == 6,
                "populated fixture renders blocks, learning cards, reflection, and raw evidence")
+        expect(object?["journey"] as? Int == 5
+               && (object?["phases"] as? Int ?? 0) >= 2
+               && object?["activityHovers"] as? Int == 5
+               && object?["materialOverlays"] as? Int == 3,
+               "journey segments, day phases, and contextual overlays render for every item")
         expect((object?["donut"] as? String)?.contains("conic-gradient") == true,
                "category distribution renders as a visual donut")
+
+        expect((evaluate("const segment=document.querySelector('.journey-segment');segment.focus();getComputedStyle(segment.querySelector('.journey-popover')).opacity==='1'",
+                         in: webView) as? Bool) == true,
+               "keyboard focus reveals the same journey context as hover")
+        expect((evaluate("document.querySelector('[data-journey-block=b4]').click();document.querySelector('[data-block=b4]').classList.contains('located')",
+                         in: webView) as? Bool) == true,
+               "selecting a journey segment locates its detailed activity")
 
         expect((evaluate("document.querySelector('.raw-toggle').click();document.querySelector('.activity-card').classList.contains('open')",
                          in: webView) as? Bool) == true,

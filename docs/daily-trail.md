@@ -1,7 +1,10 @@
-# Mimo Daily Trail
+# Mimo 今日手记 / Today Journal
 
-Daily Trail 回答三个问题：今天实际做了什么、时间流向哪里、接触了哪些学习材料。
+今日手记回答三个问题：今天实际做了什么、时间流向哪里、接触了哪些学习材料。
 它不是远程笔记同步器；唯一必需的数据源是 Mimo 已有的本机 activity JSONL。
+
+`⌥ Space` 打开的轻量入口称为 **快览 / Quick Look**，用于快速找回刚才的上下文；
+**今日手记 / Today Journal** 是完整的回顾空间。
 
 ## 产品结构
 
@@ -9,14 +12,21 @@ Daily Trail 回答三个问题：今天实际做了什么、时间流向哪里�
 raw local events
     ↓ lossless sessionization
 meaningful activity blocks
+    ├── proportional journey ribbon
+    ├── morning/afternoon/evening chapters
     ├── category/time visualization
+    ├── hover context overlays
     ├── expandable raw evidence
-    ├── learning material cards
+    ├── learning material summary overlays
     └── grounded daily reflection
 ```
 
-- **Meaningful activity trail**：相同主题可在 15 分钟内续接；相同大类的快速工具切换
+- **今日旅程**：相同主题可在 15 分钟内续接；相同大类的快速工具切换
   会合并为一个 activity block。每个 block 始终保留全部 raw event ID。
+- **Journey ribbon**：每段宽度对应真实投入，按活动类别着色；悬停显示时间、工具和
+  上下文，点击会定位到详细活动。
+- **日间章节与 overlay**：活动按上午、下午、晚上分章；activity 与 learning material
+  卡片在 hover/focus 时展开上下文或核心观点，键盘也能访问。
 - **时间可视化**：Building、Learning、Communication、Planning、Admin、
   Entertainment 六类时间占比、有效时间、专注时间和 context switches。
 - **Learning materials**：从 paper、website、video、document 记录中去重，展示来源、
@@ -31,7 +41,7 @@ meaningful activity blocks
 - 可按 App/domain 排除活动；排除不删除原始日志。
 - 每次 AI 请求都先经过原生确认框。仅发送当前日期范围的活动元数据；URL credentials、
   fragment 和 token/secret/auth/session 等敏感 query 会先移除。
-- Provider storage 显式关闭；没有 API Key 时本地 trail、可视化、材料卡片和 reflection
+- Provider storage 显式关闭；没有 API Key 时本地旅程、可视化、材料卡片和 reflection
   均正常工作。
 - 当前版本没有远程笔记连接、同步或写回路径。
 

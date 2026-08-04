@@ -72,7 +72,7 @@ private func makeSnapshot() -> DailyActivitySnapshot {
         order: 0)
     let building = ActivityEvent(
         id: "activity-building", startedAtMS: 1_780_001_260_000,
-        endedAtMS: 1_780_003_600_000, app: "Cursor", title: "Mimo Daily Trail",
+        endedAtMS: 1_780_003_600_000, app: "Cursor", title: "Mimo Today Journal",
         fullURL: "file:///Users/example/Mimo?session=PRIVATE", domain: nil,
         category: "code", order: 1, isContextSwitch: true)
     return .build(range: range, events: [learning, building])
@@ -125,7 +125,7 @@ struct ReflectionModelTests {
         }
         expect(!systemPrompt.lowercased().contains("notion")
                && !userText.lowercased().contains("notion"),
-               "Daily Trail has no remote-notes dependency")
+               "Today Journal has no remote-notes dependency")
 
         expect(output.isAIEnhanced
                && output.sections.map(\.kind) == DailyReflectionSectionKind.allCases,
