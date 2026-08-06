@@ -1189,6 +1189,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                                     accessibilityDescription: nil)
         m.addItem(actionsRoot)
         m.setSubmenu(actionsMenu, for: actionsRoot)
+
+        let sizeMenu = NSMenu(title: voice("大小", "Size"))
+        sizeMenu.autoenablesItems = false
+        let currentScale = companionDisplayScalePercent()
+        let sizeOptions: [(CGFloat, String, String)] = [
+            (80, "小 · 80%", "Small · 80%"),
+            (100, "标准 · 100%", "Standard · 100%"),
+            (120, "大 · 120%", "Large · 120%"),
+        ]
+        for (percent, zh, en) in sizeOptions {
+            let sizeItem = NSMenuItem(title: voice(zh, en),
+                                      action: #selector(changeCompanionSize(_:)),
+                                      keyEquivalent: "")
+            sizeItem.target = self
+            sizeItem.representedObject = NSNumber(value: Double(percent))
+            sizeItem.state = abs(currentScale - percent) < 0.5 ? .on : .off
+            sizeItem.isEnabled = true
+            sizeMenu.addItem(sizeItem)
+        }
+        let sizeRoot = NSMenuItem(title: voice("大小", "Size"),
+                                  action: nil, keyEquivalent: "")
+        sizeRoot.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right",
+                                 accessibilityDescription: nil)
+        m.addItem(sizeRoot)
+        m.setSubmenu(sizeMenu, for: sizeRoot)
         m.addItem(NSMenuItem.separator())
 
         let hideIt = NSMenuItem(title: overlayHidden ? voice("显示米墨", "Show Mimo") : voice("藏起米墨", "Hide Mimo"),
@@ -1218,6 +1243,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     @objc func resumeAutomaticCompanion(_ sender: NSMenuItem) {
         _ = companionRuntime.previewAction(named: nil)
+    }
+
+    @objc func changeCompanionSize(_ sender: NSMenuItem) {
+        guard let number = sender.representedObject as? NSNumber else { return }
+        let percent = CompanionDisplaySize.clampedPercent(CGFloat(number.doubleValue))
+        UserDefaults.standard.set(Double(percent),
+                                  forKey: "companionDisplayScalePercent")
+        applyCompanionDisplayScale()
     }
 
     // ── hover hot-zone: click-through everywhere except over the creature ──
@@ -1456,12 +1489,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                                hasExpressions: body["hasExpressions"] as? Bool ?? false)
             // Behaviour packs gate on these, so the companion can go quiet
             // during deep work without any of that logic living in Swift.
-            if let mood = body["mood"] as? String { companionRuntime.mood = mood }
-            if let focus = body["focusMinutes"] as? NSNumber {
-                companionRuntime.focusMinutes = focus.doubleValue
-            }
-            if let streak = body["streakMinutes"] as? NSNumber {
-                companionRuntime.streakMinutes = streak.doubleValue
+            companionRuntime.setSemanticState(
+                mood: body["mood"] as? String ?? "idle",
+                focusMinutes: (body["focusMinutes"] as? NSNumber)?.doubleValue ?? 0,
+                streakMinutes: (body["streakMinutes"] as? NSNumber)?.doubleValue ?? 0)
+        case "companionEvent":
+            if let event = body["event"] as? String,
+               ["focusComplete"].contains(event) {
+                _ = companionRuntime.trigger(event: event)
             }
         case "ctxMenu":
             showCompanionMenu()

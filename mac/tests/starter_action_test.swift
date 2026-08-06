@@ -128,6 +128,29 @@ struct StarterActionTests {
                "historical three-frame gaze can still follow horizontally")
     }
 
+    static func testGazeWaitsForASettledCursorAndFocusDisablesIt() {
+        var follow = CompanionGazeFollowProcedure()
+        for _ in 0..<8 {
+            let frame = follow.update(
+                dt: 0.02, dx: 180, dy: 0, cursorSpeed: 12,
+                frameCount: 8, enabled: true)
+            expect(frame == nil, "a passing cursor must not immediately snap the gaze")
+        }
+        let settled = follow.update(
+            dt: 0.20, dx: 180, dy: 0, cursorSpeed: 12,
+            frameCount: 8, enabled: true)
+        expect(settled == 2, "a cursor held nearby long enough earns one calm glance")
+
+        let frozen = follow.update(
+            dt: 0.30, dx: -180, dy: 0, cursorSpeed: 800,
+            frameCount: 8, enabled: true)
+        expect(frozen == 2, "fast cursor motion freezes the last readable glance")
+        expect(follow.update(
+            dt: 0.40, dx: -180, dy: 0, cursorSpeed: 0,
+            frameCount: 8, enabled: false) == nil,
+               "Focus mode clears gaze instead of competing for attention")
+    }
+
     static func testTennisBallOwnsOneDeterministicNineFrameTrajectory() {
         let samples = (0..<9).map {
             StarterTennisBallTrajectory.sample(frameIndex: $0, frameCount: 9)!
@@ -193,6 +216,22 @@ struct StarterActionTests {
             into: [String: [String: Any]]()) {
                 $0[$1["name"] as! String] = $1
             }
+        let standNext = ((behaviors["Stand"]?["next"] as? [String: Any])?["refs"]
+                         as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+        expect(!standNext.contains("WalkLeft") && !standNext.contains("WalkRight"),
+               "ordinary idle behavior stays in place instead of roaming the desktop")
+        expect(behaviors["WalkLeft"]?["frequency"] as? Int == 0
+               && behaviors["WalkRight"]?["frequency"] as? Int == 0
+               && behaviors["Wander"]?["frequency"] as? Int == 0,
+               "walking remains available to packs but is not chosen randomly")
+        let quietCondition = behaviors["QuietBreathe"]?["when"] as? String ?? ""
+        expect(quietCondition.contains("focusSession")
+               && quietCondition.contains("deepWork")
+               && quietCondition.contains("focused"),
+               "Focus and inferred deep work share the quiet in-place behavior")
+        let reactions = root["reactions"] as? [String: String] ?? [:]
+        expect(reactions["focusComplete"] == "PlayTennis",
+               "a completed Focus can celebrate with one installed tennis action")
         let sleepNextBlock = behaviors["RestSleep"]?["next"] as? [String: Any]
         let sleepNext = sleepNextBlock?["refs"] as? [[String: Any]] ?? []
         expect(sleepNext.count == 1
@@ -212,6 +251,7 @@ struct StarterActionTests {
         testCatalogMatchesTheUserFacingStarterPack()
         testEveryDefinitionIsAValidCoherentFamilyPlan()
         testGazeMappingFollowsTheCursorAcrossSupportedContracts()
+        testGazeWaitsForASettledCursorAndFocusDisablesIt()
         testTennisBallOwnsOneDeterministicNineFrameTrajectory()
         try testDefaultBehaviorPackUsesOnlyStarterContractFrames()
         print("starter action catalog tests passed")

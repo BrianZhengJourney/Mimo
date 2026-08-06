@@ -149,6 +149,28 @@ struct PetGenerationTests {
         }
     }
 
+    static func testStarterActionsAdaptToNonHumanBodyPlans() {
+        for action in StarterActionID.allCases {
+            let prompt = flattened(PetGenerationCoordinator.starterActionBatchPrompt(
+                actionID: action,
+                batchIndex: 0,
+                personalityVisual: "Quiet and curious",
+                hasStyleBoard: true,
+                hasPreviousBatch: false))
+            expect(prompt.contains("BODY-PLAN ADAPTER")
+                   && prompt.contains("Never invent human arms, hands, legs, feet")
+                   && prompt.contains("semantic intent"),
+                   "\(action.rawValue) adapts motion without forcing a human skeleton")
+        }
+        let tennis = flattened(PetGenerationCoordinator.starterActionBatchPrompt(
+            actionID: .tennis, batchIndex: 0,
+            personalityVisual: "Bright and playful",
+            hasStyleBoard: false, hasPreviousBatch: false))
+        expect(tennis.contains("tail, wing, head, horn, paw, fin")
+               && tennis.contains("omit the racket"),
+               "non-grasping familiars volley naturally instead of growing hands")
+    }
+
     static func testSleepPromptKeepsTheCuteProneNoRiseContract() {
         let settle = flattened(PetGenerationCoordinator.starterActionBatchPrompt(
             actionID: .sleep,
@@ -302,6 +324,7 @@ struct PetGenerationTests {
         testWalkSheetRequestIsOneCallForSixteenKeyPoses()
         testStarterActionBatchUsesTheChainedThreeFrameContract()
         testEveryStarterBatchBuildsFromTheProductCatalog()
+        testStarterActionsAdaptToNonHumanBodyPlans()
         testSleepPromptKeepsTheCuteProneNoRiseContract()
         testActionPosesAreDescribedPhysically()
         testActionSheetPromptDemandsCrossPanelConsistency()

@@ -87,10 +87,13 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
 .journey-preview-title{font:600 16px/1.25 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .journey-preview-meta{color:var(--muted);font-size:10px;text-align:right;white-space:nowrap}
 .journey-ask{border:1px solid var(--line);border-radius:9px;background:var(--paper-2);padding:6px 9px;color:var(--accent);font-size:10px;white-space:nowrap}.journey-ask:hover{border-color:var(--accent);background:var(--accent-soft)}.journey-ask:disabled{opacity:.4;cursor:default}
+.journey-actions{display:flex;gap:5px}.journey-pin{border:0;border-radius:9px;background:transparent;padding:6px 8px;color:var(--muted);font-size:10px;white-space:nowrap}.journey-pin:hover{background:var(--accent-soft);color:var(--accent)}.journey-pin:disabled{opacity:.35}
 .workspace{display:grid;grid-template-columns:minmax(0,1.48fr) minmax(340px,.72fr);gap:18px;align-items:start}
 .trail-panel,.reflection-panel{padding:20px}
 .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}
 .trail-panel .section-head{display:block}
+.range-drop-zone{position:relative;min-height:68px;margin:-2px 0 17px;border:1px dashed var(--line);border-radius:14px;background:linear-gradient(100deg,rgba(139,86,62,.025),rgba(87,125,112,.025));display:flex;align-items:center;justify-content:center;color:var(--muted);transition:border-color .18s,background .18s,transform .18s;overflow:hidden}.range-drop-zone.ready,.range-drop-zone.drag-over{border-color:var(--accent);background:var(--accent-soft)}.range-drop-zone.drag-over{transform:scale(1.006)}.range-drop-empty{display:flex;align-items:center;gap:8px;font-size:10.5px}.range-drop-empty b{color:var(--ink);font-weight:650}.range-drop-empty .ui-icon{width:14px;height:14px;color:var(--accent)}
+.range-drop-zone.pinned{display:grid;grid-template-columns:72px minmax(0,1fr) 72px;gap:0;padding:0 12px;border-style:solid;border-color:color-mix(in srgb,var(--range-color,var(--accent)),white 63%);background:color-mix(in srgb,var(--range-color,var(--accent)),#fffdf8 96%)}.range-boundary{align-self:stretch;position:relative;display:flex;align-items:center;justify-content:center;color:var(--ink);font:650 11px ui-monospace,SFMono-Regular,monospace}.range-boundary:after{content:"";position:absolute;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--range-color,var(--accent));opacity:.72}.range-boundary.start:after{right:0}.range-boundary.end:after{left:0}.range-window{min-width:0;padding:10px 15px}.range-window-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.range-window-copy{min-width:0}.range-window-copy b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:11px}.range-window-copy small{display:block;color:var(--muted);font-size:9px;margin-top:1px}.range-clear{border:0;background:transparent;color:var(--muted);padding:3px 5px;border-radius:7px;font-size:9px;white-space:nowrap}.range-clear:hover{color:var(--accent);background:var(--accent-soft)}.range-band{position:relative;height:8px;border-radius:99px;background:var(--line-soft);overflow:hidden}.range-band i{position:absolute;top:0;bottom:0;min-width:2px;background:var(--segment);opacity:.85}
 .category-filters{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin-top:12px;padding-top:11px;border-top:1px solid var(--line-soft)}
 .filter-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:transparent;color:var(--muted);padding:5px 8px;border-radius:99px;font-size:10px}
 .filter-chip .ui-icon{width:12px;height:12px}
@@ -249,13 +252,14 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
         <span class="journey-preview-kicker" id="journeyPreviewKicker">今天的一章</span>
         <strong class="journey-preview-title" id="journeyPreviewTitle">今天还在展开</strong>
         <span class="journey-preview-meta" id="journeyPreviewMeta">悬停任意一段，回看当时的上下文</span>
-        <button class="journey-ask" id="journeyAsk" type="button">回看这半小时</button>
+        <span class="journey-actions"><button class="journey-pin" id="journeyPin" type="button">放到下方</button><button class="journey-ask" id="journeyAsk" type="button">回看这半小时</button></span>
       </div>
     </section>
 
     <div class="workspace">
       <section class="card trail-panel" aria-labelledby="trailTitle">
         <div class="section-head"><h3 class="section-label" id="trailTitle"><svg class="ui-icon"><use href="#icon-flow"/></svg><span>今天走过</span></h3><div class="category-filters" id="categoryFilters"></div></div>
+        <div class="range-drop-zone" id="rangeDropZone" aria-live="polite"></div>
         <div class="timeline" id="timeline"></div>
       </section>
 
@@ -305,6 +309,8 @@ let activeCategory='all';
 const halfHourChapters=[];
 let selectedHalfHourID='';
 let focusedLookingBackID='';
+let pinnedHalfHourID='';
+let draggedHalfHourID='';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const uiIcon=name=>`<svg class="ui-icon" aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
@@ -371,6 +377,7 @@ function applyLanguage(){
   $('prompt').placeholder=tx('关于今天，想问什么？','What are you wondering about today?');
   $('synthesizeBtn').querySelector('span').textContent=tx('一起看看','Take a look');
   $('journeyAsk').textContent=tx('回看这半小时','Look back at this half hour');
+  $('journeyPin').textContent=tx('放到下方','Pin below');
   const suggestionCopy={spent:tx('这半小时怎么花的？','How did this half hour go?'),interrupt:tx('哪里被打断？','Where was I interrupted?'),carry:tx('明天接什么？','What should I pick up tomorrow?')};
   document.querySelectorAll('[data-prompt]').forEach(button=>button.textContent=suggestionCopy[button.dataset.prompt]||'');
   $('privacyNote').querySelector('span').textContent=tx('仅存于这台 Mac','Local to this Mac');
@@ -382,7 +389,7 @@ function applyLanguage(){
 }
 
 function render(){
-  applyLanguage();renderRange();renderNotice();renderOverview();renderDistribution();renderFilters();renderJourneyRibbon();renderTimeline();renderReflection();renderMaterials();activateIdentityIcons();
+  applyLanguage();renderRange();renderNotice();renderOverview();renderDistribution();renderFilters();renderJourneyRibbon();renderPinnedRange();renderTimeline();renderReflection();renderMaterials();activateIdentityIcons();
   document.body.classList.toggle('loading',state.status?.activity==='loading');
 }
 function renderRange(){
@@ -439,24 +446,45 @@ function updateJourneyPreview(chapterID,kicker='',persist=false){
   $('journeyPreviewTitle').textContent=chapter.label;
   $('journeyPreviewMeta').textContent=chapterSummary(chapter);
   $('journeyAsk').disabled=!chapter.activeSeconds;
+  $('journeyPin').disabled=false;
   document.querySelectorAll('.half-hour-chapter').forEach(button=>button.classList.toggle('selected',button.dataset.halfHour===selectedHalfHourID));
   preview.classList.remove('updated');void preview.offsetWidth;preview.classList.add('updated');
 }
 function renderJourneyRibbon(){
   const blocks=state.activityBlocks||[];halfHourChapters.length=0;halfHourChapters.push(...buildHalfHourChapters(blocks));$('journeyClusterCount').textContent=halfHourChapters.length?tx(`${halfHourChapters.length} 个半小时`,`${halfHourChapters.length} half-hours`):'';
-  if(!blocks.length){selectedHalfHourID='';$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('从第一段活动开始，这里会慢慢长出一天的形状。','The shape of the day will grow here from its first moment.')}</span>`;$('journeyPreview').dataset.chapter='';$('journeyPreview').dataset.block='';$('journeyPreviewKicker').textContent=tx('等第一笔','Waiting for the first note');$('journeyPreviewTitle').textContent=tx('今天还在展开','The day is still unfolding');$('journeyPreviewMeta').textContent=tx('工作、阅读或走神，也都是一天的一部分。','Work, reading, and wandering all belong to the day.');$('journeyAsk').disabled=true;return}
-  $('journeyRibbon').innerHTML=halfHourChapters.map(chapter=>{const matching=activeCategory==='all'||chapter.segments.some(segment=>segment.category===activeCategory),segments=chapter.segments.map(segment=>`<i class="chapter-segment ${activeCategory!=='all'&&segment.category!==activeCategory?'filtered':''}" style="--segment:${colors[segment.category]||colors.admin};left:${segment.left}%;width:${segment.width}%" title="${esc(segment.block.title)} · ${fmtDuration(segment.seconds)}"></i>`).join(''),quiet=!chapter.activeSeconds,openLabel=quiet?tx('空白','open'):chapter.quietSeconds>=60?`${tx('留白','open')} ${fmtDuration(chapter.quietSeconds)}`:categoryLabel(chapter.category);return `<button type="button" class="half-hour-chapter ${quiet?'quiet':''} ${matching?'':'muted'}" data-half-hour="${esc(chapter.id)}" data-chapter-blocks="${esc(chapter.blockIDs.join(','))}" style="--category:${colors[chapter.category]||colors.admin}" aria-label="${fmtTime(chapter.start)}—${fmtTime(chapter.end)} · ${esc(chapter.label)}"><span class="chapter-top"><span class="chapter-clock">${fmtTime(chapter.start)}</span><span class="chapter-used">${quiet?tx('留白','quiet'):fmtDuration(chapter.activeSeconds)}</span></span><span class="chapter-main"><span class="chapter-identity">${chapter.representative?identityIcon(chapter.representative,categoryIcon(chapter.category)):uiIcon('time')}</span><strong class="chapter-label">${esc(chapter.label)}</strong></span><span class="chapter-track">${segments}</span><span class="chapter-foot"><span>${fmtTime(chapter.start)}—${fmtTime(chapter.end)}</span><span>${esc(openLabel)}</span></span></button>`}).join('');
+  if(!blocks.length){selectedHalfHourID='';pinnedHalfHourID='';$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('从第一段活动开始，这里会慢慢长出一天的形状。','The shape of the day will grow here from its first moment.')}</span>`;$('journeyPreview').dataset.chapter='';$('journeyPreview').dataset.block='';$('journeyPreviewKicker').textContent=tx('等第一笔','Waiting for the first note');$('journeyPreviewTitle').textContent=tx('今天还在展开','The day is still unfolding');$('journeyPreviewMeta').textContent=tx('工作、阅读或走神，也都是一天的一部分。','Work, reading, and wandering all belong to the day.');$('journeyAsk').disabled=true;$('journeyPin').disabled=true;return}
+  $('journeyRibbon').innerHTML=halfHourChapters.map(chapter=>{const matching=activeCategory==='all'||chapter.segments.some(segment=>segment.category===activeCategory),segments=chapter.segments.map(segment=>`<i class="chapter-segment ${activeCategory!=='all'&&segment.category!==activeCategory?'filtered':''}" style="--segment:${colors[segment.category]||colors.admin};left:${segment.left}%;width:${segment.width}%" title="${esc(segment.block.title)} · ${fmtDuration(segment.seconds)}"></i>`).join(''),quiet=!chapter.activeSeconds,openLabel=quiet?tx('空白','open'):chapter.quietSeconds>=60?`${tx('留白','open')} ${fmtDuration(chapter.quietSeconds)}`:categoryLabel(chapter.category);return `<button type="button" draggable="true" class="half-hour-chapter ${quiet?'quiet':''} ${matching?'':'muted'}" data-half-hour="${esc(chapter.id)}" data-chapter-blocks="${esc(chapter.blockIDs.join(','))}" style="--category:${colors[chapter.category]||colors.admin}" aria-label="${fmtTime(chapter.start)}—${fmtTime(chapter.end)} · ${esc(chapter.label)}"><span class="chapter-top"><span class="chapter-clock">${fmtTime(chapter.start)}</span><span class="chapter-used">${quiet?tx('留白','quiet'):fmtDuration(chapter.activeSeconds)}</span></span><span class="chapter-main"><span class="chapter-identity">${chapter.representative?identityIcon(chapter.representative,categoryIcon(chapter.category)):uiIcon('time')}</span><strong class="chapter-label">${esc(chapter.label)}</strong></span><span class="chapter-track">${segments}</span><span class="chapter-foot"><span>${fmtTime(chapter.start)}—${fmtTime(chapter.end)}</span><span>${esc(openLabel)}</span></span></button>`}).join('');
   const score=chapter=>activeCategory==='all'?chapter.activeSeconds:chapter.segments.filter(segment=>segment.category===activeCategory).reduce((sum,segment)=>sum+segment.seconds,0),candidates=halfHourChapters.filter(chapter=>score(chapter)>0),featured=(candidates.length?candidates:halfHourChapters).reduce((best,chapter)=>score(chapter)>score(best)?chapter:best,(candidates.length?candidates:halfHourChapters)[0]);if(!halfHourChapters.some(chapter=>chapter.id===selectedHalfHourID))selectedHalfHourID=featured.id;updateJourneyPreview(selectedHalfHourID,tx('今天最满的一格','Fullest half-hour'),true);activateIdentityIcons();
 }
+function pinnedHalfHour(){return halfHourChapters.find(item=>item.id===pinnedHalfHourID)||null}
+function renderPinnedRange(){
+  const zone=$('rangeDropZone'),chapter=pinnedHalfHour();
+  if(pinnedHalfHourID&&!chapter)pinnedHalfHourID='';
+  zone.classList.toggle('pinned',Boolean(chapter));
+  zone.style.removeProperty('--range-color');
+  if(!chapter){zone.innerHTML=`<span class="range-drop-empty">${uiIcon('time')}<span><b>${tx('拖一个半小时到这里','Drag a half-hour here')}</b> · ${tx('下方只看这段','show only that interval below')}</span></span>`;return}
+  zone.style.setProperty('--range-color',colors[chapter.category]||colors.admin);
+  const segments=chapter.segments.map(segment=>`<i style="--segment:${colors[segment.category]||colors.admin};left:${segment.left}%;width:${segment.width}%"></i>`).join('');
+  zone.innerHTML=`<span class="range-boundary start"><b>${fmtTime(chapter.start)}</b></span><div class="range-window"><div class="range-window-head"><span class="range-window-copy"><b>${esc(chapter.label)}</b><small>${tx('固定的 30 分钟','Pinned 30-minute interval')} · ${esc(chapterSummary(chapter))}</small></span><button class="range-clear" type="button" data-clear-range>${tx('回到全天','Show full day')} ×</button></div><div class="range-band">${segments}</div></div><span class="range-boundary end"><b>${fmtTime(chapter.end)}</b></span>`;
+}
+function blocksForPinnedRange(){
+  const chapter=pinnedHalfHour(),source=state.activityBlocks||[];if(!chapter)return source;
+  const rangeStart=new Date(chapter.start).getTime(),rangeEnd=new Date(chapter.end).getTime();
+  return source.map(block=>{const raw=(block.events||[]).length?block.events:[{id:`${block.id}-event`,start:block.start,end:block.end,durationSeconds:block.activeSeconds,app:(block.apps||[])[0]||block.title,title:block.title,category:block.category}];const events=raw.map(event=>{const start=Math.max(rangeStart,new Date(event.start).getTime()),end=Math.min(rangeEnd,new Date(event.end).getTime());return end>start?{...event,start:new Date(start).toISOString(),end:new Date(end).toISOString(),durationSeconds:(end-start)/1000}:null}).filter(Boolean);if(!events.length)return null;return{...block,start:events[0].start,end:events[events.length-1].end,activeSeconds:events.reduce((sum,event)=>sum+event.durationSeconds,0),eventIDs:events.map(event=>event.id),events}}).filter(Boolean)
+}
+function pinHalfHourRange(chapterID,scroll=false){
+  if(!halfHourChapters.some(item=>item.id===chapterID))return false;pinnedHalfHourID=chapterID;selectedHalfHourID=chapterID;updateJourneyPreview(chapterID,'',true);renderPinnedRange();renderTimeline();if(scroll)$('rangeDropZone').scrollIntoView({behavior:'smooth',block:'center'});return true
+}
+function clearPinnedRange(){pinnedHalfHourID='';renderPinnedRange();renderTimeline()}
 function renderFilters(){
   const available=categoryOrder.filter(id=>(state.categories||[]).some(x=>x.id===id));
   const values=['all',...available];if(!values.includes(activeCategory))activeCategory='all';
   $('categoryFilters').innerHTML=values.map(id=>`<button class="filter-chip ${id===activeCategory?'active':''}" data-filter="${id}">${uiIcon(id==='all'?'grid':categoryIcon(id))}<span>${id==='all'?tx('全部','All'):esc(categoryLabel(id))}</span></button>`).join('');
 }
 function renderTimeline(){
-  const blocks=(state.activityBlocks||[]).filter(x=>activeCategory==='all'||x.category===activeCategory);
+  const blocks=blocksForPinnedRange().filter(x=>activeCategory==='all'||x.category===activeCategory);
   $('timeline').classList.toggle('dense',blocks.length>18);
-  if(!blocks.length){$('timeline').innerHTML=`<div class="empty"><strong>${tx('这里还没有活动','No activity here yet')}</strong>${tx('工作、阅读或探索后，Mimo 会把本地记录整理成活动块。','Work, read, or explore and Mimo will shape local events into blocks.')}</div>`;return}
+  if(!blocks.length){$('timeline').innerHTML=`<div class="empty"><strong>${pinnedHalfHour()?tx('这半小时没有这类活动','No matching activity in this half-hour'):tx('这里还没有活动','No activity here yet')}</strong>${tx('工作、阅读或探索后，Mimo 会把本地记录整理成活动块。','Work, read, or explore and Mimo will shape local events into blocks.')}</div>`;return}
   let lastPhase='';
   $('timeline').innerHTML=blocks.map((block,index)=>{
     const apps=unique(block.apps).slice(0,4);const domains=unique(block.domains).slice(0,3);const raw=block.events||[];const phase=phaseInfo(block.start);const normalizedTitle=String(block.title||'').toLowerCase();const displayApps=apps.filter(app=>String(app).toLowerCase()!==normalizedTitle);const startTime=fmtTime(block.start);const endTime=fmtTime(block.end);const timeRange=startTime===endTime?startTime:`${startTime}<br><span style="opacity:.55">${endTime}</span>`;
@@ -506,6 +534,12 @@ $('journeyRibbon').addEventListener('mouseover',event=>{const chapter=event.targ
 $('journeyRibbon').addEventListener('focusin',event=>{const chapter=event.target.closest('[data-half-hour]');if(chapter)updateJourneyPreview(chapter.dataset.halfHour)});
 $('journeyRibbon').addEventListener('mouseleave',()=>{if(selectedHalfHourID)updateJourneyPreview(selectedHalfHourID)});
 $('journeyRibbon').addEventListener('click',event=>{const button=event.target.closest('[data-half-hour]');if(!button)return;const chapter=halfHourChapters.find(item=>item.id===button.dataset.halfHour);if(!chapter)return;let block=activeCategory==='all'?chapter.representative:chapter.blocks.filter(item=>item.category===activeCategory).sort((a,b)=>(Number(b.activeSeconds)||0)-(Number(a.activeSeconds)||0))[0];if(!block&&chapter.representative){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline();block=chapter.representative}updateJourneyPreview(chapter.id,'',true);if(!block)return;const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===block.id);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
+$('journeyRibbon').addEventListener('dragstart',event=>{const chapter=event.target.closest('[data-half-hour]');if(!chapter)return;draggedHalfHourID=chapter.dataset.halfHour;chapter.classList.add('dragging');$('rangeDropZone').classList.add('ready');event.dataTransfer?.setData('text/plain',draggedHalfHourID);if(event.dataTransfer)event.dataTransfer.effectAllowed='copy'});
+$('journeyRibbon').addEventListener('dragend',()=>{draggedHalfHourID='';document.querySelectorAll('.half-hour-chapter.dragging').forEach(item=>item.classList.remove('dragging'));$('rangeDropZone').classList.remove('ready','drag-over')});
+$('rangeDropZone').addEventListener('dragover',event=>{event.preventDefault();$('rangeDropZone').classList.add('drag-over');if(event.dataTransfer)event.dataTransfer.dropEffect='copy'});
+$('rangeDropZone').addEventListener('dragleave',event=>{if(!$('rangeDropZone').contains(event.relatedTarget))$('rangeDropZone').classList.remove('drag-over')});
+$('rangeDropZone').addEventListener('drop',event=>{event.preventDefault();const id=event.dataTransfer?.getData('text/plain')||draggedHalfHourID;$('rangeDropZone').classList.remove('ready','drag-over');pinHalfHourRange(id)});
+$('rangeDropZone').addEventListener('click',event=>{if(event.target.closest('[data-clear-range]'))clearPinnedRange()});
 $('timeline').addEventListener('click',event=>{const toggle=event.target.closest('[data-toggle]');if(toggle){toggle.closest('.activity-card')?.classList.toggle('open');return}const link=event.target.closest('[data-url]');if(link)post({type:'openExternal',url:link.dataset.url})});
 $('reflectionSections').addEventListener('click',event=>{const button=event.target.closest('[data-evidence]');if(button)locateEvidence(button.dataset.evidence)});
 $('materialsGrid').addEventListener('click',event=>{const button=event.target.closest('[data-url]');if(button)post({type:'openExternal',url:button.dataset.url})});
@@ -514,6 +548,7 @@ function seedLookingBack(promptKey='spent'){
   const chapter=selectedHalfHour();if(!chapter||!chapter.activeSeconds)return;focusedLookingBackID=chapter.id;const copy={spent:tx('这半小时，我把时间花在哪里了？','How did I spend this half hour?'),interrupt:tx('这半小时，哪里被打断或切换得最频繁？','Where was I interrupted or switching most in this half hour?'),carry:tx('从这半小时里，明天最值得接着做什么？','What from this half hour is most worth picking up tomorrow?')};$('prompt').value=copy[promptKey]||copy.spent;$('prompt').focus();
 }
 $('journeyAsk').addEventListener('click',()=>seedLookingBack('spent'));
+$('journeyPin').addEventListener('click',()=>{const chapter=selectedHalfHour();if(chapter)pinHalfHourRange(chapter.id,true)});
 $('promptSuggestions').addEventListener('click',event=>{const button=event.target.closest('[data-prompt]');if(button)seedLookingBack(button.dataset.prompt)});
 $('synthesizeBtn').addEventListener('click',()=>{const chapter=halfHourChapters.find(item=>item.id===focusedLookingBackID)||null;post({type:'synthesize',prompt:$('prompt').value.trim(),focusStartMS:chapter?new Date(chapter.start).getTime():null,focusEndMS:chapter?new Date(chapter.end).getTime():null})});
 $('privacyBtn').addEventListener('click',()=>{$('ignoredApps').value=(state.config?.ignoredApps||[]).join('\n');$('ignoredDomains').value=(state.config?.ignoredDomains||[]).join('\n');$('privacyModal').classList.add('open')});

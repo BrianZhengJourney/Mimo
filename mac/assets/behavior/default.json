@@ -201,33 +201,34 @@
     "runs the reaction instead of opening app UI. Omit an event to get the",
     "app's default handling back."
   ],
-  "reactions": { "click": "Poked" },
+  "reactions": {
+    "click": "Poked",
+    "focusComplete": "PlayTennis"
+  },
 
   "behaviors": [
     {
       "name": "Stand",
       "frequency": 100,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": true, "refs": [
-        { "name": "WalkLeft",   "frequency": 60 },
-        { "name": "WalkRight",  "frequency": 60 },
         { "name": "LookAround", "frequency": 40 },
-        { "name": "Sit",        "frequency": 35 }
+        { "name": "Sit",        "frequency": 25 },
+        { "name": "RestSettle", "frequency": 7 }
       ] }
     },
     {
       "name": "LookAround",
       "frequency": 40,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": true, "refs": [
-        { "name": "Wander", "frequency": 70 },
         { "name": "Stand",  "frequency": 40 }
       ] }
     },
     {
       "name": "WalkLeft",
-      "frequency": 45,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": true, "refs": [
         { "name": "Stand", "frequency": 80 },
         { "name": "Sit",   "frequency": 30 }
@@ -235,8 +236,8 @@
     },
     {
       "name": "WalkRight",
-      "frequency": 45,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": true, "refs": [
         { "name": "Stand", "frequency": 80 },
         { "name": "Sit",   "frequency": 30 }
@@ -244,8 +245,8 @@
     },
     {
       "name": "Wander",
-      "frequency": 30,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": true, "refs": [
         { "name": "Stand",      "frequency": 70 },
         { "name": "LookAround", "frequency": 30 }
@@ -255,7 +256,7 @@
     {
       "name": "Sit",
       "frequency": 0,
-      "when": "#{self.state == 'grounded'}",
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": false, "refs": [
         { "name": "Sit",   "frequency": 100 },
         { "name": "Stand", "frequency": 6 }
@@ -263,8 +264,8 @@
     },
     {
       "name": "RestSettle",
-      "frequency": 18,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "frequency": 9,
+      "when": "#{self.state == 'grounded' && mimo.mood == 'idle'}",
       "next": { "additive": false, "refs": [
         { "name": "RestSleep", "frequency": 100 }
       ] }
@@ -279,8 +280,8 @@
     },
     {
       "name": "PlayTennis",
-      "frequency": 12,
-      "when": "#{self.state == 'grounded' && mimo.mood != 'deepWork'}",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded' && (mimo.mood == 'idle' || mimo.mood == 'focused' || mimo.mood == 'scholar' || mimo.mood == 'deepWork')}",
       "next": { "additive": false, "refs": [
         { "name": "Stand", "frequency": 100 }
       ] }
@@ -289,7 +290,7 @@
     {
       "name": "QuietBreathe",
       "frequency": 300,
-      "when": "#{self.state == 'grounded' && mimo.mood == 'deepWork'}",
+      "when": "#{self.state == 'grounded' && (mimo.mood == 'focusSession' || mimo.mood == 'deepWork' || mimo.mood == 'focused' || mimo.mood == 'scholar')}",
       "next": { "additive": true, "refs": [
         { "name": "QuietBreathe", "frequency": 100 },
         { "name": "GlanceAtYou",  "frequency": 8 }
@@ -298,7 +299,7 @@
     {
       "name": "GlanceAtYou",
       "frequency": 0,
-      "when": "#{self.state == 'grounded'}",
+      "when": "#{self.state == 'grounded' && (mimo.mood == 'focusSession' || mimo.mood == 'deepWork' || mimo.mood == 'focused' || mimo.mood == 'scholar')}",
       "next": { "additive": false, "refs": [
         { "name": "QuietBreathe", "frequency": 100 }
       ] }
@@ -307,7 +308,7 @@
     {
       "name": "Slump",
       "frequency": 200,
-      "when": "#{self.state == 'grounded' && (mimo.mood == 'poisoned' || mimo.mood == 'dizzy')}",
+      "when": "#{self.state == 'grounded' && (mimo.mood == 'poisoned' || mimo.mood == 'dizzy' || mimo.mood == 'ghost')}",
       "next": { "additive": true, "refs": [
         { "name": "Slump", "frequency": 100 }
       ] }

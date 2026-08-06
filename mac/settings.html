@@ -464,6 +464,10 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 /* toggles + rows */
 .row{ display:flex; align-items:center; gap:10px; padding:6px 0; font-size:13px; }
 .row .grow{ flex:1; }
+.size-stack{ display:grid; justify-items:end; gap:6px; }
+.size-presets{ display:flex; gap:4px; padding:2px; border:1px solid var(--line); border-radius:10px; background:var(--paper); }
+.size-presets button{ min-width:48px; padding:4px 8px; border:0; border-radius:7px; color:var(--dim); background:transparent; font-size:9.5px; }
+.size-presets button.sel{ color:#fffaf3; background:var(--accent); }
 .size-control{ display:flex; align-items:center; gap:8px; min-width:190px; }
 .size-control input[type="range"]{ width:140px; accent-color:var(--good); }
 .size-control output{ width:38px; text-align:right; color:var(--dim); font:10.5px ui-monospace,monospace; }
@@ -687,9 +691,13 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
       <option value="60" data-zh="1 分钟" data-en="1 minute">1 分钟</option><option value="150" data-zh="2.5 分钟" data-en="2.5 minutes">2.5 分钟</option>
       <option value="300" data-zh="5 分钟" data-en="5 minutes">5 分钟</option><option value="600" data-zh="10 分钟" data-en="10 minutes">10 分钟</option>
     </select></div>
-  <div class="row"><span class="grow" data-zh="伴灵显示大小" data-en="Familiar display size">伴灵显示大小</span>
-    <div class="size-control"><input id="companionScale" type="range" min="60" max="140" step="5" value="100"
-      oninput="changeCompanionScale(this.value)" aria-label="Familiar display size"><output id="companionScaleValue">100%</output></div></div>
+  <div class="row"><span class="grow" data-zh="伴灵大小" data-en="Familiar size">伴灵大小</span>
+    <div class="size-stack"><div class="size-presets" aria-label="Familiar size presets">
+      <button type="button" data-companion-size="80" onclick="chooseCompanionScale(80)" data-zh="小" data-en="Small">小</button>
+      <button type="button" data-companion-size="100" onclick="chooseCompanionScale(100)" data-zh="标准" data-en="Standard">标准</button>
+      <button type="button" data-companion-size="120" onclick="chooseCompanionScale(120)" data-zh="大" data-en="Large">大</button>
+    </div><div class="size-control"><input id="companionScale" type="range" min="60" max="140" step="5" value="100"
+      oninput="changeCompanionScale(this.value)" aria-label="Familiar display size"><output id="companionScaleValue">100%</output></div></div></div>
   <div class="row"><span class="grow" data-zh="声音（专注完成、分心提醒）" data-en="Sounds (Focus completion and distraction alerts)">声音（专注完成、分心提醒）</span>
     <label class="toggle"><input type="checkbox" id="sndTog" onchange="send({type:'sounds', on:this.checked})"><i></i></label></div>
   <div class="row"><span class="grow" data-zh="登录时启动" data-en="Start at login">登录时启动</span>
@@ -1826,8 +1834,13 @@ let companionScaleTimer=null;
 function changeCompanionScale(value){
   const percent=Math.max(60,Math.min(140,Math.round(Number(value)||100)));
   document.getElementById('companionScaleValue').textContent=`${percent}%`;
+  document.querySelectorAll('[data-companion-size]').forEach(button=>button.classList.toggle('sel',Number(button.dataset.companionSize)===percent));
   clearTimeout(companionScaleTimer);
   companionScaleTimer=setTimeout(()=>send({type:'companionScale',percent}),32);
+}
+function chooseCompanionScale(percent){
+  document.getElementById('companionScale').value=String(percent);
+  changeCompanionScale(percent);
 }
 
 let S = { character: 'lulu' };
@@ -2135,6 +2148,7 @@ function initSettings(state){
   const scale=Math.max(60,Math.min(140,Math.round(Number(state.companionScalePercent)||100)));
   document.getElementById('companionScale').value=String(scale);
   document.getElementById('companionScaleValue').textContent=`${scale}%`;
+  document.querySelectorAll('[data-companion-size]').forEach(button=>button.classList.toggle('sel',Number(button.dataset.companionSize)===scale));
   document.getElementById('retSel').value = String(state.retention ?? 90);
   document.getElementById('sndTog').checked = !!state.sounds;
   document.getElementById('loginTog').checked = !!state.login;

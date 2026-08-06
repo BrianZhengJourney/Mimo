@@ -1953,6 +1953,23 @@ final class PetGenerationCoordinator: @unchecked Sendable {
             motionRule = "Change only the named physical motion phase."
         }
 
+        let bodyPlanRule: String
+        switch actionID {
+        case .gaze:
+            bodyPlanRule = "Express looking with the subject's existing eyes, head, ears, feelers, "
+                + "visor, or other sensing features; keep its support points and body mass still."
+        case .sleep:
+            bodyPlanRule = "Use the subject's natural resting contact: curl, perch, float, fold, "
+                + "settle, or lie down as its anatomy allows. Literal hands are optional."
+        case .tennis:
+            bodyPlanRule = "If the subject can naturally grasp, keep the authored racket. If it "
+                + "cannot, volley with one existing tail, wing, head, horn, paw, fin, or body edge "
+                + "and omit the racket; the runtime still supplies the ball."
+        case .wall:
+            bodyPlanRule = "Translate wall contact into its natural grip, perch, suction, coil, "
+                + "hover, or lean. Preserve the same contact point across the family."
+        }
+
         return """
         Create batch \(batchIndex + 1) of one high-fidelity Mimo starter action: `\(actionID.rawValue)`.
 
@@ -1967,6 +1984,12 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         Temperament: \(personalityVisual)
         Only pose and physically necessary secondary motion may change. Never simplify, repixel, flatten, age,
         genericize, or redesign the character.
+
+        BODY-PLAN ADAPTER
+        Infer the subject's existing body plan only from Image 1. Never invent human arms, hands, legs, feet,
+        shoulders, or joints that the approved subject does not have. Preserve the semantic intent of the action,
+        but translate incompatible human body-part words into a motion the existing anatomy can actually perform.
+        \(bodyPlanRule)
 
         COHERENT FAMILY
         Draw exactly three consecutive frames together as one coherent generation. Never treat them as unrelated

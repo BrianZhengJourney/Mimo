@@ -54,6 +54,10 @@ struct CompanionActionMenuTests {
         expect(menu.contains("回到自动") && menu.contains("Resume Automatic") &&
                menu.contains("companionRuntime.previewActionName != nil"),
                "manual loops need an explicit return to automatic behavior")
+        expect(menu.contains("大小") && menu.contains("Size")
+               && menu.contains("companionDisplayScalePercent()")
+               && menu.contains("changeCompanionSize"),
+               "the familiar menu exposes discoverable small, standard, and large sizes")
 
         let handler = section(main, from: "@objc func playCompanionAction",
                               until: "// ── hover hot-zone")
@@ -62,6 +66,9 @@ struct CompanionActionMenuTests {
                "the selector should validate the catalog key and use local runtime playback")
         expect(handler.contains("companionRuntime.previewAction(named: nil)"),
                "Resume Automatic should leave manual preview mode")
+        expect(handler.contains("companionDisplayScalePercent")
+               && handler.contains("applyCompanionDisplayScale"),
+               "quick size choices persist through the same clamped display-size path")
         for paidPath in ["petStarterActionStart", "startStarterActionPack",
                          "PetProvider", "URLSession"] {
             expect(!menu.contains(paidPath) && !handler.contains(paidPath),
@@ -91,6 +98,11 @@ struct CompanionActionMenuTests {
         expect(localRuntime.previewAction(named: "rest") &&
                localRuntime.previewActionName == "rest",
                "an installed local gesture should enter manual playback")
+        localRuntime.setSemanticState(
+            mood: "focusSession", focusMinutes: 0, streakMinutes: 0)
+        expect(localRuntime.mood == "focusSession"
+               && localRuntime.previewActionName == nil,
+               "starting Focus immediately returns a manual loop to quiet automatic behavior")
         expect(localRuntime.playInstalledAction(named: "gaze") &&
                localRuntime.previewActionName == nil,
                "choosing gaze should resume automatic cursor-following")
@@ -102,6 +114,12 @@ struct CompanionActionMenuTests {
                overlay.contains("type: 'ctxMenu'") &&
                main.contains("case \"ctxMenu\":\n            showCompanionMenu()"),
                "web and native familiars should share the same native menu")
+        expect(overlay.contains("? 'focusSession' : (current || 'idle')")
+               && overlay.contains("type:'companionEvent',event:'focusComplete'")
+               && main.contains("case \"companionEvent\":")
+               && runtime.contains("func setSemanticState")
+               && runtime.contains("func trigger(event: String)"),
+               "Focus starts a quiet semantic mode and completion can trigger one local celebration")
 
         print("companion action menu tests passed")
     }

@@ -40,6 +40,11 @@ struct ReflectionBrowserUITests {
                && html.contains("journey-preview") && html.contains("journey-phase")
                && html.contains("activity-hover") && html.contains("material-insight-overlay"),
                "the day journey presents activity on strict half-hour chapters with evidence texture")
+        expect(html.contains("rangeDropZone") && html.contains("draggable=\"true\"")
+               && html.contains("dragstart") && html.contains("drop")
+               && html.contains("renderPinnedRange")
+               && html.contains("range-boundary"),
+               "a half-hour can be dragged into the lower trail as an explicitly bounded interval")
         expect(html.contains("const uiIcon=") && html.contains("categoryIcon")
                && html.contains("metric-primary") && html.contains("activity-icon")
                && html.contains("reflection-section-title"),

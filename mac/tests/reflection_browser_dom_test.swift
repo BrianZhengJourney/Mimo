@@ -101,6 +101,9 @@ struct ReflectionBrowserDOMTests {
         expect((evaluate("document.querySelector('.half-hour-chapter:not(.quiet)').click();document.getElementById('journeyAsk').click();document.getElementById('prompt').value.includes('半小时')",
                          in: webView) as? Bool) == true,
                "the selected half-hour can seed a focused Looking Back question")
+        expect((evaluate("(()=>{const chapter=document.querySelector('.half-hour-chapter:not(.quiet)');pinHalfHourRange(chapter.dataset.halfHour);const zone=document.getElementById('rangeDropZone');const ok=zone.classList.contains('pinned')&&zone.querySelectorAll('.range-boundary').length===2&&document.querySelectorAll('.activity-card').length>0;clearPinnedRange();return ok})()",
+                         in: webView) as? Bool) == true,
+               "dropping a chapter pins one clear start/end interval above its matching trail")
 
         expect((evaluate("document.querySelector('.raw-toggle').click();document.querySelector('.activity-card').classList.contains('open')",
                          in: webView) as? Bool) == true,

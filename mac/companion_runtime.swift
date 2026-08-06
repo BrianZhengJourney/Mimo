@@ -111,8 +111,9 @@ final class Companion {
     /// the cursor is too far away or the companion is busy moving.
     var gazeSprite: CompanionSprite? { actionSprites["gaze"] }
     var gazeFrameIndex: Int?
-    /// Distance hysteresis so the boundary does not flicker.
-    var gazeEngaged = false
+    /// Dwell + velocity gating keeps directional art from snapping at display
+    /// refresh rate while a cursor merely passes nearby.
+    var gazeFollow = CompanionGazeFollowProcedure()
 
     /// Whether the drawn walk frames are what should be on screen right now.
     var activeActionSprite: CompanionSprite? {
@@ -232,9 +233,9 @@ final class CompanionRuntime {
     /// Mimo's semantic layer, pushed from the focus engine. Behaviour packs
     /// gate on these, which is what lets the companion go quiet during deep
     /// work without a global if — Shimeji has no equivalent input.
-    var mood: String = "idle"
-    var focusMinutes: Double = 0
-    var streakMinutes: Double = 0
+    private(set) var mood: String = "idle"
+    private(set) var focusMinutes: Double = 0
+    private(set) var streakMinutes: Double = 0
 
     /// Raised on every click that was a click, not a drag. The behavior pack
     /// still gets the same event, so a tap can be both a pet reaction and a
@@ -470,7 +471,7 @@ final class CompanionRuntime {
                 advanceFree(companion, dt: dt, world: world.set)
             }
             recoverIfLost(companion)
-            if companion.previewActionName == nil { updateGaze(companion) }
+            if companion.previewActionName == nil { updateGaze(companion, dt: dt) }
         }
 
         reportBehaviorIfChanged()
@@ -484,6 +485,7 @@ final class CompanionRuntime {
         companion.previewActionName = nil
         companion.activeActionStripName = nil
         companion.gazeFrameIndex = nil
+        companion.gazeFollow.reset()
         companion.walkSpeed = 0
         let target = CGPoint(x: cursor.position.x + companion.grabOffset.dx,
                              y: cursor.position.y + companion.grabOffset.dy)
@@ -506,7 +508,7 @@ final class CompanionRuntime {
         companion.previewElapsed += dt
         companion.activeActionStripName = nil
         companion.gazeFrameIndex = nil
-        companion.gazeEngaged = false
+        companion.gazeFollow.reset()
         companion.walkSpeed = 0
         switch companion.state {
         case .grounded(let id):
@@ -563,6 +565,7 @@ final class CompanionRuntime {
         case .airborne:
             companion.activeActionStripName = nil
             companion.gazeFrameIndex = nil
+            companion.gazeFollow.reset()
             companion.walkSpeed = 0
             companion.airborneSeconds += dt
         }
@@ -705,11 +708,6 @@ final class CompanionRuntime {
         }
     }
 
-    /// How close the cursor must come for the companion to start watching it,
-    /// and how far it must leave before she stops — two numbers so the
-    /// boundary cannot flicker.
-    static let gazeEngageDistance: CGFloat = 380
-    static let gazeReleaseDistance: CGFloat = 460
     /// Picks the gaze frame from the cursor's direction, or clears it.
     ///
     /// Only a grounded, stationary companion watches the cursor: walking
@@ -718,38 +716,28 @@ final class CompanionRuntime {
     /// measured at roughly eye height; left/right is a mirror flip with a
     /// small deadband so the body does not flicker when the cursor crosses
     /// the centreline.
-    private func updateGaze(_ companion: Companion) {
+    private func updateGaze(_ companion: Companion, dt: CGFloat) {
         guard companion.gazeSprite != nil, companion.activeActionSprite == nil,
               !companion.walkFramesActive,
-              case .grounded = companion.state else {
+              case .grounded = companion.state,
+              mood == "idle" else {
             companion.gazeFrameIndex = nil
-            companion.gazeEngaged = false
+            companion.gazeFollow.reset()
             return
         }
         let eye = CGPoint(x: companion.anchor.x,
                           y: companion.anchor.y + companion.displayHeight * 0.8)
         let dx = cursor.position.x - eye.x
         let dy = cursor.position.y - eye.y
-        let distance = hypot(dx, dy)
-        if companion.gazeEngaged {
-            if distance > Self.gazeReleaseDistance { companion.gazeEngaged = false }
-        } else if distance < Self.gazeEngageDistance {
-            companion.gazeEngaged = true
+        guard let gazeSprite = companion.gazeSprite else { return }
+        let speed = hypot(cursor.velocity.dx, cursor.velocity.dy)
+        companion.gazeFrameIndex = companion.gazeFollow.update(
+            dt: Double(dt), dx: Double(dx), dy: Double(dy),
+            cursorSpeed: Double(speed), frameCount: gazeSprite.frameCount,
+            enabled: true)
+        if companion.gazeFrameIndex != nil {
+            companion.facingRight = companion.gazeFollow.mirrorHorizontally
         }
-        guard companion.gazeEngaged, distance > 1 else {
-            companion.gazeFrameIndex = nil
-            return
-        }
-
-        guard let gazeSprite = companion.gazeSprite,
-              let selection = StarterGazeMapper.selection(
-                dx: Double(dx), dy: Double(dy),
-                frameCount: gazeSprite.frameCount) else {
-            companion.gazeFrameIndex = nil
-            return
-        }
-        companion.gazeFrameIndex = selection.frameIndex
-        companion.facingRight = selection.mirrorHorizontally
     }
 
     /// The world as a behaviour pack is allowed to see it.
@@ -813,6 +801,47 @@ final class CompanionRuntime {
         }
     }
 
+    /// Applies the focus engine's semantic state as one atomic transition.
+    /// Resetting on mood changes means Focus becomes quiet immediately instead
+    /// of waiting for a roaming or sleeping action to finish its old chain.
+    func setSemanticState(mood nextMood: String,
+                          focusMinutes nextFocusMinutes: Double,
+                          streakMinutes nextStreakMinutes: Double) {
+        let changed = mood != nextMood
+        mood = nextMood
+        focusMinutes = nextFocusMinutes.isFinite ? max(0, nextFocusMinutes) : 0
+        streakMinutes = nextStreakMinutes.isFinite ? max(0, nextStreakMinutes) : 0
+        guard changed else { return }
+        for companion in companions {
+            companion.previewActionName = nil
+            companion.activeActionStripName = nil
+            companion.gazeFrameIndex = nil
+            companion.gazeFollow.reset()
+            companion.walkSpeed = 0
+            companion.director?.reset()
+        }
+    }
+
+    /// Product events use behavior-pack reactions, so a Focus completion can
+    /// celebrate locally with the installed tennis strip without entering a
+    /// generation/provider path.
+    @discardableResult
+    func trigger(event: String) -> Bool {
+        guard let companion = companions.first,
+              let director = companion.director else { return false }
+        let world = worldSurfaces().set
+        guard director.trigger(reactionTo: event,
+                               snapshot: snapshot(for: companion, world: world)) else {
+            return false
+        }
+        companion.previewActionName = nil
+        companion.activeActionStripName = nil
+        companion.gazeFrameIndex = nil
+        companion.gazeFollow.reset()
+        companion.walkSpeed = 0
+        return true
+    }
+
     /// Plays one already-installed strip from a desktop affordance. This path
     /// is intentionally runtime-only: it never creates a Studio job, calls a
     /// provider, or mutates the pet manifest.
@@ -868,7 +897,7 @@ final class CompanionRuntime {
         companion.previewElapsed = 0
         companion.activeActionStripName = nil
         companion.gazeFrameIndex = nil
-        companion.gazeEngaged = false
+        companion.gazeFollow.reset()
         companion.walkSpeed = 0
         companion.anchor = placement.anchor
         companion.state = .attached(placement.surface.id)
@@ -952,6 +981,7 @@ final class CompanionRuntime {
         companion.previewPlaybackSpec = playbackSpec
         companion.activeActionStripName = nil
         companion.gazeFrameIndex = nil
+        companion.gazeFollow.reset()
         companion.facingRight = false
         companion.director?.reset()
         return true

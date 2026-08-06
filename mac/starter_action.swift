@@ -127,9 +127,10 @@ enum StarterActionCatalog {
                 titleZh: "跟随光标",
                 titleEn: "Follow the cursor",
                 motionClass: "directional",
-                poseContract: "Keep feet and lower body fixed. Eyes lead; head and neck "
-                    + "may follow only enough to make all eight compass directions readable. Never "
-                    + "rotate or redesign the whole sprite.",
+                poseContract: "Keep the body root, torso, shoulders, feet, silhouette, and camera "
+                    + "perfectly fixed. Move only the eyes or primary sensing features first; allow "
+                    + "a tiny head tilt only when the direction would otherwise be unreadable. This "
+                    + "is a micro-glance family, never eight separate body poses or full head turns.",
                 batches: [
                     StarterActionBatch(
                         poses: [
@@ -351,5 +352,84 @@ enum StarterGazeMapper {
         return StarterGazeSelection(
             frameIndex: min(max(frame, 0), frameCount - 1),
             mirrorHorizontally: dx > 12)
+    }
+}
+
+/// Turns a noisy 60–120 Hz cursor stream into an occasional readable glance.
+/// The image model supplies discrete direction poses; this procedure decides
+/// when changing one is calm enough to show. Fast motion freezes the last pose
+/// instead of making the familiar's face chase every pointer pixel.
+struct CompanionGazeFollowProcedure {
+    static let engageDistance = 270.0
+    static let releaseDistance = 350.0
+    static let settledSpeed = 95.0
+    static let dwellSeconds = 0.30
+
+    private var engaged = false
+    private var displayed: StarterGazeSelection?
+    private var candidate: StarterGazeSelection?
+    private var candidateSeconds = 0.0
+
+    var mirrorHorizontally: Bool { displayed?.mirrorHorizontally ?? false }
+
+    mutating func reset() {
+        engaged = false
+        displayed = nil
+        candidate = nil
+        candidateSeconds = 0
+    }
+
+    mutating func update(dt: Double, dx: Double, dy: Double,
+                         cursorSpeed: Double, frameCount: Int,
+                         enabled: Bool) -> Int? {
+        guard enabled, dt.isFinite, dt > 0,
+              dx.isFinite, dy.isFinite, cursorSpeed.isFinite,
+              frameCount > 0 else {
+            reset()
+            return nil
+        }
+        let distance = hypot(dx, dy)
+        guard distance.isFinite else {
+            reset()
+            return nil
+        }
+        if engaged {
+            if distance > Self.releaseDistance {
+                reset()
+                return nil
+            }
+        } else {
+            guard distance <= Self.engageDistance,
+                  cursorSpeed <= Self.settledSpeed else { return nil }
+            engaged = true
+        }
+
+        // A fast cursor is transit, not an invitation. Hold one readable pose
+        // while it passes; a later settled candidate must dwell from zero.
+        guard cursorSpeed <= Self.settledSpeed else {
+            candidate = nil
+            candidateSeconds = 0
+            return displayed?.frameIndex
+        }
+        guard let next = StarterGazeMapper.selection(
+            dx: dx, dy: dy, frameCount: frameCount) else {
+            displayed = nil
+            candidate = nil
+            candidateSeconds = 0
+            return nil
+        }
+        if next == displayed { return displayed?.frameIndex }
+        if next == candidate {
+            candidateSeconds += dt
+        } else {
+            candidate = next
+            candidateSeconds = dt
+        }
+        if candidateSeconds >= Self.dwellSeconds {
+            displayed = next
+            candidate = nil
+            candidateSeconds = 0
+        }
+        return displayed?.frameIndex
     }
 }

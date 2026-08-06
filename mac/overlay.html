@@ -997,7 +997,8 @@ const Mascot = (() => {
              /* Mimo's semantic layer. Behavior packs gate on these, so the
                 companion goes quiet during deep work by condition rather than
                 by a hardcoded rule in Swift. */
-             mood: current || 'idle',
+             mood: (typeof Pomo !== 'undefined' && Pomo.timer)
+               ? 'focusSession' : (current || 'idle'),
              focusMinutes: continuousFocus,
              /* Kept as a behavior-pack compatibility field; it is not a
                 user-facing streak or reward counter. */
@@ -1983,6 +1984,7 @@ function famPomodoro(min){
   Pomo.wounded = false;
   document.getElementById('pomoWrap').classList.add('on');
   Pomo.timer = setInterval(pomoTick, 1000);
+  reportCompanionArt();
   toast(tx(`专注开始——${min} 分钟`,`Focus started — ${min} minutes`));
   sound('focus');
   pomoTick();
@@ -2003,9 +2005,12 @@ function pomoTick(){
 function endPomo(success){
   clearInterval(Pomo.timer); Pomo.timer = null;
   document.getElementById('pomoWrap').classList.remove('on');
-  if (success && !Pomo.wounded){ toast(tx('✓ 专注完成','✓ Focus complete')); Fam.sparkle(7); sound('focus'); }
+  const completed=success&&!Pomo.wounded;
+  if (completed){ toast(tx('✓ 专注完成','✓ Focus complete')); Fam.sparkle(7); sound('focus'); }
   else if (success){ toast(tx('✓ 计时完成，专注有过中断','✓ Focus timer complete, with an interruption')); }
   else toast(tx('专注已结束','Focus ended'));
+  reportCompanionArt();
+  if(completed)bridge({type:'companionEvent',event:'focusComplete'});
 }
 
 /* ── full-page HTML export: standalone journal for the browser.
