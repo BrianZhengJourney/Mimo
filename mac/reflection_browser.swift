@@ -33,6 +33,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
     private var activityGeneration = UUID()
     private var analysisGeneration = UUID()
     private var analysisTask: Task<Void, Never>?
+    private lazy var installedApps = Self.indexInstalledApplications()
+    private var journalAppIconCache: [String: String] = [:]
 
     private(set) var window: NSWindow?
     private var webView: WKWebView?
@@ -66,12 +68,20 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         pushState()
     }
 
+    func providerConfigurationDidChange() {
+        precondition(Thread.isMainThread,
+                     "ReflectionBrowserController.providerConfigurationDidChange() must run on the main thread")
+        guard fixtureName == nil, !modelWasExplicitlySet else { return }
+        invalidateAnalysis()
+        refreshProviderModel()
+        pushState()
+    }
+
     func present() {
         precondition(Thread.isMainThread,
                      "ReflectionBrowserController.present() must run on the main thread")
         if fixtureName == nil, !modelWasExplicitlySet {
-            reflectionModel = MimoSecret.openAI.isConfigured
-                ? OpenAIReflectionModel(keyReader: { MimoSecret.openAI.read() }) : nil
+            refreshProviderModel()
         }
         if window == nil { buildWindow() }
         if fixtureName == nil { refreshActivities() }
@@ -331,20 +341,29 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             pushState()
             return
         }
+        refreshProviderModel()
         guard let model = reflectionModel else {
             analysisStatus = "error"
-            analysisError = ReflectionModelError.missingKey.errorDescription
+            analysisError = ReflectionModelError.missingKey.userMessage(
+                isChinese: preferredLanguage.hasPrefix("zh"))
             pushState()
             return
         }
         guard confirmModelScope() else { return }
-        let prompt = (body["prompt"] as? String).map { String($0.prefix(2_000)) }
+        let rawPrompt = (body["prompt"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let prompt = rawPrompt.isEmpty
+            ? (preferredLanguage.hasPrefix("zh")
+                ? "请用自然、克制的中文，帮我回看今天。"
+                : "Help me look back at today in natural, understated English.")
+            : String(rawPrompt.prefix(2_000))
         let input = ReflectionModelInput(snapshot: snapshot, prompt: prompt)
         let generation = UUID()
         analysisGeneration = generation
         analysisTask?.cancel()
         analysisStatus = "loading"
-        analysisMessage = "Building a grounded daily reflection…"
+        analysisMessage = preferredLanguage.hasPrefix("zh")
+            ? "正在把今天轻轻整理一下…" : "Gently putting the day into words…"
         analysisError = nil
         pushState()
         analysisTask = Task { [weak self] in
@@ -355,7 +374,9 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                     guard let self, self.analysisGeneration == generation else { return }
                     self.reflection = output
                     self.analysisStatus = "ready"
-                    self.analysisMessage = "AI summary grounded in local activity"
+                    self.analysisMessage = self.preferredLanguage.hasPrefix("zh")
+                        ? "整理好了；每句话都可以回到原始记录。"
+                        : "Ready; every note can return to its source."
                     self.analysisError = nil
                     self.pushState()
                 }
@@ -365,8 +386,14 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                     guard let self, self.analysisGeneration == generation else { return }
                     self.analysisStatus = "error"
                     self.analysisMessage = nil
-                    self.analysisError = (error as? LocalizedError)?.errorDescription
-                        ?? "Mimo could not build the summary."
+                    if let modelError = error as? ReflectionModelError {
+                        self.analysisError = modelError.userMessage(
+                            isChinese: self.preferredLanguage.hasPrefix("zh"))
+                    } else {
+                        self.analysisError = self.preferredLanguage.hasPrefix("zh")
+                            ? "这次没能整理好，原始记录没有变化。"
+                            : "This pass did not finish; the original journal is unchanged."
+                    }
                     self.pushState()
                 }
             }
@@ -382,18 +409,24 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         analysisError = nil
     }
 
+    private func refreshProviderModel() {
+        guard fixtureName == nil, !modelWasExplicitlySet else { return }
+        reflectionModel = MimoSecret.openAI.isConfigured
+            ? OpenAIReflectionModel(keyReader: { MimoSecret.openAI.read() }) : nil
+    }
+
     private func confirmModelScope() -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = preferredLanguage.hasPrefix("zh") ? "确认 AI 总结范围" : "Confirm AI summary scope"
+        alert.messageText = preferredLanguage.hasPrefix("zh") ? "再看一眼今天" : "Take another look at today"
         let range = "\(Self.dayFormatter.string(from: snapshot.range.start)) → \(Self.dayFormatter.string(from: snapshot.range.end.addingTimeInterval(-1)))"
         if preferredLanguage.hasPrefix("zh") {
-            alert.informativeText = "日期：\(range)\n\n将发送 \(snapshot.events.count) 条活动元数据和 \(snapshot.materials.count) 个学习材料标题。URL 中的凭证、敏感参数和片段会先移除；不会发送屏幕内容、键盘输入或 Notion 数据。"
-            alert.addButton(withTitle: "继续")
+            alert.informativeText = "日期：\(range)\n\nMimo 会选取最多 240 条代表性活动证据和学习材料标题，交给 OpenAI 帮你整理。URL 中的凭证、敏感参数和片段会先移除；不会发送屏幕内容或键盘输入。"
+            alert.addButton(withTitle: "帮我整理")
             alert.addButton(withTitle: "取消")
         } else {
-            alert.informativeText = "Date: \(range)\n\nSend metadata for \(snapshot.events.count) activities and titles for \(snapshot.materials.count) learning materials. Credentials, sensitive URL parameters, and fragments are removed first. No screen contents, keystrokes, or Notion data are sent."
-            alert.addButton(withTitle: "Continue")
+            alert.informativeText = "Date: \(range)\n\nMimo will select up to 240 representative activity records and learning-material titles for OpenAI to organize. Credentials, sensitive URL parameters, and fragments are removed first. No screen contents or keystrokes are sent."
+            alert.addButton(withTitle: "Organize it")
             alert.addButton(withTitle: "Cancel")
         }
         return alert.runModal() == .alertFirstButtonReturn
@@ -449,6 +482,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                  "blockCount": summary.blockCount,
                  "share": summary.share] as [String: Any]
             },
+            "appIcons": appIconsObject(),
             "activityBlocks": snapshot.blocks.map(blockObject),
             "learningMaterials": snapshot.materials.map { material in
                 materialObject(material, summary: summaries[material.id])
@@ -486,6 +520,96 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         ]
         if let domain = event.domain { output["domain"] = domain }
         if let url = event.fullURL { output["url"] = url }
+        if let bundleIdentifier = event.bundleIdentifier {
+            output["bundleID"] = bundleIdentifier
+        }
+        return output
+    }
+
+    private func appIconsObject() -> [String: String] {
+        var preferredBundles: [String: String] = [:]
+        for event in snapshot.events {
+            let key = Self.normalizedAppName(event.app)
+            guard !key.isEmpty else { continue }
+            if let bundleIdentifier = event.bundleIdentifier, !bundleIdentifier.isEmpty {
+                preferredBundles[key] = bundleIdentifier
+            }
+        }
+        var output: [String: String] = [:]
+        let appNames = Set(snapshot.events.map(\.app))
+        for appName in appNames {
+            let key = Self.normalizedAppName(appName)
+            let preferredURL = preferredBundles[key].flatMap {
+                installedApps.byBundleIdentifier[$0]
+            }
+            guard !key.isEmpty,
+                  let appURL = preferredURL ?? installedApps.byName[key],
+                  let icon = appIconDataURI(at: appURL) else { continue }
+            output[key] = icon
+        }
+        return output
+    }
+
+    private func appIconDataURI(at url: URL) -> String? {
+        if let cached = journalAppIconCache[url.path] { return cached }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        let image = NSImage(size: NSSize(width: 32, height: 32))
+        image.lockFocus()
+        icon.draw(in: NSRect(x: 0, y: 0, width: 32, height: 32))
+        image.unlockFocus()
+        guard let tiff = image.tiffRepresentation,
+              let representation = NSBitmapImageRep(data: tiff),
+              let png = representation.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+        let uri = "data:image/png;base64," + png.base64EncodedString()
+        journalAppIconCache[url.path] = uri
+        return uri
+    }
+
+    private static func normalizedAppName(_ value: String) -> String {
+        let base = value.components(separatedBy: " — ").first ?? value
+        return base.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private struct InstalledAppIndex {
+        var byName: [String: URL] = [:]
+        var byBundleIdentifier: [String: URL] = [:]
+    }
+
+    private static func indexInstalledApplications() -> InstalledAppIndex {
+        let manager = FileManager.default
+        var roots = [URL(fileURLWithPath: "/Applications", isDirectory: true),
+                     URL(fileURLWithPath: "/System/Applications", isDirectory: true)]
+        roots.append(manager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications", isDirectory: true))
+        var output = InstalledAppIndex()
+        for root in roots {
+            guard let enumerator = manager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
+            for case let url as URL in enumerator where url.pathExtension.lowercased() == "app" {
+                enumerator.skipDescendants()
+                guard let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else {
+                    continue
+                }
+                output.byBundleIdentifier[identifier] = url
+                let names = [bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+                             bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
+                             url.deletingPathExtension().lastPathComponent]
+                for name in names.compactMap({ $0 }) {
+                    let key = normalizedAppName(name)
+                    if !key.isEmpty { output.byName[key] = url }
+                }
+            }
+        }
+        for app in NSWorkspace.shared.runningApplications {
+            guard let name = app.localizedName, let identifier = app.bundleIdentifier,
+                  let url = app.bundleURL else { continue }
+            output.byName[normalizedAppName(name)] = url
+            output.byBundleIdentifier[identifier] = url
+        }
         return output
     }
 
@@ -507,7 +631,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
     }
 
     private func reflectionObject() -> [String: Any] {
-        ["headline": reflection.headline, "summary": reflection.summary,
+        if !reflection.isAIEnhanced { return localReflectionObject() }
+        return ["headline": reflection.headline, "summary": reflection.summary,
          "aiEnhanced": reflection.isAIEnhanced,
          "sections": reflection.sections.map { section in
             ["id": section.kind.rawValue,
@@ -517,6 +642,65 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
              }] as [String: Any]
          }]
     }
+
+    private func localReflectionObject() -> [String: Any] {
+        let isChinese = preferredLanguage.hasPrefix("zh")
+        let whatIDid = snapshot.blocks.sorted { $0.activeDurationMS > $1.activeDurationMS }
+            .prefix(3).map { block in
+                statementObject(
+                    isChinese
+                        ? "在「\(block.title)」上停留了 \(journalDuration(block.activeDurationMS, chinese: true))。"
+                        : "Spent \(journalDuration(block.activeDurationMS, chinese: false)) with \(block.title).",
+                    evidenceIDs: block.eventIDs)
+            }
+        let learning = snapshot.materials.prefix(4).map { material in
+            statementObject(
+                isChinese
+                    ? "读到「\(material.title)」，前后停留了 \(journalDuration(material.durationMS, chinese: true))。"
+                    : "Returned to \(material.title) for \(journalDuration(material.durationMS, chinese: false)).",
+                evidenceIDs: material.eventIDs)
+        }
+        let openLoops = snapshot.blocks.filter { $0.revisitCount > 0 }
+            .sorted { $0.revisitCount > $1.revisitCount }.prefix(2).map { block in
+                statementObject(
+                    isChinese
+                        ? "几次回到「\(block.title)」，它也许还在心里。"
+                        : "You returned to \(block.title) a few times; it may still be on your mind.",
+                    evidenceIDs: block.eventIDs, kind: "inference")
+            }
+        let carry = snapshot.blocks.max { $0.activeDurationMS < $1.activeDurationMS }.map { block in
+            [statementObject(
+                isChinese
+                    ? "如果明天还想继续，可以从「\(block.title)」接上。"
+                    : "If you want to continue tomorrow, \(block.title) is a natural place to return.",
+                evidenceIDs: block.eventIDs, kind: "inference")]
+        } ?? []
+        let values: [DailyReflectionSectionKind: [[String: Any]]] = [
+            .whatIDid: Array(whatIDid), .timeAndAttention: [],
+            .learning: Array(learning), .openLoops: Array(openLoops), .tomorrow: carry,
+        ]
+        return [
+            "headline": reflection.headline, "summary": reflection.summary,
+            "aiEnhanced": false,
+            "sections": DailyReflectionSectionKind.allCases.map { kind in
+                ["id": kind.rawValue, "statements": values[kind] ?? []] as [String: Any]
+            },
+        ]
+    }
+
+    private func statementObject(_ text: String, evidenceIDs: [String],
+                                 kind: String = "fact") -> [String: Any] {
+        ["text": text, "kind": kind, "evidenceIDs": evidenceIDs]
+    }
+
+    private func journalDuration(_ milliseconds: Double, chinese: Bool) -> String {
+        let minutes = max(1, Int((milliseconds / 60_000).rounded()))
+        if minutes < 60 { return chinese ? "\(minutes) 分钟" : "\(minutes) min" }
+        let hours = minutes / 60, remainder = minutes % 60
+        if remainder == 0 { return chinese ? "\(hours) 小时" : "\(hours)h" }
+        return chinese ? "\(hours) 小时 \(remainder) 分" : "\(hours)h \(remainder)m"
+    }
+
 
     private func statusObject() -> [String: Any] {
         var output: [String: Any] = [

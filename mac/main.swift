@@ -806,7 +806,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let key = "\(display)|\(kind)|\(detail)|\(canon)"
         guard key != lastSent else { return }
         lastSent = key
-        js("famSetApp(\(jsonStr(display)), \(jsonStr(kind)), \(jsonStr(String(detail))), \(jsonStr(url ?? "")), \(jsonStr(canon)))")
+        js("famSetApp(\(jsonStr(display)), \(jsonStr(kind)), \(jsonStr(String(detail))), \(jsonStr(url ?? "")), \(jsonStr(canon)), \(jsonStr(bid)))")
     }
 
     // — hotkey (⌥Space) via Carbon: works without accessibility permission —

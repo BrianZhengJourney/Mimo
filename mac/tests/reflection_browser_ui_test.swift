@@ -22,9 +22,9 @@ struct ReflectionBrowserUITests {
         let build = try String(contentsOfFile: "mac/build.sh", encoding: .utf8)
         let product = try String(contentsOfFile: "mac/product.swift", encoding: .utf8)
 
-        for contract in ["今日手记", "Today Journal", "Day journey", "Daily reflection", "Learning materials",
+        for contract in ["今日手记", "Today Journal", "icon-focus", "icon-flow", "icon-reflect",
                          "activityBlocks", "learningMaterials", "reflectionLoad",
-                         "原始证据", "时间流向"] {
+                         "原始记录", "一天的节奏"] {
             expect(html.contains(contract), "Today Journal exposes \(contract)")
         }
         for bridge in ["type:'ready'", "type:'setRange'", "type:'savePrivacy'",
@@ -35,10 +35,36 @@ struct ReflectionBrowserUITests {
                && html.contains("class=\"timeline\"")
                && html.contains("materials-grid"),
                "the dashboard visualizes category share, chronology, and learning material cards")
-        expect(html.contains("journeyRibbon") && html.contains("journey-segment")
-               && html.contains("journey-popover") && html.contains("journey-phase")
+        expect(html.contains("journeyRibbon") && html.contains("flow-cluster")
+               && html.contains("cluster-texture") && html.contains("buildFlowClusters")
+               && html.contains("journey-preview") && html.contains("journey-phase")
                && html.contains("activity-hover") && html.contains("material-insight-overlay"),
-               "the day journey supports proportional segments, time chapters, and hover overlays")
+               "the day journey groups raw rhythm into semantic clusters with evidence texture")
+        expect(html.contains("const uiIcon=") && html.contains("categoryIcon")
+               && html.contains("metric-primary") && html.contains("activity-icon")
+               && html.contains("reflection-section-title"),
+               "line icons create a consistent attention hierarchy across metrics and evidence")
+        expect(html.contains("identitySource") && html.contains("identityIcon")
+               && html.contains("identity-image") && html.contains("/favicon.ico")
+               && html.contains("state.appIcons"),
+               "activity identity uses real app artwork and each website's own favicon")
+        expect(!html.contains("overviewSummary")
+               && !html.contains("reflectionHeadline")
+               && !html.contains("journeyMapSubtitle")
+               && !html.contains("trailSubtitle")
+               && !html.contains("materialsSubtitle"),
+               "repeated explanatory copy is removed from the focused journal surface")
+        expect(html.contains("journeyPreview")
+               && html.contains("updateJourneyPreview")
+               && html.contains("addEventListener('focusin'")
+               && !html.contains("journey-popover"),
+               "journey hover context uses one reserved preview dock instead of covering neighbors")
+        expect(!html.contains("left:calc(100% + 15px)")
+               && !html.contains("@media(max-width:1180px){.activity-hover")
+               && html.contains(".activity-main:hover + .activity-hover"),
+               "activity context expands in its own card instead of covering adjacent content")
+        expect(html.contains(".trail-panel .section-head{display:block}"),
+               "trail filters have a stable row instead of colliding with the heading")
         expect(html.contains("raw-toggle") && html.contains("raw-events")
                && html.contains("data-evidence") && html.contains("locateEvidence"),
                "raw evidence stays expandable and reflection claims locate their source")
@@ -62,8 +88,10 @@ struct ReflectionBrowserUITests {
         expect(model.contains("Never claim a task was completed")
                && model.contains("For every supplied learning material")
                && model.contains("store\": false")
-               && model.contains("SensitiveURLScrubber.scrub"),
-               "optional AI enrichment is honest, bounded, no-store, and URL-scrubbed")
+               && model.contains("SensitiveURLScrubber.scrub")
+               && model.contains("productivity-dashboard jargon")
+               && model.contains("structuredOutputFormat"),
+               "optional enrichment is honest, human, bounded, structured, no-store, and URL-scrubbed")
 
         expect(overlay.contains("openReflection") && overlay.contains("快览")
                && overlay.contains("今日手记"),
@@ -83,8 +111,8 @@ struct ReflectionBrowserUITests {
                "native fixtures remain hermetic and open before production tracking")
         expect(controller.contains("OpenAIReflectionModel(keyReader:")
                && controller.contains("MimoSecret.openAI.isConfigured")
-               && controller.contains("确认 AI 总结范围")
-               && controller.contains("No screen contents, keystrokes"),
+               && controller.contains("再看一眼今天")
+               && controller.contains("No screen contents or keystrokes"),
                "AI enrichment uses the existing optional provider behind native scope confirmation")
         expect(controller.contains("window.__mimoReflectionFixture")
                && controller.contains("injectionTime: .atDocumentStart")
@@ -98,10 +126,18 @@ struct ReflectionBrowserUITests {
                && controller.contains("analysisGeneration")
                && controller.contains("analysisTask?.cancel()"),
                "stale local reads and AI responses cannot replace a newer range")
+        expect(controller.contains("appIconsObject")
+               && controller.contains("indexInstalledApplications")
+               && controller.contains("appIconDataURI")
+               && core.contains("bundleIdentifier")
+               && main.contains("jsonStr(bid)")
+               && overlay.contains("bundleID: bundleID || ''"),
+               "native app bundle identity is retained and projected as a local icon")
         expect(product.contains("reflectionBrowser.activityHistoryDidChange()")
                && product.contains("activityHistoryDidChange(resetAll: true)")
+               && product.contains("reflectionBrowser.providerConfigurationDidChange()")
                && !product.contains("removeNotionCache"),
-               "existing erase controls invalidate the local derived view")
+               "erase and provider-setting changes immediately refresh the local derived view")
 
         for source in ["reflection_core.swift", "reflection_model.swift",
                        "reflection_browser.swift"] {

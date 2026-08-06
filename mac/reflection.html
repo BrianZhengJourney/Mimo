@@ -7,160 +7,169 @@
 <style>
 :root{
   color-scheme:light;
-  --paper:#f6f1e7;--paper-2:#fffdf8;--ink:#302d29;--muted:#776f64;
-  --line:#ded3c2;--line-soft:#ebe3d7;--accent:#8b563e;--accent-soft:#efe0d4;
+  --paper:#f5f1e9;--paper-2:#fffdf8;--ink:#302d29;--muted:#7d766d;
+  --line:#ddd5c8;--line-soft:#eee7dc;--accent:#8b563e;--accent-soft:#f2e8df;
   --building:#a9583d;--learning:#577d70;--communication:#99743e;
   --planning:#716c9b;--admin:#8a8176;--entertainment:#a36773;
-  --shadow:0 16px 40px rgba(74,58,39,.08);--radius:22px;
+  --shadow:0 1px 0 rgba(55,47,38,.025);--radius:20px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif}
 body{font-size:14px;line-height:1.45}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
+.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}
+.ui-icon{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .app{min-height:100vh}
-.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 28px;background:rgba(246,241,231,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}
-.brand{display:flex;align-items:center;gap:12px;min-width:215px}
-.brand-mark{width:37px;height:37px;border:1px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--accent);font:600 17px Georgia,serif}
-.eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:750}
-.brand h1{font:600 20px/1.1 Georgia,"Songti SC",serif;margin:3px 0 0}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 28px;background:rgba(245,241,233,.94);border-bottom:1px solid rgba(221,214,202,.72);backdrop-filter:blur(18px)}
+.brand{display:flex;align-items:center;gap:10px;min-width:190px}
+.brand-mark{width:32px;height:32px;border:1px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--accent);font:600 15px Georgia,serif}
+.brand h1{font:600 18px/1 Georgia,"Songti SC",serif;margin:0}
 .range-controls{display:flex;align-items:center;gap:9px}
-.segmented{display:flex;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(255,253,248,.65)}
-.segmented button{border:0;background:transparent;padding:7px 12px;border-radius:9px;color:var(--muted)}
+.segmented{display:flex;padding:3px;border:1px solid var(--line);border-radius:11px;background:rgba(255,254,250,.7)}
+.segmented button{border:0;background:transparent;padding:6px 11px;border-radius:8px;color:var(--muted);font-size:12px}
 .segmented button.active{background:var(--ink);color:#fff;box-shadow:0 3px 12px rgba(48,45,41,.15)}
 .date-input{display:none;border:1px solid var(--line);background:var(--paper-2);border-radius:10px;padding:7px 9px;max-width:142px}
 .date-input.visible{display:block}
-.icon-btn{width:36px;height:36px;border:1px solid var(--line);border-radius:11px;background:var(--paper-2);display:grid;place-items:center;color:var(--muted)}
+.icon-btn{width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--paper-2);display:grid;place-items:center;color:var(--muted)}
 .icon-btn:hover{border-color:var(--accent);color:var(--accent)}
-main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
+main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
 .notice{display:none;margin-bottom:16px;padding:11px 14px;border:1px solid var(--line);background:var(--paper-2);border-radius:12px;color:var(--muted)}
 .notice.visible{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .notice.error{border-color:#d5a3a0;color:#8a3e3b;background:#fff7f4}
 .hero{display:grid;grid-template-columns:minmax(0,1.38fr) minmax(340px,.62fr);gap:18px;margin-bottom:18px}
-.card{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card{background:var(--paper-2);border:1px solid rgba(221,213,200,.9);border-radius:var(--radius);box-shadow:var(--shadow)}
 .overview{padding:26px 28px;overflow:hidden;position:relative}
-.overview:after{content:"";position:absolute;right:-70px;top:-95px;width:250px;height:250px;border-radius:50%;border:52px solid rgba(139,86,62,.045);pointer-events:none}
-.date-label{color:var(--accent);font-weight:700;letter-spacing:.09em;text-transform:uppercase;font-size:11px}
-.overview h2{font:600 clamp(28px,3.4vw,46px)/1.08 Georgia,"Songti SC",serif;max-width:760px;margin:10px 0 10px;letter-spacing:-.025em}
-.overview-summary{color:var(--muted);font-size:14px;max-width:740px;margin:0}
-.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}
-.metric{border-top:1px solid var(--line);padding-top:14px;min-width:0}
-.metric{transition:transform .2s ease,border-color .2s ease}
-.metric:hover{transform:translateY(-3px);border-color:var(--accent)}
-.metric strong{display:block;font:600 25px/1 Georgia,"Songti SC",serif;white-space:nowrap}
-.metric span{display:block;color:var(--muted);font-size:11px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.overview:after{content:"";position:absolute;right:-78px;top:-108px;width:250px;height:250px;border-radius:50%;border:48px solid rgba(139,86,62,.032);pointer-events:none}
+.date-label{color:var(--accent);font-weight:600;letter-spacing:.015em;font-size:11px}
+.overview h2{font:600 clamp(28px,3.4vw,46px)/1.08 Georgia,"Songti SC",serif;max-width:760px;margin:10px 0 0;letter-spacing:-.025em}
+.metrics{display:grid;grid-template-columns:1.15fr repeat(3,minmax(0,1fr));gap:12px;margin-top:31px}
+.metric{border-top:1px solid var(--line);padding-top:12px;min-width:0;transition:border-color .2s ease}
+.metric:hover{border-color:var(--ink)}
+.metric-primary{border-top:2px solid var(--accent);padding-top:11px}
+.metric strong{display:block;font:600 25px/1 Georgia,"Songti SC",serif;white-space:nowrap;margin-top:8px}
+.metric-primary strong{font-size:30px;color:var(--accent)}
+.metric-label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;letter-spacing:0;white-space:nowrap}
+.metric-label .ui-icon{width:14px;height:14px}
 .distribution{padding:23px;display:grid;grid-template-columns:134px 1fr;gap:21px;align-items:center}
 .donut{width:134px;height:134px;border-radius:50%;position:relative;background:var(--line-soft);box-shadow:inset 0 0 0 1px rgba(0,0,0,.03)}
 .donut{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease}
-.distribution:hover .donut{transform:rotate(4deg) scale(1.035);box-shadow:inset 0 0 0 1px rgba(0,0,0,.03),0 12px 28px rgba(74,58,39,.12)}
+.distribution:hover .donut{transform:scale(1.025);box-shadow:inset 0 0 0 1px rgba(0,0,0,.03),0 10px 24px rgba(74,58,39,.08)}
 .donut:after{content:"";position:absolute;inset:23px;background:var(--paper-2);border-radius:50%;box-shadow:0 0 0 1px var(--line-soft)}
-.donut-center{position:absolute;inset:0;z-index:1;display:grid;place-content:center;text-align:center}
-.donut-center strong{font:600 22px/1 Georgia,serif}.donut-center span{font-size:10px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
-.distribution h3,.section-title{font:600 19px/1.2 Georgia,"Songti SC",serif;margin:0}
+.donut-center{position:absolute;inset:0;z-index:1;display:grid;place-content:center;text-align:center;justify-items:center}
+.donut-center .ui-icon{width:15px;height:15px;color:var(--muted);margin-bottom:4px}.donut-center strong{font:600 22px/1 Georgia,serif}.donut-center span{font-size:9px;color:var(--muted);margin-top:4px}
+.section-label{display:flex;align-items:center;gap:8px;margin:0;color:var(--ink);font:600 15px/1.2 Georgia,"Songti SC",serif;letter-spacing:0}
+.section-label .ui-icon{width:15px;height:15px;color:var(--accent)}
 .legend{display:grid;gap:8px;margin-top:13px}
 .legend-row{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:8px;align-items:center;color:var(--muted);font-size:12px}
-.legend-row i{width:8px;height:8px;border-radius:3px;background:var(--category)}
+.legend-icon{width:21px;height:21px;border-radius:7px;background:color-mix(in srgb,var(--category),white 90%);color:var(--category);display:grid;place-items:center}
+.legend-icon .ui-icon{width:12px;height:12px}
+.legend-row{grid-template-columns:21px minmax(0,1fr) auto}
 .legend-row strong{font-weight:650;color:var(--ink)}
-.journey-map{position:relative;z-index:6;margin-bottom:18px;padding:19px 22px 21px;overflow:visible}
-.journey-map-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:14px}
-.journey-map-copy{display:flex;align-items:baseline;gap:11px;min-width:0}
-.journey-map-copy p{margin:0;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.journey-hint{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:800;white-space:nowrap}
-.journey-ribbon{display:flex;align-items:stretch;gap:5px;min-height:48px;position:relative;padding:6px 0}
-.journey-ribbon:before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 5px,transparent 5px 10px)}
-.journey-ribbon:after{content:"";position:absolute;right:-1px;top:50%;width:7px;height:7px;border-radius:50%;background:var(--accent);transform:translateY(-50%);box-shadow:0 0 0 5px var(--accent-soft)}
-.journey-segment{--category:var(--admin);position:relative;z-index:1;flex-basis:0;min-width:24px;height:36px;padding:0;border:1px solid color-mix(in srgb,var(--category),white 58%);border-radius:10px;background:color-mix(in srgb,var(--category),white 84%);display:flex;align-items:center;justify-content:center;color:var(--category);font:inherit;transition:transform .22s cubic-bezier(.2,.8,.2,1),background .22s,border-color .22s;cursor:pointer}
-.journey-segment.muted{opacity:.24;filter:saturate(.45)}
-.journey-segment:hover,.journey-segment:focus-visible{z-index:12;transform:translateY(-5px) scaleY(1.08);background:color-mix(in srgb,var(--category),white 72%);border-color:var(--category);outline:none}
-.journey-segment .journey-symbol{font:700 12px Georgia,serif;opacity:.9}
-.journey-segment .journey-label{font-size:10px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px;display:none}
-.journey-segment.wide .journey-label{display:block}.journey-segment.wide .journey-symbol{display:none}
-.journey-popover{position:absolute;left:50%;bottom:calc(100% + 11px);width:240px;padding:12px 13px;border:1px solid color-mix(in srgb,var(--category),white 55%);border-radius:13px;background:rgba(255,253,248,.98);box-shadow:0 18px 42px rgba(52,39,27,.18);color:var(--ink);opacity:0;transform:translate(-50%,8px) scale(.96);pointer-events:none;transition:opacity .16s,transform .2s;transform-origin:bottom center;text-align:left}
-.journey-segment:hover .journey-popover,.journey-segment:focus-visible .journey-popover{opacity:1;transform:translate(-50%,0) scale(1)}
-.journey-popover:after{content:"";position:absolute;left:50%;bottom:-5px;width:9px;height:9px;background:var(--paper-2);border-right:1px solid color-mix(in srgb,var(--category),white 55%);border-bottom:1px solid color-mix(in srgb,var(--category),white 55%);transform:translateX(-50%) rotate(45deg)}
-.journey-popover small{display:block;color:var(--category);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
-.journey-popover strong{display:block;font:600 16px/1.25 Georgia,"Songti SC",serif}
-.journey-popover span{display:block;color:var(--muted);font-size:10px;margin-top:7px}
+.journey-map{position:relative;z-index:6;margin-bottom:18px;padding:19px 22px 18px;overflow:hidden}
+.journey-map-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:12px}
+.journey-count{font-size:10px;color:var(--muted);letter-spacing:0;font-weight:500;white-space:nowrap}
+.journey-ribbon{display:flex;align-items:stretch;gap:9px;min-height:98px;position:relative;padding:2px 0 5px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}.journey-ribbon::-webkit-scrollbar{display:none}
+.flow-cluster{--category:var(--admin);position:relative;flex:1 1 0;min-width:116px;min-height:92px;padding:11px 11px 9px;border:1px solid color-mix(in srgb,var(--category),white 73%);border-radius:17px;background:color-mix(in srgb,var(--category),#fffdf8 94%);box-shadow:inset 0 2px 0 color-mix(in srgb,var(--category),white 50%);color:var(--ink);font:inherit;text-align:left;display:grid;grid-template-rows:auto auto 6px auto;gap:6px;overflow:hidden;scroll-snap-align:start;transition:transform .22s cubic-bezier(.2,.8,.2,1),border-color .2s,box-shadow .22s,opacity .2s}
+.flow-cluster.muted{opacity:.27;filter:saturate(.4)}
+.flow-cluster:hover,.flow-cluster:focus-visible{z-index:2;transform:translateY(-2px);border-color:color-mix(in srgb,var(--category),white 42%);box-shadow:0 8px 18px rgba(63,50,36,.075);outline:none}
+.cluster-top{position:relative;z-index:1;display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:7px}.cluster-identity{width:24px;height:24px;padding:2px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.72);box-shadow:0 0 0 1px rgba(60,50,40,.05)}.cluster-identity .ui-icon{width:13px;height:13px;color:var(--category)}
+.cluster-index{color:var(--category);font-size:9px;letter-spacing:0;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cluster-duration{position:relative;z-index:1;color:var(--category);font:600 11px Georgia,serif;white-space:nowrap}
+.cluster-label{position:relative;z-index:1;display:block;min-width:0;font:600 13px/1.15 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cluster-texture{position:relative;z-index:1;display:flex;gap:2px;height:7px;align-items:stretch}.cluster-tick{--tick:var(--admin);flex-basis:0;min-width:3px;border-radius:99px;background:var(--tick);opacity:.72;transition:opacity .18s,transform .18s}.cluster-tick.filtered{opacity:.12}.flow-cluster:hover .cluster-tick{opacity:.92;transform:scaleY(1.22)}
+.cluster-texture.dense{gap:1px}.cluster-texture.dense .cluster-tick{min-width:1px}
+.cluster-foot{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:9px;letter-spacing:0;white-space:nowrap}.cluster-foot span:last-child{overflow:hidden;text-overflow:ellipsis}
+.journey-preview{display:grid;grid-template-columns:130px minmax(0,1fr) auto;align-items:center;gap:18px;min-height:58px;margin-top:7px;padding:10px 13px;border:1px solid var(--line-soft);border-radius:12px;background:linear-gradient(110deg,rgba(139,86,62,.045),rgba(87,125,112,.025));overflow:hidden}
+.journey-preview.updated{animation:preview-in .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes preview-in{0%{transform:translateY(3px);background-color:rgba(139,86,62,.08)}100%{transform:none;background-color:transparent}}
+.journey-preview-kicker{color:var(--accent);font-size:10px;letter-spacing:0;font-weight:650}
+.journey-preview-title{font:600 16px/1.25 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.journey-preview-meta{color:var(--muted);font-size:10px;text-align:right;white-space:nowrap}
 .workspace{display:grid;grid-template-columns:minmax(0,1.48fr) minmax(340px,.72fr);gap:18px;align-items:start}
-.trail-panel,.reflection-panel{padding:22px}
+.trail-panel,.reflection-panel{padding:20px}
 .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}
-.section-head p{margin:5px 0 0;color:var(--muted);font-size:12px}
-.category-filters{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.filter-chip{border:1px solid var(--line);background:transparent;color:var(--muted);padding:5px 9px;border-radius:99px;font-size:11px}
+.trail-panel .section-head{display:block}
+.category-filters{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin-top:12px;padding-top:11px;border-top:1px solid var(--line-soft)}
+.filter-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:transparent;color:var(--muted);padding:5px 8px;border-radius:99px;font-size:10px}
+.filter-chip .ui-icon{width:12px;height:12px}
 .filter-chip.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .timeline{position:relative;padding-left:24px}
 .timeline:before{content:"";position:absolute;left:6px;top:10px;bottom:10px;width:2px;background:linear-gradient(180deg,var(--building),var(--learning) 38%,var(--planning) 68%,var(--entertainment));opacity:.28;border-radius:99px}
-.journey-phase{position:relative;display:flex;align-items:center;gap:9px;margin:19px 0 10px;color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:800}
+.journey-phase{position:relative;display:flex;align-items:center;gap:9px;margin:19px 0 10px;color:var(--muted);font-size:11px;letter-spacing:0;font-weight:650}
 .journey-phase:first-child{margin-top:3px}
+.journey-phase>span{display:flex;align-items:center;gap:5px}.journey-phase .ui-icon{width:12px;height:12px}
 .journey-phase:before{content:"";position:absolute;left:-22px;width:10px;height:10px;border-radius:50%;background:var(--paper-2);border:2px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
 .journey-phase:after{content:"";height:1px;background:var(--line-soft);flex:1}
-.activity-card{--category:var(--admin);position:relative;margin:0 0 11px;border:1px solid var(--line-soft);border-radius:16px;background:#fffdfa;transition:.18s ease}
+.activity-card{--category:var(--admin);--main-height:78px;position:relative;margin:0 0 11px;border:1px solid var(--line-soft);border-radius:16px;background:#fffdfa;transition:.18s ease}
 .activity-card:before{content:"";position:absolute;left:-24px;top:23px;width:10px;height:10px;border-radius:50%;background:var(--category);box-shadow:0 0 0 4px var(--paper-2);transition:transform .2s,box-shadow .2s}
-.activity-card:hover,.activity-card:focus-within{transform:translateX(4px) translateY(-2px);border-color:color-mix(in srgb,var(--category),white 58%);box-shadow:0 13px 28px rgba(70,55,39,.1)}
+.activity-card:hover,.activity-card:focus-within{transform:translateX(3px);border-color:color-mix(in srgb,var(--category),white 62%);box-shadow:0 7px 18px rgba(70,55,39,.07)}
 .activity-card:hover:before,.activity-card:focus-within:before{transform:scale(1.25);box-shadow:0 0 0 5px color-mix(in srgb,var(--category),white 84%),0 0 18px color-mix(in srgb,var(--category),transparent 55%)}
 .activity-card.located{outline:2px solid color-mix(in srgb,var(--category),white 25%);outline-offset:2px}
-.activity-main{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:14px;align-items:center;padding:15px 16px}
+.activity-card:focus-visible{outline:2px solid color-mix(in srgb,var(--category),white 30%);outline-offset:2px}
+.activity-main{display:grid;grid-template-columns:62px 32px minmax(0,1fr) auto;gap:11px;align-items:center;min-height:var(--main-height);padding:12px 14px;transition:opacity .16s}
+.activity-card:hover .activity-meta,.activity-card:focus-visible .activity-meta{opacity:0}
 .activity-time{font:600 12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)}
 .activity-title{font-weight:720;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .activity-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:5px}
-.category-pill{color:var(--category);background:color-mix(in srgb,var(--category),white 89%);border-radius:99px;padding:3px 7px;font-weight:700}
+.activity-meta>span{display:inline-flex;align-items:center;gap:3px}.activity-meta .ui-icon{width:11px;height:11px}
+.activity-icon{width:32px;height:32px;padding:4px;border-radius:10px;display:grid;place-items:center;color:var(--category);background:color-mix(in srgb,var(--category),white 91%)}
+.activity-icon .ui-icon{width:15px;height:15px}.category-name{color:var(--category);font-weight:700}.meta-dot{opacity:.45}
+.identity-mark{width:100%;height:100%;display:grid;place-items:center;min-width:0;min-height:0}.identity-mark>*{grid-area:1/1}.identity-image{display:block;width:100%;height:100%;object-fit:contain;border-radius:6px}.identity-fallback{display:none;place-items:center;width:100%;height:100%}.identity-mark.failed .identity-image{display:none}.identity-mark.failed .identity-fallback{display:grid}
 .duration{font:600 15px Georgia,serif;color:var(--accent);white-space:nowrap}
-.raw-toggle{border:0;background:transparent;color:var(--muted);font-size:11px;padding:8px 16px 12px;text-align:left;width:100%;border-top:1px solid var(--line-soft)}
+.raw-toggle{border:0;background:transparent;color:var(--muted);font-size:10px;padding:6px 14px 9px;text-align:left;width:100%;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:4px}
+.raw-toggle .ui-icon{width:13px;height:13px;transition:transform .18s}.activity-card.open .raw-toggle .ui-icon{transform:rotate(180deg)}
 .raw-events{display:none;border-top:1px solid var(--line-soft);padding:5px 16px 12px}
 .activity-card.open .raw-events{display:block}.activity-card.open .raw-toggle{color:var(--accent)}
-.activity-hover{position:absolute;z-index:40;left:calc(100% + 15px);top:-3px;width:270px;padding:15px;border:1px solid color-mix(in srgb,var(--category),white 58%);border-radius:15px;background:rgba(255,253,248,.98);box-shadow:0 20px 55px rgba(48,38,27,.2);opacity:0;transform:translateX(-8px) scale(.97);pointer-events:none;transition:opacity .17s,transform .22s cubic-bezier(.2,.8,.2,1)}
-.activity-card:hover .activity-hover,.activity-card:focus-within .activity-hover{opacity:1;transform:translateX(0) scale(1)}
-.activity-hover .hover-kicker{color:var(--category);font-size:9px;letter-spacing:.11em;text-transform:uppercase;font-weight:800}
-.activity-hover h5{font:600 18px/1.25 Georgia,"Songti SC",serif;margin:6px 0 10px}
-.hover-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
-.hover-stat{padding:7px 5px;background:color-mix(in srgb,var(--category),white 94%);border-radius:8px;text-align:center}
-.hover-stat strong{display:block;font-size:11px}.hover-stat span{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.hover-tools{font-size:10px;color:var(--muted);border-top:1px solid var(--line-soft);padding-top:9px}
-.hover-foot{font-size:9px;color:var(--accent);margin-top:8px}
+.activity-hover{position:absolute;z-index:2;left:119px;right:84px;bottom:16px;height:18px;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:10px;opacity:0;overflow:hidden;transform:translateY(3px);pointer-events:none;transition:opacity .16s,transform .2s cubic-bezier(.2,.8,.2,1)}
+.activity-card:hover .activity-hover,.activity-main:hover + .activity-hover,.activity-card:focus-visible .activity-hover{opacity:1;transform:none}
+.activity-hover .hover-context{color:var(--category);font-weight:650;white-space:nowrap}.hover-tools{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hover-foot,.hover-stats{display:none}
+.timeline.dense .activity-card{--main-height:70px;margin-bottom:8px;border-radius:13px}.timeline.dense .activity-main{padding:9px 14px}.timeline.dense .raw-toggle{padding:6px 14px 9px}
 .raw-event{display:grid;grid-template-columns:60px 105px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line-soft);font-size:11px;color:var(--muted);align-items:center}
 .raw-event:last-child{border-bottom:0}.raw-event strong{color:var(--ink);font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .raw-link{border:0;background:transparent;color:var(--accent);padding:2px 0;font-size:11px}
 .empty{padding:44px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px}
 .empty strong{display:block;color:var(--ink);font:600 20px Georgia,serif;margin-bottom:7px}
-.reflection-panel{position:sticky;top:91px;max-height:calc(100vh - 112px);overflow:auto}
-.reflection-badge{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:750;white-space:nowrap}
-.reflection-lede{font:600 25px/1.16 Georgia,"Songti SC",serif;margin:8px 0 8px}
-.reflection-summary{color:var(--muted);margin:0 0 18px;font-size:12px}
+.empty>.ui-icon{width:22px;height:22px;color:var(--accent);margin-bottom:9px}.empty>span{font-size:11px}
+.reflection-panel{position:sticky;top:91px;max-height:calc(100vh - 112px);overflow-x:hidden;overflow-y:auto;scrollbar-width:thin}
+.reflection-badge{display:flex;align-items:center;gap:4px;font-size:9px;letter-spacing:0;padding:4px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:650;white-space:nowrap}
+.reflection-badge .ui-icon{width:10px;height:10px}
+.reflection-summary{color:var(--muted);margin:0 0 14px;font-size:11px;line-height:1.55}
 .reflection-section{border-top:1px solid var(--line-soft);padding:15px 0 3px}
-.reflection-section h4{display:flex;justify-content:space-between;align-items:center;margin:0 0 9px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+.reflection-section h4{display:flex;justify-content:space-between;align-items:center;margin:0 0 9px;font-size:11px;letter-spacing:0;color:var(--accent)}
+.reflection-section-title{display:flex;align-items:center;gap:6px}.reflection-section-title .ui-icon{width:13px;height:13px}
 .reflection-section ul{list-style:none;padding:0;margin:0;display:grid;gap:8px}
 .reflection-section li{font-size:12px;line-height:1.5;padding-left:14px;position:relative}
 .reflection-section li:before{content:"";position:absolute;left:0;top:.55em;width:5px;height:5px;border-radius:50%;background:var(--line)}
-.evidence-btn{border:0;background:transparent;color:var(--muted);font-size:10px;padding:0 0 0 4px;text-decoration:underline;text-decoration-color:var(--line)}
-.ai-box{margin-top:17px;padding:13px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
-.ai-box p{margin:0 0 10px;color:var(--muted);font-size:11px}
+.evidence-btn{display:inline-flex;align-items:center;gap:3px;border:0;background:var(--paper);color:var(--muted);font-size:9px;padding:2px 5px;margin-left:4px;border-radius:99px;white-space:nowrap}.evidence-btn .ui-icon{width:10px;height:10px}
+.ai-box{margin-top:17px;padding:14px;border:1px solid var(--line-soft);border-radius:14px;background:#faf6ef}
+.ai-box p{margin:0 0 9px;color:var(--muted);font-size:10px}
 .prompt-row{display:flex;gap:7px}
 .prompt-row input{min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;background:var(--paper-2);padding:8px 9px;font-size:11px;outline:none}
 .prompt-row input:focus{border-color:var(--accent)}
-.primary-btn{border:0;border-radius:9px;background:var(--accent);color:#fff;padding:8px 11px;font-size:11px;font-weight:700;white-space:nowrap}
+.primary-btn{border:0;border-radius:9px;background:var(--accent);color:#fff;padding:8px 10px;font-size:10px;font-weight:700;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px}.primary-btn .ui-icon{width:13px;height:13px}
 .primary-btn:disabled{opacity:.42;cursor:not-allowed}
 .materials{margin-top:18px;padding:22px}
 .materials-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .material-card{--material-accent:var(--learning);position:relative;overflow:hidden;border:1px solid var(--line-soft);border-radius:17px;background:#fffdfa;padding:17px;min-width:0;display:flex;flex-direction:column;min-height:220px;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
-.material-card:hover,.material-card:focus-within{transform:translateY(-6px);border-color:color-mix(in srgb,var(--material-accent),white 58%);box-shadow:0 18px 38px rgba(64,51,37,.14)}
+.material-card:hover,.material-card:focus-within{transform:translateY(-3px);border-color:color-mix(in srgb,var(--material-accent),white 64%);box-shadow:0 10px 24px rgba(64,51,37,.09)}
 .material-card:before{content:"";position:absolute;width:120px;height:120px;border-radius:50%;right:-58px;bottom:-63px;border:22px solid color-mix(in srgb,var(--material-accent),white 91%);transition:transform .35s}
 .material-card:hover:before{transform:scale(1.35)}
 .material-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.material-kind{color:var(--learning);background:color-mix(in srgb,var(--learning),white 89%);border-radius:99px;padding:4px 8px;text-transform:uppercase;letter-spacing:.07em;font-size:9px;font-weight:800}
+.material-kind{display:inline-flex;align-items:center;gap:6px;color:var(--learning);background:color-mix(in srgb,var(--learning),white 91%);border-radius:99px;padding:4px 7px 4px 5px;letter-spacing:0;font-size:9px;font-weight:650}.material-kind>.identity-mark{width:17px;height:17px}.material-kind .ui-icon{width:11px;height:11px}
 .material-time{font:600 12px Georgia,serif;color:var(--accent)}
 .material-card h4{font:600 17px/1.25 Georgia,"Songti SC",serif;margin:13px 0 4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .material-source{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .material-overview{font-size:12px;color:var(--muted);margin:13px 0 9px;line-height:1.5}
 .material-ideas{margin:0 0 10px;padding-left:16px;font-size:11px;display:grid;gap:5px}
 .material-relevance{font-size:11px;padding:8px 9px;border-left:2px solid var(--learning);background:color-mix(in srgb,var(--learning),white 94%);margin-top:auto}
-.material-open{align-self:flex-start;border:0;background:transparent;color:var(--accent);padding:10px 0 0;font-size:11px}
-.material-peek-hint{margin-top:auto;padding-top:12px;color:var(--material-accent);font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.material-open{align-self:flex-start;border:0;background:transparent;color:var(--accent);padding:10px 0 0;font-size:10px;display:flex;align-items:center;gap:4px}.material-open .ui-icon{width:12px;height:12px}
+.material-peek-hint{margin-top:auto;padding-top:12px;color:var(--material-accent);font-size:9px;font-weight:650;letter-spacing:0;display:flex;align-items:center;gap:5px}.material-peek-hint .ui-icon{width:12px;height:12px}
 .material-insight-overlay{position:absolute;z-index:4;inset:8px;padding:15px;border:1px solid color-mix(in srgb,var(--material-accent),white 62%);border-radius:13px;background:rgba(255,253,248,.985);box-shadow:0 18px 45px rgba(52,42,30,.16);opacity:0;transform:translateY(15px) scale(.98);pointer-events:none;transition:opacity .18s,transform .24s cubic-bezier(.2,.8,.2,1);overflow:auto}
 .material-card:hover .material-insight-overlay,.material-card:focus-within .material-insight-overlay{opacity:1;transform:none;pointer-events:auto}
-.material-insight-overlay .overlay-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--material-accent);font-weight:800}
+.material-insight-overlay .overlay-label{font-size:9px;letter-spacing:0;color:var(--material-accent);font-weight:650}
 .material-insight-overlay h5{font:600 17px/1.25 Georgia,"Songti SC",serif;margin:6px 0 8px}
 .material-insight-overlay p{font-size:11px;color:var(--muted);margin:0 0 9px;line-height:1.5}
-.privacy-note{margin-top:18px;text-align:center;color:var(--muted);font-size:10px}
+.privacy-note{margin-top:18px;display:flex;align-items:center;justify-content:center;gap:5px;color:var(--muted);font-size:9px;letter-spacing:.04em}.privacy-note .ui-icon{width:11px;height:11px}
 .modal-backdrop{display:none;position:fixed;inset:0;z-index:60;background:rgba(37,32,27,.32);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px}
 .modal-backdrop.open{display:flex}
 .modal{width:min(540px,100%);background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 80px rgba(40,31,22,.25);padding:23px}
@@ -168,16 +177,35 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
 .field{margin-bottom:14px}.field label{display:block;font-size:11px;font-weight:700;margin-bottom:6px}.field textarea{width:100%;min-height:80px;resize:vertical;border:1px solid var(--line);border-radius:11px;background:var(--paper);padding:10px;outline:none}.field textarea:focus{border-color:var(--accent)}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px}.secondary-btn{border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 12px}
 .loading .activity-card{opacity:.62}
-@media(max-width:1180px){.activity-hover{left:auto;right:14px;top:64px}.activity-card.open .activity-hover{display:none}}
 @media(max-width:1080px){.hero,.workspace{grid-template-columns:1fr}.distribution{grid-template-columns:134px 1fr}.reflection-panel{position:relative;top:auto;max-height:none}.materials-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.topbar{padding:14px 16px;align-items:flex-start}.brand{min-width:0}.range-controls{flex-wrap:wrap;justify-content:flex-end}.brand .eyebrow{display:none}main{padding:18px 14px 44px}.metrics{grid-template-columns:repeat(2,1fr)}.journey-map-copy p,.journey-hint{display:none}.journey-segment{min-width:14px}.journey-segment.wide .journey-label{display:none}.journey-segment.wide .journey-symbol{display:block}.materials-grid{grid-template-columns:1fr}.activity-main{grid-template-columns:62px minmax(0,1fr)}.activity-main .duration{grid-column:2}.activity-hover{display:none}.raw-event{grid-template-columns:50px 80px minmax(0,1fr)}.raw-link{display:none}}
+@media(max-width:760px){.topbar{padding:12px 16px;align-items:flex-start}.brand{min-width:0}.range-controls{flex-wrap:wrap;justify-content:flex-end}main{padding:18px 14px 44px}.metrics{grid-template-columns:repeat(2,1fr)}.journey-ribbon{margin-right:-14px;padding-right:14px}.flow-cluster{min-width:142px}.journey-preview{grid-template-columns:1fr;gap:4px}.journey-preview-meta{text-align:left;white-space:normal}.category-filters{flex-wrap:nowrap;overflow-x:auto}.materials-grid{grid-template-columns:1fr}.activity-main{grid-template-columns:54px 30px minmax(0,1fr)}.activity-main .duration{grid-column:3}.activity-hover{display:none}.raw-event{grid-template-columns:50px 80px minmax(0,1fr)}.raw-link{display:none}}
 @media(hover:none){.material-insight-overlay{position:relative;inset:auto;opacity:1;transform:none;pointer-events:auto;box-shadow:none;margin-top:12px}.material-card{min-height:0}}
 </style>
 </head>
 <body>
+<svg class="icon-sprite" aria-hidden="true">
+  <symbol id="icon-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></symbol>
+  <symbol id="icon-time" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+  <symbol id="icon-switch" viewBox="0 0 24 24"><path d="M4 8h14M15 5l3 3-3 3M20 16H6M9 13l-3 3 3 3"/></symbol>
+  <symbol id="icon-spark" viewBox="0 0 24 24"><path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M18.5 16l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z"/></symbol>
+  <symbol id="icon-book" viewBox="0 0 24 24"><path d="M4 5.5c3.5-.8 6.2.1 8 2v11c-1.8-1.9-4.5-2.8-8-2V5.5Z"/><path d="M20 5.5c-3.5-.8-6.2.1-8 2v11c1.8-1.9 4.5-2.8 8-2V5.5Z"/></symbol>
+  <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/><path d="M9 9h6M9 12h4"/></symbol>
+  <symbol id="icon-plan" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M8 3v6M16 3v6M4 10h16"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
+  <symbol id="icon-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4V8Z"/></symbol>
+  <symbol id="icon-flow" viewBox="0 0 24 24"><circle cx="4" cy="12" r="2"/><circle cx="20" cy="12" r="2"/><path d="M6 12c3 0 3-5 6-5s3 10 6 10"/></symbol>
+  <symbol id="icon-reflect" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="icon-evidence" viewBox="0 0 24 24"><path d="m9.5 14.5 5-5M7 17H6a4 4 0 0 1 0-8h3M17 7h1a4 4 0 1 1 0 8h-3"/></symbol>
+  <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="icon-wand" viewBox="0 0 24 24"><path d="m4 20 11-11M13 5l1-3 1 3 3 1-3 1-1 3-1-3-3-1 3-1ZM18 14l.7-2 .7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/></symbol>
+  <symbol id="icon-external" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></symbol>
+</svg>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark">M</div><div><div class="eyebrow">Your day, remembered</div><h1 id="brandTitle">今日手记</h1></div></div>
+    <div class="brand"><div class="brand-mark">M</div><h1 id="brandTitle">今日手记</h1></div>
     <div class="range-controls">
       <div class="segmented" id="rangeTabs">
         <button data-range="today" class="active">今天</button>
@@ -186,60 +214,62 @@ main{max-width:1440px;margin:0 auto;padding:26px 28px 60px}
       </div>
       <input class="date-input" id="startDate" type="date" aria-label="开始日期">
       <input class="date-input" id="endDate" type="date" aria-label="结束日期">
-      <button class="icon-btn" id="privacyBtn" aria-label="隐私设置">•••</button>
+      <button class="icon-btn" id="privacyBtn" aria-label="隐私设置"><svg class="ui-icon"><use href="#icon-sliders"/></svg></button>
     </div>
   </header>
   <main>
     <div class="notice" id="notice"><span id="noticeText"></span></div>
     <section class="hero">
       <div class="card overview">
-        <div class="date-label" id="dateLabel">TODAY · LOCAL ONLY</div>
-        <h2 id="headline">把碎片，整理成真正做过的事。</h2>
-        <p class="overview-summary" id="overviewSummary">Mimo 正在读取本地活动。</p>
+        <div class="date-label" id="dateLabel">只在这台 Mac · 今天</div>
+        <h2 id="headline">今天，慢慢留下了一些痕迹。</h2>
         <div class="metrics">
-          <div class="metric"><strong id="activeMetric">—</strong><span id="activeLabel">有效活动</span></div>
-          <div class="metric"><strong id="focusMetric">—</strong><span id="focusLabel">专注投入</span></div>
-          <div class="metric"><strong id="blockMetric">—</strong><span id="blockLabel">有意义的活动</span></div>
-          <div class="metric"><strong id="switchMetric">—</strong><span id="switchLabel">上下文切换</span></div>
+          <div class="metric metric-primary"><div class="metric-label"><svg class="ui-icon"><use href="#icon-focus"/></svg><span id="focusLabel">专注</span></div><strong id="focusMetric">—</strong></div>
+          <div class="metric"><div class="metric-label"><svg class="ui-icon"><use href="#icon-time"/></svg><span id="activeLabel">活动</span></div><strong id="activeMetric">—</strong></div>
+          <div class="metric"><div class="metric-label"><svg class="ui-icon"><use href="#icon-grid"/></svg><span id="blockLabel">片段</span></div><strong id="blockMetric">—</strong></div>
+          <div class="metric"><div class="metric-label"><svg class="ui-icon"><use href="#icon-switch"/></svg><span id="switchLabel">切换</span></div><strong id="switchMetric">—</strong></div>
         </div>
       </div>
       <div class="card distribution">
-        <div class="donut" id="donut"><div class="donut-center"><strong id="materialMetric">0</strong><span id="materialLabel">学习材料</span></div></div>
-        <div><h3 id="distributionTitle">时间流向</h3><div class="legend" id="legend"></div></div>
+        <div class="donut" id="donut"><div class="donut-center"><svg class="ui-icon"><use href="#icon-book"/></svg><strong id="materialMetric">0</strong><span id="materialLabel">材料</span></div></div>
+        <div><h3 class="section-label"><svg class="ui-icon"><use href="#icon-time"/></svg><span id="distributionTitle">时间</span></h3><div class="legend" id="legend"></div></div>
       </div>
     </section>
 
     <section class="card journey-map" aria-labelledby="journeyMapTitle">
       <div class="journey-map-head">
-        <div class="journey-map-copy"><h3 class="section-title" id="journeyMapTitle">一天的形状</h3><p id="journeyMapSubtitle">每一段长度对应真实投入；悬停即可回到当时。</p></div>
-        <span class="journey-hint" id="journeyHint">悬停回看</span>
+        <h3 class="section-label" id="journeyMapTitle"><svg class="ui-icon"><use href="#icon-flow"/></svg><span>一天的节奏</span></h3>
+        <span class="journey-count" id="journeyClusterCount"></span>
       </div>
       <div class="journey-ribbon" id="journeyRibbon"></div>
+      <div class="journey-preview" id="journeyPreview" aria-live="polite">
+        <span class="journey-preview-kicker" id="journeyPreviewKicker">今天的一章</span>
+        <strong class="journey-preview-title" id="journeyPreviewTitle">今天还在展开</strong>
+        <span class="journey-preview-meta" id="journeyPreviewMeta">悬停任意一段，回看当时的上下文</span>
+      </div>
     </section>
 
     <div class="workspace">
       <section class="card trail-panel" aria-labelledby="trailTitle">
-        <div class="section-head"><div><h3 class="section-title" id="trailTitle">今日旅程 · Day journey</h3><p id="trailSubtitle">沿着一天走一遍；悬停看上下文，展开看原始证据。</p></div><div class="category-filters" id="categoryFilters"></div></div>
+        <div class="section-head"><h3 class="section-label" id="trailTitle"><svg class="ui-icon"><use href="#icon-flow"/></svg><span>今天走过</span></h3><div class="category-filters" id="categoryFilters"></div></div>
         <div class="timeline" id="timeline"></div>
       </section>
 
       <aside class="card reflection-panel" aria-labelledby="reflectionTitle">
-        <div class="section-head"><h3 class="section-title" id="reflectionTitle">Daily reflection</h3><span class="reflection-badge" id="reflectionBadge">LOCAL</span></div>
-        <div class="reflection-lede" id="reflectionHeadline">今天还在展开。</div>
-        <p class="reflection-summary" id="reflectionSummary"></p>
+        <div class="section-head"><h3 class="section-label" id="reflectionTitle"><svg class="ui-icon"><use href="#icon-reflect"/></svg><span>回看</span></h3><span class="reflection-badge" id="reflectionBadge"><svg class="ui-icon"><use href="#icon-lock"/></svg> 只在本机</span></div>
         <div id="reflectionSections"></div>
         <div class="ai-box">
-          <p id="aiDescription">本地总结始终可用；AI 只在你确认后读取当前范围的活动元数据。</p>
-          <div class="prompt-row"><input id="prompt" maxlength="2000" placeholder="可选：今天最值得回看的是什么？"><button class="primary-btn" id="synthesizeBtn">AI 深度总结</button></div>
+          <p id="aiDescription">想再多看一层？只会在你确认后整理。</p>
+          <div class="prompt-row"><input id="prompt" maxlength="2000" placeholder="关于今天，想问什么？"><button class="primary-btn" id="synthesizeBtn"><svg class="ui-icon"><use href="#icon-wand"/></svg><span>一起看看</span></button></div>
         </div>
       </aside>
     </div>
 
     <section class="card materials" aria-labelledby="materialsTitle">
-      <div class="section-head"><div><h3 class="section-title" id="materialsTitle">Learning materials</h3><p id="materialsSubtitle">Paper、website、video 和 document，连同阅读投入与可验证摘要。</p></div></div>
+      <div class="section-head"><h3 class="section-label" id="materialsTitle"><svg class="ui-icon"><use href="#icon-book"/></svg><span>读过与看过</span></h3></div>
       <div class="materials-grid" id="materialsGrid"></div>
     </section>
-    <div class="privacy-note" id="privacyNote">活动原始记录留在本机 · 只有你主动确认的活动元数据才会用于 AI 总结</div>
+    <div class="privacy-note" id="privacyNote"><svg class="ui-icon"><use href="#icon-lock"/></svg><span>仅存于这台 Mac</span></div>
   </main>
 </div>
 
@@ -260,14 +290,19 @@ const labels={
   zh:{building:'创作',learning:'学习',communication:'沟通',planning:'规划',admin:'事务',entertainment:'娱乐'},
   en:{building:'Building',learning:'Learning',communication:'Communication',planning:'Planning',admin:'Admin',entertainment:'Entertainment'}
 };
-let state={config:{language:'zh-CN',modelConfigured:false,ignoredApps:[],ignoredDomains:[]},range:{mode:'today',start:'',end:''},metrics:{},categories:[],activityBlocks:[],learningMaterials:[],reflection:{sections:[]},status:{}};
+let state={config:{language:'zh-CN',modelConfigured:false,ignoredApps:[],ignoredDomains:[]},range:{mode:'today',start:'',end:''},metrics:{},categories:[],appIcons:{},activityBlocks:[],learningMaterials:[],reflection:{sections:[]},status:{}};
 let language='zh';
 let activeCategory='all';
+const flowClusters=[];
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const uiIcon=name=>`<svg class="ui-icon" aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
 const tx=(zh,en)=>language==='zh'?zh:en;
 const categoryLabel=id=>(labels[language]||labels.en)[id]||id;
-const categorySymbol=id=>({building:'◇',learning:'◌',communication:'↗',planning:'□',admin:'·',entertainment:'~'}[id]||'·');
+const categoryIcon=id=>({building:'spark',learning:'book',communication:'chat',planning:'plan',admin:'check',entertainment:'play'}[id]||'grid');
+const materialIcon=kind=>({paper:'book',website:'external',video:'play',document:'book'}[String(kind||'').toLowerCase()]||'book');
+const materialKindLabel=kind=>({paper:tx('论文','Paper'),website:tx('网页','Website'),video:tx('视频','Video'),document:tx('文档','Document')}[String(kind||'').toLowerCase()]||kind);
+const reflectionIcon=id=>({"What I Did":'spark',"Time & Attention":'focus',"What I Learned":'book',"Open Loops":'reflect',"Carry Forward":'flow'}[id]||'reflect');
 const phaseInfo=value=>{
   const hour=new Date(value).getHours();
   if(hour<5)return{id:'night',label:tx('深夜','Late night')};
@@ -285,24 +320,46 @@ const fmtDuration=seconds=>{
 };
 const fmtTime=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleTimeString(language==='zh'?'zh-CN':'en-US',{hour:'2-digit',minute:'2-digit',hour12:false})};
 const unique=values=>[...new Set((values||[]).filter(Boolean))];
+const appBaseName=value=>String(value||'').split(' — ')[0].trim();
+const appIconKey=value=>appBaseName(value).toLowerCase();
+const safeDomain=value=>{
+  const domain=String(value||'').trim().toLowerCase().replace(/^www\./,'');
+  return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(domain)?domain:'';
+};
+const safeAppIcon=value=>/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(String(value||''))?String(value):'';
+function identitySource(item){
+  const apps=unique(item?.apps||[]);const domains=unique([item?.domain,...(item?.domains||[])]).map(safeDomain).filter(Boolean);const title=String(item?.title||'').trim().toLowerCase();
+  const exactApp=apps.find(app=>appBaseName(app).toLowerCase()===title);const preferredApp=exactApp||apps[0];const appIcon=safeAppIcon(state.appIcons?.[appIconKey(preferredApp)]);
+  if(exactApp&&appIcon)return{type:'app',src:appIcon};
+  if(domains[0])return{type:'site',src:`https://${domains[0]}/favicon.ico`};
+  return appIcon?{type:'app',src:appIcon}:null;
+}
+function identityIcon(item,fallback){
+  const source=identitySource(item);const failed=source?'':' failed';
+  return `<span class="identity-mark${failed}" data-identity="${source?.type||'fallback'}">${source?`<img class="identity-image" src="${esc(source.src)}" alt="" aria-hidden="true" onerror="this.closest('.identity-mark').classList.add('failed')">`:''}<span class="identity-fallback">${uiIcon(fallback)}</span></span>`;
+}
+function activateIdentityIcons(){
+  document.querySelectorAll('.identity-image').forEach(image=>{
+    const fail=()=>image.closest('.identity-mark')?.classList.add('failed');
+    image.addEventListener('error',fail,{once:true});if(image.complete&&!image.naturalWidth)fail();
+  });
+}
 
 function applyLanguage(){
   language=(state.config?.language||'zh').toLowerCase().startsWith('zh')?'zh':'en';
   document.documentElement.lang=language==='zh'?'zh-CN':'en';
   $('brandTitle').textContent=tx('今日手记','Today Journal');
-  $('activeLabel').textContent=tx('有效活动','Active time');$('focusLabel').textContent=tx('专注投入','Focused time');
-  $('blockLabel').textContent=tx('有意义的活动','Meaningful blocks');$('switchLabel').textContent=tx('上下文切换','Context switches');
-  $('materialLabel').textContent=tx('学习材料','materials');$('distributionTitle').textContent=tx('时间流向','Where time went');
-  $('journeyMapTitle').textContent=tx('一天的形状','The shape of the day');
-  $('journeyMapSubtitle').textContent=tx('每一段长度对应真实投入；悬停即可回到当时。','Segment length follows active time; hover to revisit the context.');
-  $('journeyHint').textContent=tx('悬停回看','Hover to revisit');
-  $('trailTitle').textContent=tx('今日旅程 · Day journey','Day journey');
-  $('trailSubtitle').textContent=tx('沿着一天走一遍；悬停看上下文，展开看原始证据。','Walk the day again; hover for context, expand for raw evidence.');
-  $('aiDescription').textContent=tx('本地总结始终可用；AI 只在你确认后读取当前范围的活动元数据。','The local summary always works. AI reads range metadata only after confirmation.');
-  $('prompt').placeholder=tx('可选：今天最值得回看的是什么？','Optional: what is most worth revisiting?');
-  $('synthesizeBtn').textContent=tx('AI 深度总结','Enrich with AI');
-  $('materialsSubtitle').textContent=tx('Paper、website、video 和 document，连同阅读投入与可验证摘要。','Papers, websites, videos, and documents with engagement and grounded summaries.');
-  $('privacyNote').textContent=tx('活动原始记录留在本机 · 只有你主动确认的活动元数据才会用于 AI 总结','Raw activity stays on this Mac · AI sees metadata only after your confirmation');
+  $('activeLabel').textContent=tx('活动','Active');$('focusLabel').textContent=tx('专注','Focus');
+  $('blockLabel').textContent=tx('片段','Moments');$('switchLabel').textContent=tx('转场','Transitions');
+  $('materialLabel').textContent=tx('读过','Reading');$('distributionTitle').textContent=tx('时间花在哪','Where time went');
+  $('journeyMapTitle').querySelector('span').textContent=tx('一天的节奏','Day rhythm');
+  $('trailTitle').querySelector('span').textContent=tx('今天走过','Your day');
+  $('reflectionTitle').querySelector('span').textContent=tx('回看','Looking back');
+  $('materialsTitle').querySelector('span').textContent=tx('读过与看过','Reading & watching');
+  $('aiDescription').textContent=tx('想再多看一层？只会在你确认后整理。','Want another perspective? Nothing is shared until you confirm.');
+  $('prompt').placeholder=tx('关于今天，想问什么？','What are you wondering about today?');
+  $('synthesizeBtn').querySelector('span').textContent=tx('一起看看','Take a look');
+  $('privacyNote').querySelector('span').textContent=tx('仅存于这台 Mac','Local to this Mac');
   $('privacyTitle').textContent=tx('隐藏不想回看的内容','Hide activity from Today Journal');
   $('privacyDescription').textContent=tx('每行一个 App 或 domain。过滤只影响今日手记，不删除原始日志。','One app or domain per line. Filtering changes this journal, not the raw log.');
   $('appsLabel').textContent=tx('忽略的 App','Ignored apps');$('domainsLabel').textContent=tx('忽略的 Domain','Ignored domains');
@@ -311,7 +368,7 @@ function applyLanguage(){
 }
 
 function render(){
-  applyLanguage();renderRange();renderNotice();renderOverview();renderDistribution();renderFilters();renderJourneyRibbon();renderTimeline();renderReflection();renderMaterials();
+  applyLanguage();renderRange();renderNotice();renderOverview();renderDistribution();renderFilters();renderJourneyRibbon();renderTimeline();renderReflection();renderMaterials();activateIdentityIcons();
   document.body.classList.toggle('loading',state.status?.activity==='loading');
 }
 function renderRange(){
@@ -320,7 +377,7 @@ function renderRange(){
   const custom=mode==='custom';$('startDate').classList.toggle('visible',custom);$('endDate').classList.toggle('visible',custom);
   $('startDate').value=state.range?.start||'';$('endDate').value=state.range?.end||'';
   const range=state.range?.start===state.range?.end?state.range?.start:`${state.range?.start||''} → ${state.range?.end||''}`;
-  $('dateLabel').textContent=`${mode==='today'?tx('今天','Today'):range} · ${tx('本地证据','Local evidence')}`;
+  $('dateLabel').textContent=`${tx('只在这台 Mac','Only on this Mac')} · ${range||tx('今天','Today')}`;
 }
 function renderNotice(){
   const status=state.status||{};const error=status.activityError||status.analysisError;const message=status.activityMessage||status.analysisMessage;
@@ -328,8 +385,9 @@ function renderNotice(){
 }
 function renderOverview(){
   const m=state.metrics||{},r=state.reflection||{};
-  $('headline').textContent=r.headline||tx('把碎片，整理成真正做过的事。','Turn fragments into a day you can understand.');
-  $('overviewSummary').textContent=r.summary||tx('Mimo 正在读取本地活动。','Mimo is reading local activity.');
+  const top=(state.categories||[])[0]?.id;const localHeadline={
+    building:tx('今天大多在做东西。','A day mostly spent making.'),learning:tx('今天读了不少，也留下一些想法。','A day of reading and following ideas.'),communication:tx('今天有不少时间在和人连接。','A day shaped by conversations.'),planning:tx('今天在慢慢理清接下来的路。','A day of making room for what comes next.'),admin:tx('今天处理了许多日常小事。','A day of tending to the small things.'),entertainment:tx('今天也给自己留了些松弛。','A day with a little room to unwind.')};
+  $('headline').textContent=r.aiEnhanced&&r.headline?r.headline:(localHeadline[top]||tx('今天，慢慢留下了一些痕迹。','The day is beginning to leave a trace.'));
   $('activeMetric').textContent=fmtDuration(m.activeSeconds);$('focusMetric').textContent=fmtDuration(m.focusSeconds);
   $('blockMetric').textContent=String(m.blockCount??0);$('switchMetric').textContent=String(m.contextSwitches??0);$('materialMetric').textContent=String(m.materialCount??0);
 }
@@ -337,52 +395,78 @@ function renderDistribution(){
   const categories=(state.categories||[]).filter(x=>x.share>0);let cursor=0;const stops=[];
   categories.forEach(item=>{const start=cursor;cursor+=item.share*100;stops.push(`${colors[item.id]||colors.admin} ${start}% ${cursor}%`)});
   $('donut').style.background=stops.length?`conic-gradient(${stops.join(',')})`:'var(--line-soft)';
-  $('legend').innerHTML=categories.map(item=>`<div class="legend-row" style="--category:${colors[item.id]||colors.admin}"><i></i><span>${esc(categoryLabel(item.id))}</span><strong>${Math.round(item.share*100)}%</strong></div>`).join('')||`<span style="color:var(--muted);font-size:12px">${tx('等待活动','Waiting for activity')}</span>`;
+  $('legend').innerHTML=categories.map(item=>`<div class="legend-row" style="--category:${colors[item.id]||colors.admin}"><span class="legend-icon">${uiIcon(categoryIcon(item.id))}</span><span>${esc(categoryLabel(item.id))}</span><strong>${Math.round(item.share*100)}%</strong></div>`).join('')||`<span style="color:var(--muted);font-size:12px">${tx('等待活动','Waiting')}</span>`;
+}
+function flowBlockIdentity(block){
+  const apps=unique(block?.apps||[]);const domains=unique(block?.domains||[]).map(safeDomain).filter(Boolean);const title=String(block?.title||'').trim().toLowerCase();const exactApp=apps.find(app=>appBaseName(app).toLowerCase()===title);
+  if(exactApp)return{key:`app:${appIconKey(exactApp)}`,label:appBaseName(exactApp)};
+  if(domains[0])return{key:`site:${domains[0]}`,label:domains[0].replace(/^www\./,'')};
+  if(apps[0])return{key:`app:${appIconKey(apps[0])}`,label:appBaseName(apps[0])};
+  return{key:`title:${title}`,label:block?.title||tx('未命名','Untitled')};
+}
+function finishFlowCluster(cluster,index){
+  const categories=new Map(),identities=new Map();let activeSeconds=0,switches=0;
+  cluster.blocks.forEach(block=>{const seconds=Math.max(1,Number(block.activeSeconds)||0),identity=flowBlockIdentity(block);activeSeconds+=seconds;switches+=Number(block.contextSwitches)||0;categories.set(block.category,(categories.get(block.category)||0)+seconds);const known=identities.get(identity.key)||{...identity,seconds:0,block,largest:0};known.seconds+=seconds;if(seconds>known.largest){known.block=block;known.largest=seconds}identities.set(identity.key,known)});
+  const ranked=[...identities.values()].sort((a,b)=>b.seconds-a.seconds),dominantCategory=[...categories.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'admin';const primary=ranked[0],secondary=ranked[1];const showSecondary=secondary&&activeSeconds>=5*60&&secondary.seconds/activeSeconds>=.24;const label=primary?`${primary.label}${showSecondary?` + ${secondary.label}`:''}`:tx('活动章节','Activity cluster');
+  return{id:`cluster-${index+1}-${cluster.blocks[0].id}`,index:index+1,blocks:cluster.blocks,blockIDs:cluster.blocks.map(block=>block.id),start:cluster.blocks[0].start,end:cluster.blocks[cluster.blocks.length-1].end,activeSeconds,switches,category:dominantCategory,label,representative:primary?.block||cluster.blocks[0],phase:phaseInfo(cluster.blocks[0].start)};
+}
+function buildFlowClusters(source){
+  const blocks=[...(source||[])].sort((a,b)=>new Date(a.start)-new Date(b.start));if(!blocks.length)return[];const total=blocks.reduce((sum,block)=>sum+Math.max(1,Number(block.activeSeconds)||0),0),target=Math.max(8*60,Math.min(30*60,total/8));const raw=[];let current={blocks:[blocks[0]],activeSeconds:Math.max(1,Number(blocks[0].activeSeconds)||0),end:blocks[0].end,identities:new Set([flowBlockIdentity(blocks[0]).key])};
+  blocks.slice(1).forEach(block=>{const seconds=Math.max(1,Number(block.activeSeconds)||0),gap=(new Date(block.start)-new Date(current.end))/1000,prior=current.blocks[current.blocks.length-1],identity=flowBlockIdentity(block).key,samePhase=phaseInfo(prior.start).id===phaseInfo(block.start).id,sameContext=current.identities.has(identity)||prior.category===block.category,saturated=current.activeSeconds>=target,hardCap=current.activeSeconds>=target*1.75||current.blocks.length>=28,split=!samePhase||gap>5*60||hardCap||(saturated&&!sameContext);if(split){raw.push(current);current={blocks:[],activeSeconds:0,end:block.end,identities:new Set()}}current.blocks.push(block);current.activeSeconds+=seconds;current.end=block.end;current.identities.add(identity)});raw.push(current);return raw.map(finishFlowCluster);
+}
+function updateJourneyPreview(clusterID,kicker=''){
+  const cluster=flowClusters.find(item=>item.id===clusterID);if(!cluster)return;const preview=$('journeyPreview');preview.dataset.cluster=cluster.id;preview.dataset.block=cluster.representative.id;
+  $('journeyPreviewKicker').textContent=kicker||`${cluster.phase.label} · ${categoryLabel(cluster.category)}`;
+  $('journeyPreviewTitle').textContent=cluster.label;
+  $('journeyPreviewMeta').textContent=`${fmtTime(cluster.start)}—${fmtTime(cluster.end)} · ${fmtDuration(cluster.activeSeconds)}`;
+  preview.classList.remove('updated');void preview.offsetWidth;preview.classList.add('updated');
 }
 function renderJourneyRibbon(){
-  const blocks=state.activityBlocks||[];
-  if(!blocks.length){$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('今天的旅程会从第一段活动开始。','The journey begins with your first activity.')}</span>`;return}
-  const total=blocks.reduce((sum,block)=>sum+Math.max(1,Number(block.activeSeconds)||0),0);
-  $('journeyRibbon').innerHTML=blocks.map(block=>{
-    const share=Math.max(1,Number(block.activeSeconds)||0)/total;const phase=phaseInfo(block.start);
-    const tools=unique([...(block.apps||[]),...(block.domains||[])]).slice(0,4).join(' · ');
-    const muted=activeCategory!=='all'&&block.category!==activeCategory;
-    return `<button type="button" class="journey-segment ${share>=.14?'wide':''} ${muted?'muted':''}" data-journey-block="${esc(block.id)}" style="--category:${colors[block.category]||colors.admin};flex-grow:${Math.max(1,Number(block.activeSeconds)||0)}" aria-label="${esc(block.title)} · ${fmtDuration(block.activeSeconds)}"><span class="journey-symbol">${categorySymbol(block.category)}</span><span class="journey-label">${esc(block.title)}</span><span class="journey-popover"><small>${esc(phase.label)} · ${esc(categoryLabel(block.category))}</small><strong>${esc(block.title)}</strong><span>${fmtTime(block.start)}—${fmtTime(block.end)} · ${fmtDuration(block.activeSeconds)}${tools?` · ${esc(tools)}`:''}</span></span></button>`;
-  }).join('');
+  const blocks=state.activityBlocks||[];flowClusters.length=0;flowClusters.push(...buildFlowClusters(blocks));$('journeyClusterCount').textContent=flowClusters.length?tx(`${flowClusters.length} 个章节`,`${flowClusters.length} chapters`):'';
+  if(!blocks.length){$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('从第一段活动开始，这里会慢慢长出一天的形状。','The shape of the day will grow here from its first moment.')}</span>`;$('journeyPreview').dataset.cluster='';$('journeyPreview').dataset.block='';$('journeyPreviewKicker').textContent=tx('等第一笔','Waiting for the first note');$('journeyPreviewTitle').textContent=tx('今天还在展开','The day is still unfolding');$('journeyPreviewMeta').textContent=tx('工作、阅读或走神，也都是一天的一部分。','Work, reading, and wandering all belong to the day.');return}
+  $('journeyRibbon').innerHTML=flowClusters.map(cluster=>{const matching=activeCategory==='all'||cluster.blocks.some(block=>block.category===activeCategory),ticks=cluster.blocks.map(block=>`<i class="cluster-tick ${activeCategory!=='all'&&block.category!==activeCategory?'filtered':''}" style="--tick:${colors[block.category]||colors.admin};flex-grow:${Math.max(1,Math.sqrt(Number(block.activeSeconds)||1))}" title="${esc(block.title)} · ${fmtDuration(block.activeSeconds)}"></i>`).join('');return `<button type="button" class="flow-cluster ${matching?'':'muted'}" data-flow-cluster="${esc(cluster.id)}" data-cluster-blocks="${esc(cluster.blockIDs.join(','))}" style="--category:${colors[cluster.category]||colors.admin};flex-grow:${Math.max(1,Math.sqrt(cluster.activeSeconds))}" aria-label="${esc(cluster.label)} · ${fmtDuration(cluster.activeSeconds)}"><span class="cluster-top"><span class="cluster-identity">${identityIcon(cluster.representative,categoryIcon(cluster.category))}</span><span class="cluster-index">${esc(cluster.phase.label)}</span><span class="cluster-duration">${fmtDuration(cluster.activeSeconds)}</span></span><strong class="cluster-label">${esc(cluster.label)}</strong><span class="cluster-texture ${cluster.blocks.length>14?'dense':''}">${ticks}</span><span class="cluster-foot"><span>${fmtTime(cluster.start)}—${fmtTime(cluster.end)}</span><span>${esc(categoryLabel(cluster.category))}</span></span></button>`}).join('');
+  const score=cluster=>activeCategory==='all'?cluster.activeSeconds:cluster.blocks.filter(block=>block.category===activeCategory).reduce((sum,block)=>sum+(Number(block.activeSeconds)||0),0),candidates=flowClusters.filter(cluster=>score(cluster)>0),featured=(candidates.length?candidates:flowClusters).reduce((best,cluster)=>score(cluster)>score(best)?cluster:best,(candidates.length?candidates:flowClusters)[0]);updateJourneyPreview(featured.id,tx('停留最久的一章','Longest chapter'));activateIdentityIcons();
 }
 function renderFilters(){
   const available=categoryOrder.filter(id=>(state.categories||[]).some(x=>x.id===id));
   const values=['all',...available];if(!values.includes(activeCategory))activeCategory='all';
-  $('categoryFilters').innerHTML=values.map(id=>`<button class="filter-chip ${id===activeCategory?'active':''}" data-filter="${id}">${id==='all'?tx('全部','All'):esc(categoryLabel(id))}</button>`).join('');
+  $('categoryFilters').innerHTML=values.map(id=>`<button class="filter-chip ${id===activeCategory?'active':''}" data-filter="${id}">${uiIcon(id==='all'?'grid':categoryIcon(id))}<span>${id==='all'?tx('全部','All'):esc(categoryLabel(id))}</span></button>`).join('');
 }
 function renderTimeline(){
   const blocks=(state.activityBlocks||[]).filter(x=>activeCategory==='all'||x.category===activeCategory);
+  $('timeline').classList.toggle('dense',blocks.length>18);
   if(!blocks.length){$('timeline').innerHTML=`<div class="empty"><strong>${tx('这里还没有活动','No activity here yet')}</strong>${tx('工作、阅读或探索后，Mimo 会把本地记录整理成活动块。','Work, read, or explore and Mimo will shape local events into blocks.')}</div>`;return}
   let lastPhase='';
   $('timeline').innerHTML=blocks.map((block,index)=>{
-    const apps=unique(block.apps).slice(0,4);const domains=unique(block.domains).slice(0,3);const raw=block.events||[];const phase=phaseInfo(block.start);
-    const phaseMarker=phase.id===lastPhase?'':`<div class="journey-phase"><span>${esc(phase.label)}</span><small>${fmtTime(block.start)}</small></div>`;lastPhase=phase.id;
-    const tools=[...apps,...domains].join(' · ')||tx('本地活动','Local activity');
-    return `${phaseMarker}<article class="activity-card" id="block-${esc(block.id)}" data-block="${esc(block.id)}" data-events="${esc((block.eventIDs||[]).join(','))}" style="--category:${colors[block.category]||colors.admin}">
-      <div class="activity-main"><div class="activity-time">${fmtTime(block.start)}<br><span style="opacity:.55">${fmtTime(block.end)}</span></div><div><div class="activity-title">${esc(block.title)}</div><div class="activity-meta"><span class="category-pill">${esc(categoryLabel(block.category))}</span><span>${esc(apps.join(' · '))}</span>${block.contextSwitches?`<span>↔ ${block.contextSwitches}</span>`:''}</div></div><div class="duration">${fmtDuration(block.activeSeconds)}</div></div>
-      <button class="raw-toggle" data-toggle="${esc(block.id)}">${tx('查看','View')} ${raw.length} ${tx('条原始证据','raw events')} ↓</button>
+    const apps=unique(block.apps).slice(0,4);const domains=unique(block.domains).slice(0,3);const raw=block.events||[];const phase=phaseInfo(block.start);const normalizedTitle=String(block.title||'').toLowerCase();const displayApps=apps.filter(app=>String(app).toLowerCase()!==normalizedTitle);const startTime=fmtTime(block.start);const endTime=fmtTime(block.end);const timeRange=startTime===endTime?startTime:`${startTime}<br><span style="opacity:.55">${endTime}</span>`;
+    const phaseMarker=phase.id===lastPhase?'':`<div class="journey-phase"><span>${uiIcon('time')}${esc(phase.label)}</span><small>${fmtTime(block.start)}</small></div>`;lastPhase=phase.id;
+    const tools=[...displayApps,...domains].join(' · ');
+    return `${phaseMarker}<article class="activity-card" id="block-${esc(block.id)}" data-block="${esc(block.id)}" data-events="${esc((block.eventIDs||[]).join(','))}" style="--category:${colors[block.category]||colors.admin}" tabindex="0" aria-label="${esc(block.title)} · ${fmtDuration(block.activeSeconds)}">
+      <div class="activity-main"><div class="activity-time">${timeRange}</div><div class="activity-icon" title="${esc(block.title)}">${identityIcon(block,categoryIcon(block.category))}</div><div><div class="activity-title">${esc(block.title)}</div><div class="activity-meta"><span class="category-name">${esc(categoryLabel(block.category))}</span>${displayApps.length?`<span class="meta-dot">·</span><span>${esc(displayApps.join(' · '))}</span>`:''}</div></div><div class="duration">${fmtDuration(block.activeSeconds)}</div></div>
+      <div class="activity-hover" aria-hidden="true"><span class="hover-context">${esc(phase.label)} · ${esc(categoryLabel(block.category))}</span>${tools?`<span>·</span><span class="hover-tools">${esc(tools)}</span>`:''}</div>
+      <button class="raw-toggle" data-toggle="${esc(block.id)}" aria-label="${raw.length} ${tx('条原始记录','raw records')}">${uiIcon('chevron')}<span>${tx(`${raw.length} 条记录`,`${raw.length} records`)}</span></button>
       <div class="raw-events">${raw.map(event=>`<div class="raw-event"><span>${fmtTime(event.start)}</span><strong title="${esc(event.app)}">${esc(event.app)}</strong><span title="${esc(event.title)}">${esc(event.title||event.domain||'—')}</span>${event.url?`<button class="raw-link" data-url="${esc(event.url)}">${tx('打开','Open')} ↗</button>`:'<span></span>'}</div>`).join('')}</div>
-      <div class="activity-hover" aria-hidden="true"><div class="hover-kicker">#${index+1} · ${esc(phase.label)} · ${esc(categoryLabel(block.category))}</div><h5>${esc(block.title)}</h5><div class="hover-stats"><div class="hover-stat"><strong>${fmtDuration(block.activeSeconds)}</strong><span>${tx('投入','time')}</span></div><div class="hover-stat"><strong>${apps.length}</strong><span>${tx('工具','apps')}</span></div><div class="hover-stat"><strong>${block.contextSwitches||0}</strong><span>${tx('切换','switches')}</span></div></div><div class="hover-tools">${esc(tools)}</div><div class="hover-foot">${tx('这是当时的上下文快照 · 下方可展开原始证据','A context snapshot · expand raw evidence below')}</div></div>
     </article>`;
   }).join('');
 }
 function sectionTitle(id){return {"What I Did":tx('我做了什么','What I did'),"Time & Attention":tx('时间与注意力','Time & attention'),"What I Learned":tx('学习材料','What I learned'),"Open Loops":tx('尚未闭环','Open loops'),"Carry Forward":tx('带到下一步','Carry forward')}[id]||id}
 function renderReflection(){
   const reflection=state.reflection||{sections:[]};
-  $('reflectionBadge').textContent=reflection.aiEnhanced?'AI + LOCAL':'LOCAL';$('reflectionHeadline').textContent=reflection.headline||tx('今天还在展开。','The day is still unfolding.');$('reflectionSummary').textContent=reflection.summary||'';
-  $('reflectionSections').innerHTML=(reflection.sections||[]).map(section=>`<section class="reflection-section"><h4><span>${esc(sectionTitle(section.id))}</span><span>${(section.statements||[]).length}</span></h4>${section.statements?.length?`<ul>${section.statements.map(item=>`<li>${esc(item.text)}<button class="evidence-btn" data-evidence="${esc((item.evidenceIDs||[]).join(','))}">${item.evidenceIDs?.length||0} ${tx('证据','evidence')}</button></li>`).join('')}</ul>`:`<div style="font-size:11px;color:var(--muted)">${tx('暂时没有足够证据。','Not enough evidence yet.')}</div>`}</section>`).join('');
+  $('reflectionBadge').innerHTML=`${uiIcon(reflection.aiEnhanced?'wand':'lock')} ${reflection.aiEnhanced?tx('已整理','Organized'):tx('只在本机','On this Mac')}`;
+  const sections=(reflection.sections||[]).filter(section=>(section.statements||[]).length);
+  const summary=reflection.aiEnhanced&&reflection.summary?`<p class="reflection-summary">${esc(reflection.summary)}</p>`:'';
+  $('reflectionSections').innerHTML=summary+sections.map(section=>`<section class="reflection-section"><h4><span class="reflection-section-title">${uiIcon(reflectionIcon(section.id))}<span>${esc(sectionTitle(section.id))}</span></span></h4><ul>${section.statements.map(item=>`<li>${esc(item.text)}<button class="evidence-btn" data-evidence="${esc((item.evidenceIDs||[]).join(','))}" aria-label="${item.evidenceIDs?.length||0} ${tx('条证据','evidence items')}">${uiIcon('evidence')}<span>${item.evidenceIDs?.length||0}</span></button></li>`).join('')}</ul></section>`).join('');
   const busy=state.status?.analysis==='loading';$('synthesizeBtn').disabled=busy||!state.config?.modelConfigured||!(state.activityBlocks||[]).length;
-  if(!state.config?.modelConfigured)$('aiDescription').textContent=tx('本地总结已可用。若要生成内容摘要与洞察，请先在设置中添加 OpenAI API Key。','The local summary is ready. Add an OpenAI API key in Settings for richer content summaries.');
+  if(!state.config?.modelConfigured)$('aiDescription').textContent=tx('手记照常可用；连接 OpenAI 后，可以一起多看一层。','The journal works on its own. Connect OpenAI for another perspective.');
+}
+function materialOverview(item){
+  if(item.aiEnhanced)return item.overview||'';const source=item.domain||tx('本地文档','a local document');
+  return tx(`在 ${source} 留下了 ${fmtDuration(item.durationSeconds)} 的阅读痕迹；这里只记标题和时间。`,`You spent ${fmtDuration(item.durationSeconds)} with ${source}; this note uses only its title and timing.`);
 }
 function renderMaterials(){
   const materials=state.learningMaterials||[];
-  if(!materials.length){$('materialsGrid').innerHTML=`<div class="empty" style="grid-column:1/-1"><strong>${tx('还没有学习材料','No learning materials yet')}</strong>${tx('阅读 paper、website、video 或 document 后会出现在这里。','Papers, websites, videos, and documents will appear here.')}</div>`;return}
-  $('materialsGrid').innerHTML=materials.map(item=>`<article class="material-card" style="--material-accent:${colors.learning}"><div class="material-top"><span class="material-kind">${esc(item.kind)}</span><span class="material-time">${fmtDuration(item.durationSeconds)} · ${item.visits}×</span></div><h4>${esc(item.title)}</h4><div class="material-source">${esc(item.domain||tx('本地文档','Local document'))}</div><p class="material-overview">${esc(item.overview)}</p><div class="material-peek-hint">${tx('悬停看核心观点','Hover for key ideas')} ↗</div><div class="material-insight-overlay"><div class="overlay-label">${item.aiEnhanced?'AI + LOCAL':'LOCAL EVIDENCE'} · ${esc(item.kind)}</div><h5>${esc(item.title)}</h5><p>${esc(item.overview)}</p>${item.keyIdeas?.length?`<ul class="material-ideas">${item.keyIdeas.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${item.relevance?`<div class="material-relevance"><strong>${tx('与你的关联：','Why it matters: ')}</strong>${esc(item.relevance)}</div>`:''}${item.url?`<button class="material-open" data-url="${esc(item.url)}">${tx('打开来源','Open source')} ↗</button>`:''}</div></article>`).join('');
+  if(!materials.length){$('materialsGrid').innerHTML=`<div class="empty" style="grid-column:1/-1">${uiIcon('book')}<strong>${tx('暂无材料','Nothing yet')}</strong><span>${tx('阅读后自动出现','Appears as you read')}</span></div>`;return}
+  $('materialsGrid').innerHTML=materials.map(item=>{const overview=materialOverview(item),kind=materialKindLabel(item.kind);return `<article class="material-card" style="--material-accent:${colors.learning}"><div class="material-top"><span class="material-kind">${identityIcon(item,materialIcon(item.kind))}<span>${esc(kind)}</span></span><span class="material-time">${fmtDuration(item.durationSeconds)} · ${tx(`${item.visits} 次`,`${item.visits} visits`)}</span></div><h4>${esc(item.title)}</h4><div class="material-source">${esc(item.domain||tx('本地文档','Local document'))}</div><p class="material-overview">${esc(overview)}</p><div class="material-peek-hint">${uiIcon('focus')} ${tx('展开小记','Open notes')}</div><div class="material-insight-overlay"><div class="overlay-label">${item.aiEnhanced?tx('读后小记','Reading note'):tx('本地线索','Local trace')} · ${esc(kind)}</div><h5>${esc(item.title)}</h5><p>${esc(overview)}</p>${item.keyIdeas?.length?`<ul class="material-ideas">${item.keyIdeas.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${item.relevance?`<div class="material-relevance"><strong>${tx('和今天的关系：','Why it mattered today: ')}</strong>${esc(item.relevance)}</div>`:''}${item.url?`<button class="material-open" data-url="${esc(item.url)}">${uiIcon('external')}<span>${tx('回到原文','Open source')}</span></button>`:''}</div></article>`}).join('');
 }
 function locateEvidence(ids){
   const wanted=new Set(String(ids||'').split(',').filter(Boolean));if(!wanted.size)return;
@@ -397,7 +481,9 @@ function sendRange(mode){
 $('rangeTabs').addEventListener('click',event=>{const button=event.target.closest('[data-range]');if(!button)return;sendRange(button.dataset.range)});
 $('startDate').addEventListener('change',()=>{if($('endDate').value)sendRange('custom')});$('endDate').addEventListener('change',()=>{if($('startDate').value)sendRange('custom')});
 $('categoryFilters').addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(!button)return;activeCategory=button.dataset.filter;renderFilters();renderJourneyRibbon();renderTimeline()});
-$('journeyRibbon').addEventListener('click',event=>{const segment=event.target.closest('[data-journey-block]');if(!segment)return;if(activeCategory!=='all'){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline()}const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===segment.dataset.journeyBlock);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
+$('journeyRibbon').addEventListener('mouseover',event=>{const cluster=event.target.closest('[data-flow-cluster]');if(cluster)updateJourneyPreview(cluster.dataset.flowCluster)});
+$('journeyRibbon').addEventListener('focusin',event=>{const cluster=event.target.closest('[data-flow-cluster]');if(cluster)updateJourneyPreview(cluster.dataset.flowCluster)});
+$('journeyRibbon').addEventListener('click',event=>{const button=event.target.closest('[data-flow-cluster]');if(!button)return;const cluster=flowClusters.find(item=>item.id===button.dataset.flowCluster);if(!cluster)return;let block=activeCategory==='all'?cluster.representative:cluster.blocks.filter(item=>item.category===activeCategory).sort((a,b)=>(Number(b.activeSeconds)||0)-(Number(a.activeSeconds)||0))[0];if(!block){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline();block=cluster.representative}updateJourneyPreview(cluster.id);const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===block.id);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
 $('timeline').addEventListener('click',event=>{const toggle=event.target.closest('[data-toggle]');if(toggle){toggle.closest('.activity-card')?.classList.toggle('open');return}const link=event.target.closest('[data-url]');if(link)post({type:'openExternal',url:link.dataset.url})});
 $('reflectionSections').addEventListener('click',event=>{const button=event.target.closest('[data-evidence]');if(button)locateEvidence(button.dataset.evidence)});
 $('materialsGrid').addEventListener('click',event=>{const button=event.target.closest('[data-url]');if(button)post({type:'openExternal',url:button.dataset.url})});
@@ -425,7 +511,7 @@ function fixturePayload(name='1'){
     {id:'b4',title:'Designing Data-Intensive Applications',category:'learning',start:e5.start,end:e5.end,activeSeconds:e5.durationSeconds,apps:['Preview'],domains:[],contextSwitches:1,eventIDs:['e5'],events:[e5]},
     {id:'b5',title:'How to Take Smart Notes',category:'learning',start:e6.start,end:e6.end,activeSeconds:e6.durationSeconds,apps:['Safari'],domains:['example.com'],contextSwitches:1,eventIDs:['e6'],events:[e6]}
   ];
-  return {config:{language:'zh-CN',modelConfigured:!noKey,ignoredApps:[],ignoredDomains:[],fixture:true},range:{mode:'today',start:'2026-08-04',end:'2026-08-04'},metrics:{activeSeconds:115*60,focusSeconds:103*60,contextSwitches:5,blockCount:5,materialCount:3},categories:[{id:'learning',durationSeconds:63*60,blockCount:3,share:63/115},{id:'building',durationSeconds:40*60,blockCount:1,share:40/115},{id:'communication',durationSeconds:12*60,blockCount:1,share:12/115}],activityBlocks:blocks,learningMaterials:[
+  return {config:{language:'zh-CN',modelConfigured:!noKey,ignoredApps:[],ignoredDomains:[],fixture:true},range:{mode:'today',start:'2026-08-04',end:'2026-08-04'},metrics:{activeSeconds:115*60,focusSeconds:103*60,contextSwitches:5,blockCount:5,materialCount:3},categories:[{id:'learning',durationSeconds:63*60,blockCount:3,share:63/115},{id:'building',durationSeconds:40*60,blockCount:1,share:40/115},{id:'communication',durationSeconds:12*60,blockCount:1,share:12/115}],appIcons:{wechat:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL7WQAAAABJRU5ErkJggg=='},activityBlocks:blocks,learningMaterials:[
     {id:'m1',title:'Activity tracking as sensemaking',kind:'website',domain:'example.com',url:e1.url,durationSeconds:e1.durationSeconds,visits:1,overview:'文章讨论 activity trail 如何从记录工具变成自我理解的界面。',keyIdeas:['原始事件只是证据，不是最终信息结构','回顾需要围绕有意义的活动，而不是 App'],relevance:'直接支持 Mimo 今日手记的产品方向。',aiEnhanced:true,evidenceIDs:['e1']},
     {id:'m2',title:'Designing Data-Intensive Applications',kind:'document',domain:'Local PDF',durationSeconds:e5.durationSeconds,visits:1,overview:'本地 PDF 阅读记录；当前摘要仅基于标题和投入时间。',keyIdeas:[],aiEnhanced:false,evidenceIDs:['e5']},
     {id:'m3',title:'How to Take Smart Notes',kind:'website',domain:'example.com',url:e6.url,durationSeconds:e6.durationSeconds,visits:1,overview:'关于把阅读材料转化为长期可复用笔记的方法。',keyIdeas:['记录应该服务于未来使用','知识需要通过关联逐步生长'],relevance:'可用于设计 Mimo 的 learning material summary。',aiEnhanced:true,evidenceIDs:['e6']}
@@ -440,7 +526,8 @@ function fixturePayload(name='1'){
 window.reflectionLoad=payload=>{state=payload||state;render()};
 window.reflectionFixture=name=>{state=fixturePayload(name);render();return true};
 render();
-if(window.__mimoReflectionFixture)window.reflectionFixture(window.__mimoReflectionFixture);
+const previewFixture=!bridge?new URLSearchParams(location.hash.slice(1)).get('fixture'):'';
+if(window.__mimoReflectionFixture||previewFixture)window.reflectionFixture(window.__mimoReflectionFixture||previewFixture);
 post({type:'ready'});
 </script>
 </body>

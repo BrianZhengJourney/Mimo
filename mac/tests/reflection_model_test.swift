@@ -78,6 +78,23 @@ private func makeSnapshot() -> DailyActivitySnapshot {
     return .build(range: range, events: [learning, building])
 }
 
+private func makeLongDaySnapshot(eventCount: Int = 465) -> DailyActivitySnapshot {
+    let range = ReflectionDateRange(
+        start: Date(timeIntervalSince1970: 1_780_000_000),
+        end: Date(timeIntervalSince1970: 1_780_086_400))
+    let events = (0..<eventCount).map { index in
+        let startedAtMS = 1_780_000_000_000 + Double(index * 90_000)
+        return ActivityEvent(
+            id: "long-day-\(index)", startedAtMS: startedAtMS,
+            endedAtMS: startedAtMS + 60_000,
+            app: index.isMultiple(of: 2) ? "Cursor" : "Terminal",
+            title: index.isMultiple(of: 2) ? "Mimo Today Journal" : "Build and test",
+            category: "code",
+            order: index, isContextSwitch: index > 0)
+    }
+    return .build(range: range, events: events)
+}
+
 @main
 struct ReflectionModelTests {
     static func main() async throws {
@@ -112,6 +129,11 @@ struct ReflectionModelTests {
         expect(body["model"] as? String == "gpt-5.6"
                && body["store"] as? Bool == false,
                "the request uses the configured bounded no-store contract")
+        let textConfig = body["text"] as? [String: Any]
+        let outputFormat = textConfig?["format"] as? [String: Any]
+        expect(outputFormat?["type"] as? String == "json_schema"
+               && outputFormat?["strict"] as? Bool == true,
+               "the response uses the current strict structured-output contract")
         expect(systemPrompt.contains("Every statement must cite")
                && systemPrompt.contains("Never claim a task was completed")
                && systemPrompt.contains("For every supplied learning material"),
@@ -133,6 +155,31 @@ struct ReflectionModelTests {
         expect(output.materialSummaries.count == snapshot.materials.count
                && output.materialSummaries.allSatisfy(\.isAIEnhanced),
                "every learning material receives one enriched summary")
+
+        let longDay = makeLongDaySnapshot()
+        let longDayTransport = MockReflectionTransport(
+            responseData: try modelResponse(snapshot: longDay))
+        let longDayModel = OpenAIReflectionModel(
+            keyReader: { "key" }, transport: longDayTransport)
+        do {
+            _ = try await longDayModel.synthesize(.init(snapshot: longDay))
+            expect(longDayTransport.requests.count == 1,
+                   "a long real-world day still reaches the model service")
+            guard let bodyData = longDayTransport.requests[0].httpBody,
+                  let body = try JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
+                  let input = body["input"] as? [[String: Any]],
+                  let content = input.last?["content"] as? [[String: Any]],
+                  let userText = content.first?["text"] as? String,
+                  let userData = userText.data(using: .utf8),
+                  let projection = try JSONSerialization.jsonObject(with: userData) as? [String: Any],
+                  let events = projection["events"] as? [[String: Any]] else {
+                throw ReflectionModelError.invalidResponse
+            }
+            expect(events.count <= 240 && events.count >= 24,
+                   "a long day is represented by bounded evidence instead of being dropped")
+        } catch {
+            expect(false, "a long real-world day should be compacted, not rejected: \(error)")
+        }
 
         let invalidEvidenceTransport = MockReflectionTransport(
             responseData: try modelResponse(snapshot: snapshot, evidenceID: "unknown-event"))
@@ -166,6 +213,26 @@ struct ReflectionModelTests {
         } catch {
             expect(error as? ReflectionModelError == .missingKey,
                    "missing key remains an explicit optional-provider state")
+        }
+
+        for (status, expected) in [
+            (401, ReflectionModelError.authentication),
+            (403, ReflectionModelError.accessDenied),
+            (429, ReflectionModelError.rateLimited),
+            (503, ReflectionModelError.serviceUnavailable),
+        ] {
+            let failureTransport = MockReflectionTransport(
+                responseData: Data(#"{"error":{"message":"provider detail stays private"}}"#.utf8),
+                statusCode: status)
+            let failureModel = OpenAIReflectionModel(
+                keyReader: { "key" }, transport: failureTransport)
+            do {
+                _ = try await failureModel.synthesize(.init(snapshot: snapshot))
+                expect(false, "HTTP \(status) must remain actionable")
+            } catch {
+                expect(error as? ReflectionModelError == expected,
+                       "HTTP \(status) maps to a safe actionable error")
+            }
         }
 
         let local = try await LocalReflectionModel().synthesize(.init(snapshot: snapshot))

@@ -15,7 +15,7 @@ struct ReflectionCoreTests {
             #"{"app":"Arc","kind":"paper","detail":"Activity Sensemaking — Arc","canon":"Activity Sensemaking","url":"https://example.com/read?topic=mimo&token=secret#private","t0":60000,"t1":180000}"#,
             #"{"app":"Cursor","kind":"code","detail":"Mimo Today Journal","t0":190000,"t1":490000}"#,
             #"{"app":"Claude","kind":"neutral","detail":"Mimo information architecture","t0":500000,"t1":680000}"#,
-            #"{"app":"WeChat","kind":"neutral","detail":"Product discussion","t0":900000,"t1":1020000}"#,
+            #"{"app":"WeChat","bundleID":"com.tencent.xinWeChat","kind":"neutral","detail":"Product discussion","t0":900000,"t1":1020000}"#,
             #"{"app":"Arc","kind":"paper","detail":"Activity Sensemaking — Arc","canon":"Activity Sensemaking","url":"https://example.com/read?topic=mimo&token=secret#private","t0":1100000,"t1":1220000}"#,
             "not json",
         ].joined(separator: "\n")
@@ -40,6 +40,8 @@ struct ReflectionCoreTests {
                "developer and AI tools map to building")
         expect(ActivityCategory.classify(result.events[3]) == .communication,
                "communication apps map to communication")
+        expect(result.events[3].bundleIdentifier == "com.tencent.xinWeChat",
+               "native bundle identity survives the local activity parser")
 
         let blocks = ActivityBlockBuilder.build(result.events)
         expect(blocks.count == 4,

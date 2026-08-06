@@ -1166,8 +1166,8 @@ function mascotStateFor(s){
 const Fam = {
   char: 'wisp', state: 'idle',
   focusStartedAt: null,
-  history: [],          // {app, kind, t0, t1}
-  cur: null,            // {app, kind, t0}
+  history: [],          // {app, bundleID, kind, t0, t1}
+  cur: null,            // {app, bundleID, kind, t0}
   distractSec: 0, deepSec: 0, switches: [],
   paused: false,
   logGeneration: 0,
@@ -1281,7 +1281,7 @@ setInterval(() => {
 }, 15000);
 
 /* ═══ API called from Swift ═══ */
-function famSetApp(appName, kind, detail, url, canon){
+function famSetApp(appName, kind, detail, url, canon, bundleID){
   if (Fam.paused) { Fam.cur = null; return; }
   const now = Date.now();
   if (Fam.cur) {
@@ -1290,7 +1290,7 @@ function famSetApp(appName, kind, detail, url, canon){
     if (Fam.history.length > 600) Fam.history.shift();
     if (Fam.cur.t1 - Fam.cur.t0 >= 5000) bridge({ type: 'log', entry: Fam.cur, generation: Fam.logGeneration });  // persist to disk
   }
-  Fam.cur = { app: appName, kind, detail: detail || '', url: url || '', canon: canon || '', t0: now };
+  Fam.cur = { app: appName, bundleID: bundleID || '', kind, detail: detail || '', url: url || '', canon: canon || '', t0: now };
   // frantic switching → ghost
   Fam.switches = Fam.switches.filter(t => now - t < 8000);
   Fam.switches.push(now);

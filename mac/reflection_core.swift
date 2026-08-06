@@ -49,6 +49,7 @@ struct ActivityEvent: Codable, Equatable {
     /// Kept locally. Use `SensitiveURLScrubber` before model projection.
     var fullURL: String?
     var domain: String?
+    var bundleIdentifier: String?
     var category: String
     var canonicalLabel: String?
     var order: Int
@@ -57,7 +58,8 @@ struct ActivityEvent: Codable, Equatable {
 
     init(id: String, startedAtMS: Double, endedAtMS: Double, app: String,
          title: String? = nil, fullURL: String? = nil, domain: String? = nil,
-         category: String, canonicalLabel: String? = nil, order: Int,
+         bundleIdentifier: String? = nil, category: String,
+         canonicalLabel: String? = nil, order: Int,
          isRevisit: Bool = false, isContextSwitch: Bool = false) {
         self.id = id
         self.startedAtMS = startedAtMS
@@ -66,6 +68,7 @@ struct ActivityEvent: Codable, Equatable {
         self.title = title
         self.fullURL = fullURL
         self.domain = domain
+        self.bundleIdentifier = bundleIdentifier
         self.category = category
         self.canonicalLabel = canonicalLabel
         self.order = order
@@ -127,16 +130,21 @@ enum ActivityJSONLParser {
             let title = (string(object["detail"]) ?? string(object["title"]))?.trimmedNonempty
             let category = string(object["kind"])?.trimmedNonempty ?? "neutral"
             let canonical = string(object["canon"])?.trimmedNonempty
+            let bundleIdentifier = (string(object["bundleID"])
+                ?? string(object["bundleIdentifier"]))?.trimmedNonempty
             let host = url.flatMap { URL(string: $0)?.host?.lowercased() }?
                 .replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
-            let fingerprint = [String(t0), String(t1), app, title ?? "", url ?? "",
-                               category, canonical ?? ""].joined(separator: "\u{1f}")
+            var fingerprintParts = [String(t0), String(t1), app, title ?? "", url ?? "",
+                                    category, canonical ?? ""]
+            if let bundleIdentifier { fingerprintParts.append(bundleIdentifier) }
+            let fingerprint = fingerprintParts.joined(separator: "\u{1f}")
             let occurrence = occurrences[fingerprint, default: 0]
             occurrences[fingerprint] = occurrence + 1
             let event = ActivityEvent(
                 id: stableID(prefix: "activity", value: "\(sourceID)|\(fingerprint)|\(occurrence)"),
                 startedAtMS: t0, endedAtMS: t1, app: app, title: title,
-                fullURL: url, domain: host, category: category,
+                fullURL: url, domain: host, bundleIdentifier: bundleIdentifier,
+                category: category,
                 canonicalLabel: canonical, order: startingOrder + parsed.count)
             if range == nil || range!.intersects(startedAtMS: t0, endedAtMS: t1) {
                 parsed.append(event)

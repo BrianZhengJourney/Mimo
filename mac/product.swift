@@ -3259,6 +3259,7 @@ extension AppDelegate {
                 keyState["error"] = voice("无法安全保存：\(failed.joined(separator: ", "))", "Could not save securely: \(failed.joined(separator: ", "))")
             }
             settingsCall("petKeysSaved", keyState)
+            reflectionBrowser.providerConfigurationDidChange()
             if MimoSecret.openAI.isConfigured {
                 resumePostInstallStarterActions()
             }
@@ -3279,6 +3280,7 @@ extension AppDelegate {
             ]
             if !cleared { keyState["error"] = voice("无法清除 OpenAI", "Could not clear OpenAI") }
             settingsCall("petKeysSaved", keyState)
+            reflectionBrowser.providerConfigurationDidChange()
         case "petCancel":
             if let rawID = body["requestID"] as? String,
                let uuid = UUID(uuidString: rawID) {

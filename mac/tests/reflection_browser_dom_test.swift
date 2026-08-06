@@ -60,7 +60,7 @@ struct ReflectionBrowserDOMTests {
         expect(waiter.finished && !waiter.failed, "fixture loads in a real WKWebView")
         _ = evaluate("window.reflectionFixture('1')", in: webView)
 
-        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.journey-segment').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
+        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.flow-cluster').length,clusterTicks:document.querySelectorAll('.cluster-tick').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
                                in: webView) as? String
         let object = try JSONSerialization.jsonObject(
             with: Data((initial ?? "{}").utf8)) as? [String: Any]
@@ -70,19 +70,33 @@ struct ReflectionBrowserDOMTests {
                && object?["raw"] as? Int == 6,
                "populated fixture renders blocks, learning cards, reflection, and raw evidence")
         expect(object?["journey"] as? Int == 5
+               && object?["clusterTicks"] as? Int == 5
                && (object?["phases"] as? Int ?? 0) >= 2
                && object?["activityHovers"] as? Int == 5
                && object?["materialOverlays"] as? Int == 3,
-               "journey segments, day phases, and contextual overlays render for every item")
+               "flow clusters retain every block as internal texture alongside day phases")
+        expect((object?["identityImages"] as? Int ?? 0) >= 4
+               && (object?["appIdentities"] as? Int ?? 0) >= 1
+               && (object?["siteIdentities"] as? Int ?? 0) >= 1,
+               "app activities and websites render representative identity artwork")
+        expect((evaluate("(()=>{const base=new Date();base.setHours(8,0,0,0);const categories=['building','communication','admin','learning'];const blocks=Array.from({length:80},(_,index)=>({id:`dense-${index}`,title:`App ${index%6}`,category:categories[index%4],start:new Date(base.getTime()+index*60000).toISOString(),end:new Date(base.getTime()+(index+1)*60000).toISOString(),activeSeconds:60,apps:[`App ${index%6}`],domains:[],contextSwitches:1,eventIDs:[],events:[]}));const clusters=buildFlowClusters(blocks);return clusters.length>=6&&clusters.length<=10&&clusters.flatMap(cluster=>cluster.blocks).length===80})()",
+                         in: webView) as? Bool) == true,
+               "dense days collapse into a small set of clusters without dropping moments")
         expect((object?["donut"] as? String)?.contains("conic-gradient") == true,
                "category distribution renders as a visual donut")
 
-        expect((evaluate("const segment=document.querySelector('.journey-segment');segment.focus();getComputedStyle(segment.querySelector('.journey-popover')).opacity==='1'",
+        expect((evaluate("const cluster=document.querySelector('.flow-cluster');cluster.focus();document.getElementById('journeyPreview').dataset.cluster===cluster.dataset.flowCluster",
                          in: webView) as? Bool) == true,
-               "keyboard focus reveals the same journey context as hover")
-        expect((evaluate("document.querySelector('[data-journey-block=b4]').click();document.querySelector('[data-block=b4]').classList.contains('located')",
+               "keyboard focus updates the same cluster preview as hover")
+        expect((evaluate("const map=document.querySelector('.journey-map').getBoundingClientRect();const preview=document.getElementById('journeyPreview').getBoundingClientRect();preview.left>=map.left&&preview.right<=map.right&&preview.top>=map.top&&preview.bottom<=map.bottom",
                          in: webView) as? Bool) == true,
-               "selecting a journey segment locates its detailed activity")
+               "journey preview remains inside its reserved map area")
+        expect((evaluate("const card=document.querySelector('.activity-card');card.focus();const panel=document.querySelector('.trail-panel').getBoundingClientRect();const hover=card.querySelector('.activity-hover').getBoundingClientRect();hover.height>0&&hover.left>=panel.left&&hover.right<=panel.right",
+                         in: webView) as? Bool) == true,
+               "activity hover context remains inside the trail panel")
+        expect((evaluate("[...document.querySelectorAll('[data-flow-cluster]')].find(item=>item.dataset.clusterBlocks.split(',').includes('b4')).click();document.querySelector('[data-block=b4]').classList.contains('located')",
+                         in: webView) as? Bool) == true,
+               "selecting a flow cluster locates its representative detailed activity")
 
         expect((evaluate("document.querySelector('.raw-toggle').click();document.querySelector('.activity-card').classList.contains('open')",
                          in: webView) as? Bool) == true,
@@ -103,8 +117,8 @@ struct ReflectionBrowserDOMTests {
                          in: webView) as? Bool) == true,
                "missing optional AI configuration never blocks the local dashboard")
         expect((evaluate("document.getElementById('reflectionBadge').textContent",
-                         in: webView) as? String) == "LOCAL",
-               "no-key fixture clearly labels the deterministic local reflection")
+                         in: webView) as? String) == "只在本机",
+               "no-key fixture labels the deterministic local reflection in human language")
 
         _ = evaluate("window.reflectionFixture('empty')", in: webView)
         expect((evaluate("document.querySelectorAll('.activity-card').length===0&&document.querySelectorAll('.empty').length>=2&&document.getElementById('activeMetric').textContent==='0s'",
