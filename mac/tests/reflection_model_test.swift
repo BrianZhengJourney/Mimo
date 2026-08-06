@@ -108,7 +108,10 @@ struct ReflectionModelTests {
 
         let output = try await model.synthesize(.init(
             snapshot: snapshot,
-            prompt: "What mattered? https://example.com/q?token=PROMPT_SECRET"))
+            prompt: "What mattered? https://example.com/q?token=PROMPT_SECRET",
+            focusRange: .init(
+                start: snapshot.range.start.addingTimeInterval(30 * 60),
+                end: snapshot.range.start.addingTimeInterval(60 * 60))))
         expect(keyReads == 1 && transport.requests.count == 1,
                "AI enrichment reads the credential once and makes one request")
         let request = transport.requests[0]
@@ -142,6 +145,9 @@ struct ReflectionModelTests {
                && userText.contains("Activity Sensemaking")
                && userText.contains("topic=mimo"),
                "activity and useful URL context reach the confirmed request")
+        expect(userText.contains("focusWindow")
+               && userText.contains("startMS") && userText.contains("endMS"),
+               "a selected half-hour is explicit in the model's grounded context")
         for forbidden in ["TOPSECRET", "access_token", "#private", "PROMPT_SECRET", "token="] {
             expect(!userText.contains(forbidden), "model payload removes \(forbidden)")
         }

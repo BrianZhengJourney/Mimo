@@ -69,22 +69,24 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
 .journey-map{position:relative;z-index:6;margin-bottom:18px;padding:19px 22px 18px;overflow:hidden}
 .journey-map-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:12px}
 .journey-count{font-size:10px;color:var(--muted);letter-spacing:0;font-weight:500;white-space:nowrap}
-.journey-ribbon{display:flex;align-items:stretch;gap:9px;min-height:98px;position:relative;padding:2px 0 5px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}.journey-ribbon::-webkit-scrollbar{display:none}
-.flow-cluster{--category:var(--admin);position:relative;flex:1 1 0;min-width:116px;min-height:92px;padding:11px 11px 9px;border:1px solid color-mix(in srgb,var(--category),white 73%);border-radius:17px;background:color-mix(in srgb,var(--category),#fffdf8 94%);box-shadow:inset 0 2px 0 color-mix(in srgb,var(--category),white 50%);color:var(--ink);font:inherit;text-align:left;display:grid;grid-template-rows:auto auto 6px auto;gap:6px;overflow:hidden;scroll-snap-align:start;transition:transform .22s cubic-bezier(.2,.8,.2,1),border-color .2s,box-shadow .22s,opacity .2s}
-.flow-cluster.muted{opacity:.27;filter:saturate(.4)}
-.flow-cluster:hover,.flow-cluster:focus-visible{z-index:2;transform:translateY(-2px);border-color:color-mix(in srgb,var(--category),white 42%);box-shadow:0 8px 18px rgba(63,50,36,.075);outline:none}
-.cluster-top{position:relative;z-index:1;display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:7px}.cluster-identity{width:24px;height:24px;padding:2px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.72);box-shadow:0 0 0 1px rgba(60,50,40,.05)}.cluster-identity .ui-icon{width:13px;height:13px;color:var(--category)}
-.cluster-index{color:var(--category);font-size:9px;letter-spacing:0;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cluster-duration{position:relative;z-index:1;color:var(--category);font:600 11px Georgia,serif;white-space:nowrap}
-.cluster-label{position:relative;z-index:1;display:block;min-width:0;font:600 13px/1.15 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cluster-texture{position:relative;z-index:1;display:flex;gap:2px;height:7px;align-items:stretch}.cluster-tick{--tick:var(--admin);flex-basis:0;min-width:3px;border-radius:99px;background:var(--tick);opacity:.72;transition:opacity .18s,transform .18s}.cluster-tick.filtered{opacity:.12}.flow-cluster:hover .cluster-tick{opacity:.92;transform:scaleY(1.22)}
-.cluster-texture.dense{gap:1px}.cluster-texture.dense .cluster-tick{min-width:1px}
-.cluster-foot{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:9px;letter-spacing:0;white-space:nowrap}.cluster-foot span:last-child{overflow:hidden;text-overflow:ellipsis}
-.journey-preview{display:grid;grid-template-columns:130px minmax(0,1fr) auto;align-items:center;gap:18px;min-height:58px;margin-top:7px;padding:10px 13px;border:1px solid var(--line-soft);border-radius:12px;background:linear-gradient(110deg,rgba(139,86,62,.045),rgba(87,125,112,.025));overflow:hidden}
+.journey-ribbon{display:flex;align-items:stretch;gap:8px;min-height:112px;position:relative;padding:2px 0 6px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}.journey-ribbon::-webkit-scrollbar{display:none}
+.half-hour-chapter{--category:var(--admin);position:relative;flex:0 0 154px;min-width:154px;min-height:106px;padding:10px;border:1px solid color-mix(in srgb,var(--category),white 74%);border-radius:16px;background:color-mix(in srgb,var(--category),#fffdf8 95%);color:var(--ink);font:inherit;text-align:left;display:grid;grid-template-rows:auto auto 18px auto;gap:7px;overflow:hidden;scroll-snap-align:start;transition:transform .2s cubic-bezier(.2,.8,.2,1),border-color .2s,box-shadow .2s,opacity .2s}
+.half-hour-chapter.muted{opacity:.28;filter:saturate(.35)}
+.half-hour-chapter.quiet{--category:var(--line);background:linear-gradient(135deg,#fffdf8,#faf6ee);border-style:dashed;color:var(--muted)}
+.half-hour-chapter:hover,.half-hour-chapter:focus-visible,.half-hour-chapter.selected{z-index:2;transform:translateY(-2px);border-color:color-mix(in srgb,var(--category),white 38%);box-shadow:0 8px 18px rgba(63,50,36,.075);outline:none}
+.half-hour-chapter.selected{box-shadow:0 0 0 1px color-mix(in srgb,var(--category),white 25%),0 8px 18px rgba(63,50,36,.075)}
+.chapter-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.chapter-clock{color:var(--accent);font:650 11px ui-monospace,SFMono-Regular,Menlo,monospace}.chapter-used{color:var(--category);font:600 10px Georgia,serif;white-space:nowrap}
+.chapter-main{display:grid;grid-template-columns:26px minmax(0,1fr);align-items:center;gap:7px;min-width:0}.chapter-identity{width:26px;height:26px;padding:3px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.76);box-shadow:0 0 0 1px rgba(60,50,40,.05)}.chapter-identity .ui-icon{width:13px;height:13px;color:var(--category)}
+.chapter-label{display:block;min-width:0;font:600 13px/1.15 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chapter-track{position:relative;height:18px;border:1px solid rgba(90,73,54,.08);border-radius:6px;background:repeating-linear-gradient(90deg,rgba(90,73,54,.045) 0,rgba(90,73,54,.045) 1px,transparent 1px,transparent 25%);overflow:hidden}.chapter-segment{--segment:var(--admin);position:absolute;top:2px;bottom:2px;min-width:2px;border-radius:4px;background:var(--segment);opacity:.78;transition:opacity .18s,transform .18s}.chapter-segment.filtered{opacity:.1}.half-hour-chapter:hover .chapter-segment,.half-hour-chapter.selected .chapter-segment{opacity:.96;transform:scaleY(1.08)}
+.chapter-foot{display:flex;align-items:center;justify-content:space-between;gap:7px;color:var(--muted);font-size:9px;white-space:nowrap}.chapter-foot span:last-child{overflow:hidden;text-overflow:ellipsis}
+.journey-preview{display:grid;grid-template-columns:136px minmax(0,1fr) minmax(210px,auto) auto;align-items:center;gap:14px;min-height:60px;margin-top:7px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:12px;background:linear-gradient(110deg,rgba(139,86,62,.045),rgba(87,125,112,.025));overflow:hidden}
 .journey-preview.updated{animation:preview-in .28s cubic-bezier(.2,.8,.2,1)}
 @keyframes preview-in{0%{transform:translateY(3px);background-color:rgba(139,86,62,.08)}100%{transform:none;background-color:transparent}}
 .journey-preview-kicker{color:var(--accent);font-size:10px;letter-spacing:0;font-weight:650}
 .journey-preview-title{font:600 16px/1.25 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .journey-preview-meta{color:var(--muted);font-size:10px;text-align:right;white-space:nowrap}
+.journey-ask{border:1px solid var(--line);border-radius:9px;background:var(--paper-2);padding:6px 9px;color:var(--accent);font-size:10px;white-space:nowrap}.journey-ask:hover{border-color:var(--accent);background:var(--accent-soft)}.journey-ask:disabled{opacity:.4;cursor:default}
 .workspace{display:grid;grid-template-columns:minmax(0,1.48fr) minmax(340px,.72fr);gap:18px;align-items:start}
 .trail-panel,.reflection-panel{padding:20px}
 .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}
@@ -143,6 +145,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
 .evidence-btn{display:inline-flex;align-items:center;gap:3px;border:0;background:var(--paper);color:var(--muted);font-size:9px;padding:2px 5px;margin-left:4px;border-radius:99px;white-space:nowrap}.evidence-btn .ui-icon{width:10px;height:10px}
 .ai-box{margin-top:17px;padding:14px;border:1px solid var(--line-soft);border-radius:14px;background:#faf6ef}
 .ai-box p{margin:0 0 9px;color:var(--muted);font-size:10px}
+.prompt-suggestions{display:flex;gap:5px;flex-wrap:wrap;margin:9px 0 8px}.prompt-suggestion{border:1px solid var(--line-soft);border-radius:999px;background:transparent;padding:4px 7px;color:var(--muted);font-size:9.5px}.prompt-suggestion:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .prompt-row{display:flex;gap:7px}
 .prompt-row input{min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;background:var(--paper-2);padding:8px 9px;font-size:11px;outline:none}
 .prompt-row input:focus{border-color:var(--accent)}
@@ -178,7 +181,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px}.secondary-btn{border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 12px}
 .loading .activity-card{opacity:.62}
 @media(max-width:1080px){.hero,.workspace{grid-template-columns:1fr}.distribution{grid-template-columns:134px 1fr}.reflection-panel{position:relative;top:auto;max-height:none}.materials-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.topbar{padding:12px 16px;align-items:flex-start}.brand{min-width:0}.range-controls{flex-wrap:wrap;justify-content:flex-end}main{padding:18px 14px 44px}.metrics{grid-template-columns:repeat(2,1fr)}.journey-ribbon{margin-right:-14px;padding-right:14px}.flow-cluster{min-width:142px}.journey-preview{grid-template-columns:1fr;gap:4px}.journey-preview-meta{text-align:left;white-space:normal}.category-filters{flex-wrap:nowrap;overflow-x:auto}.materials-grid{grid-template-columns:1fr}.activity-main{grid-template-columns:54px 30px minmax(0,1fr)}.activity-main .duration{grid-column:3}.activity-hover{display:none}.raw-event{grid-template-columns:50px 80px minmax(0,1fr)}.raw-link{display:none}}
+@media(max-width:760px){.topbar{padding:12px 16px;align-items:flex-start}.brand{min-width:0}.range-controls{flex-wrap:wrap;justify-content:flex-end}main{padding:18px 14px 44px}.metrics{grid-template-columns:repeat(2,1fr)}.journey-ribbon{margin-right:-14px;padding-right:14px}.half-hour-chapter{min-width:150px}.journey-preview{grid-template-columns:1fr;gap:4px}.journey-preview-meta{text-align:left;white-space:normal}.journey-ask{justify-self:start}.category-filters{flex-wrap:nowrap;overflow-x:auto}.materials-grid{grid-template-columns:1fr}.activity-main{grid-template-columns:54px 30px minmax(0,1fr)}.activity-main .duration{grid-column:3}.activity-hover{display:none}.raw-event{grid-template-columns:50px 80px minmax(0,1fr)}.raw-link{display:none}}
 @media(hover:none){.material-insight-overlay{position:relative;inset:auto;opacity:1;transform:none;pointer-events:auto;box-shadow:none;margin-top:12px}.material-card{min-height:0}}
 </style>
 </head>
@@ -246,6 +249,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
         <span class="journey-preview-kicker" id="journeyPreviewKicker">今天的一章</span>
         <strong class="journey-preview-title" id="journeyPreviewTitle">今天还在展开</strong>
         <span class="journey-preview-meta" id="journeyPreviewMeta">悬停任意一段，回看当时的上下文</span>
+        <button class="journey-ask" id="journeyAsk" type="button">回看这半小时</button>
       </div>
     </section>
 
@@ -260,6 +264,11 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
         <div id="reflectionSections"></div>
         <div class="ai-box">
           <p id="aiDescription">想再多看一层？只会在你确认后整理。</p>
+          <div class="prompt-suggestions" id="promptSuggestions">
+            <button class="prompt-suggestion" type="button" data-prompt="spent">这半小时怎么花的？</button>
+            <button class="prompt-suggestion" type="button" data-prompt="interrupt">哪里被打断？</button>
+            <button class="prompt-suggestion" type="button" data-prompt="carry">明天接什么？</button>
+          </div>
           <div class="prompt-row"><input id="prompt" maxlength="2000" placeholder="关于今天，想问什么？"><button class="primary-btn" id="synthesizeBtn"><svg class="ui-icon"><use href="#icon-wand"/></svg><span>一起看看</span></button></div>
         </div>
       </aside>
@@ -293,7 +302,9 @@ const labels={
 let state={config:{language:'zh-CN',modelConfigured:false,ignoredApps:[],ignoredDomains:[]},range:{mode:'today',start:'',end:''},metrics:{},categories:[],appIcons:{},activityBlocks:[],learningMaterials:[],reflection:{sections:[]},status:{}};
 let language='zh';
 let activeCategory='all';
-const flowClusters=[];
+const halfHourChapters=[];
+let selectedHalfHourID='';
+let focusedLookingBackID='';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const uiIcon=name=>`<svg class="ui-icon" aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
@@ -359,6 +370,9 @@ function applyLanguage(){
   $('aiDescription').textContent=tx('想再多看一层？只会在你确认后整理。','Want another perspective? Nothing is shared until you confirm.');
   $('prompt').placeholder=tx('关于今天，想问什么？','What are you wondering about today?');
   $('synthesizeBtn').querySelector('span').textContent=tx('一起看看','Take a look');
+  $('journeyAsk').textContent=tx('回看这半小时','Look back at this half hour');
+  const suggestionCopy={spent:tx('这半小时怎么花的？','How did this half hour go?'),interrupt:tx('哪里被打断？','Where was I interrupted?'),carry:tx('明天接什么？','What should I pick up tomorrow?')};
+  document.querySelectorAll('[data-prompt]').forEach(button=>button.textContent=suggestionCopy[button.dataset.prompt]||'');
   $('privacyNote').querySelector('span').textContent=tx('仅存于这台 Mac','Local to this Mac');
   $('privacyTitle').textContent=tx('隐藏不想回看的内容','Hide activity from Today Journal');
   $('privacyDescription').textContent=tx('每行一个 App 或 domain。过滤只影响今日手记，不删除原始日志。','One app or domain per line. Filtering changes this journal, not the raw log.');
@@ -404,28 +418,35 @@ function flowBlockIdentity(block){
   if(apps[0])return{key:`app:${appIconKey(apps[0])}`,label:appBaseName(apps[0])};
   return{key:`title:${title}`,label:block?.title||tx('未命名','Untitled')};
 }
-function finishFlowCluster(cluster,index){
-  const categories=new Map(),identities=new Map();let activeSeconds=0,switches=0;
-  cluster.blocks.forEach(block=>{const seconds=Math.max(1,Number(block.activeSeconds)||0),identity=flowBlockIdentity(block);activeSeconds+=seconds;switches+=Number(block.contextSwitches)||0;categories.set(block.category,(categories.get(block.category)||0)+seconds);const known=identities.get(identity.key)||{...identity,seconds:0,block,largest:0};known.seconds+=seconds;if(seconds>known.largest){known.block=block;known.largest=seconds}identities.set(identity.key,known)});
-  const ranked=[...identities.values()].sort((a,b)=>b.seconds-a.seconds),dominantCategory=[...categories.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'admin';const primary=ranked[0],secondary=ranked[1];const showSecondary=secondary&&activeSeconds>=5*60&&secondary.seconds/activeSeconds>=.24;const label=primary?`${primary.label}${showSecondary?` + ${secondary.label}`:''}`:tx('活动章节','Activity cluster');
-  return{id:`cluster-${index+1}-${cluster.blocks[0].id}`,index:index+1,blocks:cluster.blocks,blockIDs:cluster.blocks.map(block=>block.id),start:cluster.blocks[0].start,end:cluster.blocks[cluster.blocks.length-1].end,activeSeconds,switches,category:dominantCategory,label,representative:primary?.block||cluster.blocks[0],phase:phaseInfo(cluster.blocks[0].start)};
+const halfHourFloor=value=>{const d=new Date(value);if(Number.isNaN(d.getTime()))return NaN;d.setSeconds(0,0);d.setMinutes(d.getMinutes()<30?0:30);return d.getTime()};
+function buildHalfHourChapters(source){
+  const blocks=[...(source||[])].sort((a,b)=>new Date(a.start)-new Date(b.start));if(!blocks.length)return[];
+  const entries=[];blocks.forEach(block=>{const events=(block.events||[]).length?block.events:[{id:`${block.id}-event`,start:block.start,end:block.end,durationSeconds:block.activeSeconds,app:(block.apps||[])[0]||block.title,title:block.title,category:block.category}];events.forEach(event=>{const start=new Date(event.start).getTime(),end=new Date(event.end).getTime();if(Number.isFinite(start)&&Number.isFinite(end)&&end>start)entries.push({event,block,start,end})})});if(!entries.length)return[];
+  const first=halfHourFloor(Math.min(...entries.map(item=>item.start))),lastEnd=Math.max(...entries.map(item=>item.end)),last=Math.max(first+1800000,halfHourFloor(lastEnd-1)+1800000);let starts=[];for(let value=first;value<last;value+=1800000)starts.push(value);
+  if(starts.length>48)starts=[...new Set(entries.map(item=>halfHourFloor(item.start)))].sort((a,b)=>a-b);
+  return starts.map((start,index)=>{const end=start+1800000,segments=[];const categories=new Map(),identities=new Map(),chapterBlocks=new Map();let activeSeconds=0;
+    entries.forEach(({event,block,start:eventStart,end:eventEnd})=>{const sliceStart=Math.max(start,eventStart),sliceEnd=Math.min(end,eventEnd);if(sliceEnd<=sliceStart)return;const seconds=(sliceEnd-sliceStart)/1000,identity=flowBlockIdentity(block);segments.push({event,block,blockID:block.id,category:block.category,start:sliceStart,end:sliceEnd,seconds,left:(sliceStart-start)/18000,width:(sliceEnd-sliceStart)/18000});activeSeconds+=seconds;categories.set(block.category,(categories.get(block.category)||0)+seconds);const known=identities.get(identity.key)||{...identity,seconds:0,block};known.seconds+=seconds;identities.set(identity.key,known);chapterBlocks.set(block.id,block)});
+    activeSeconds=Math.min(1800,activeSeconds);const ranked=[...identities.values()].sort((a,b)=>b.seconds-a.seconds),categoryRank=[...categories.entries()].sort((a,b)=>b[1]-a[1]),category=categoryRank[0]?.[0]||'admin',primary=ranked[0],secondary=ranked[1],label=primary?`${primary.label}${secondary&&secondary.seconds/Math.max(1,activeSeconds)>=.28?` + ${secondary.label}`:''}`:tx('留白','Quiet');return{id:`half-${start}`,index:index+1,start:new Date(start).toISOString(),end:new Date(end).toISOString(),activeSeconds,quietSeconds:Math.max(0,1800-activeSeconds),segments,blocks:[...chapterBlocks.values()],blockIDs:[...chapterBlocks.keys()],category,label,representative:primary?.block||null,phase:phaseInfo(start),categorySeconds:categoryRank};
+  });
 }
-function buildFlowClusters(source){
-  const blocks=[...(source||[])].sort((a,b)=>new Date(a.start)-new Date(b.start));if(!blocks.length)return[];const total=blocks.reduce((sum,block)=>sum+Math.max(1,Number(block.activeSeconds)||0),0),target=Math.max(8*60,Math.min(30*60,total/8));const raw=[];let current={blocks:[blocks[0]],activeSeconds:Math.max(1,Number(blocks[0].activeSeconds)||0),end:blocks[0].end,identities:new Set([flowBlockIdentity(blocks[0]).key])};
-  blocks.slice(1).forEach(block=>{const seconds=Math.max(1,Number(block.activeSeconds)||0),gap=(new Date(block.start)-new Date(current.end))/1000,prior=current.blocks[current.blocks.length-1],identity=flowBlockIdentity(block).key,samePhase=phaseInfo(prior.start).id===phaseInfo(block.start).id,sameContext=current.identities.has(identity)||prior.category===block.category,saturated=current.activeSeconds>=target,hardCap=current.activeSeconds>=target*1.75||current.blocks.length>=28,split=!samePhase||gap>5*60||hardCap||(saturated&&!sameContext);if(split){raw.push(current);current={blocks:[],activeSeconds:0,end:block.end,identities:new Set()}}current.blocks.push(block);current.activeSeconds+=seconds;current.end=block.end;current.identities.add(identity)});raw.push(current);return raw.map(finishFlowCluster);
+function chapterSummary(chapter){
+  if(!chapter.activeSeconds)return tx('这一格没有留下活动','No recorded activity in this slot');
+  return chapter.categorySeconds.slice(0,3).map(([category,seconds])=>`${categoryLabel(category)} ${fmtDuration(seconds)}`).join(' · ');
 }
-function updateJourneyPreview(clusterID,kicker=''){
-  const cluster=flowClusters.find(item=>item.id===clusterID);if(!cluster)return;const preview=$('journeyPreview');preview.dataset.cluster=cluster.id;preview.dataset.block=cluster.representative.id;
-  $('journeyPreviewKicker').textContent=kicker||`${cluster.phase.label} · ${categoryLabel(cluster.category)}`;
-  $('journeyPreviewTitle').textContent=cluster.label;
-  $('journeyPreviewMeta').textContent=`${fmtTime(cluster.start)}—${fmtTime(cluster.end)} · ${fmtDuration(cluster.activeSeconds)}`;
+function updateJourneyPreview(chapterID,kicker='',persist=false){
+  const chapter=halfHourChapters.find(item=>item.id===chapterID);if(!chapter)return;const preview=$('journeyPreview');if(persist)selectedHalfHourID=chapter.id;preview.dataset.chapter=chapter.id;preview.dataset.block=chapter.representative?.id||'';
+  $('journeyPreviewKicker').textContent=kicker||`${fmtTime(chapter.start)}—${fmtTime(chapter.end)} · ${tx('半小时','30 min')}`;
+  $('journeyPreviewTitle').textContent=chapter.label;
+  $('journeyPreviewMeta').textContent=chapterSummary(chapter);
+  $('journeyAsk').disabled=!chapter.activeSeconds;
+  document.querySelectorAll('.half-hour-chapter').forEach(button=>button.classList.toggle('selected',button.dataset.halfHour===selectedHalfHourID));
   preview.classList.remove('updated');void preview.offsetWidth;preview.classList.add('updated');
 }
 function renderJourneyRibbon(){
-  const blocks=state.activityBlocks||[];flowClusters.length=0;flowClusters.push(...buildFlowClusters(blocks));$('journeyClusterCount').textContent=flowClusters.length?tx(`${flowClusters.length} 个章节`,`${flowClusters.length} chapters`):'';
-  if(!blocks.length){$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('从第一段活动开始，这里会慢慢长出一天的形状。','The shape of the day will grow here from its first moment.')}</span>`;$('journeyPreview').dataset.cluster='';$('journeyPreview').dataset.block='';$('journeyPreviewKicker').textContent=tx('等第一笔','Waiting for the first note');$('journeyPreviewTitle').textContent=tx('今天还在展开','The day is still unfolding');$('journeyPreviewMeta').textContent=tx('工作、阅读或走神，也都是一天的一部分。','Work, reading, and wandering all belong to the day.');return}
-  $('journeyRibbon').innerHTML=flowClusters.map(cluster=>{const matching=activeCategory==='all'||cluster.blocks.some(block=>block.category===activeCategory),ticks=cluster.blocks.map(block=>`<i class="cluster-tick ${activeCategory!=='all'&&block.category!==activeCategory?'filtered':''}" style="--tick:${colors[block.category]||colors.admin};flex-grow:${Math.max(1,Math.sqrt(Number(block.activeSeconds)||1))}" title="${esc(block.title)} · ${fmtDuration(block.activeSeconds)}"></i>`).join('');return `<button type="button" class="flow-cluster ${matching?'':'muted'}" data-flow-cluster="${esc(cluster.id)}" data-cluster-blocks="${esc(cluster.blockIDs.join(','))}" style="--category:${colors[cluster.category]||colors.admin};flex-grow:${Math.max(1,Math.sqrt(cluster.activeSeconds))}" aria-label="${esc(cluster.label)} · ${fmtDuration(cluster.activeSeconds)}"><span class="cluster-top"><span class="cluster-identity">${identityIcon(cluster.representative,categoryIcon(cluster.category))}</span><span class="cluster-index">${esc(cluster.phase.label)}</span><span class="cluster-duration">${fmtDuration(cluster.activeSeconds)}</span></span><strong class="cluster-label">${esc(cluster.label)}</strong><span class="cluster-texture ${cluster.blocks.length>14?'dense':''}">${ticks}</span><span class="cluster-foot"><span>${fmtTime(cluster.start)}—${fmtTime(cluster.end)}</span><span>${esc(categoryLabel(cluster.category))}</span></span></button>`}).join('');
-  const score=cluster=>activeCategory==='all'?cluster.activeSeconds:cluster.blocks.filter(block=>block.category===activeCategory).reduce((sum,block)=>sum+(Number(block.activeSeconds)||0),0),candidates=flowClusters.filter(cluster=>score(cluster)>0),featured=(candidates.length?candidates:flowClusters).reduce((best,cluster)=>score(cluster)>score(best)?cluster:best,(candidates.length?candidates:flowClusters)[0]);updateJourneyPreview(featured.id,tx('停留最久的一章','Longest chapter'));activateIdentityIcons();
+  const blocks=state.activityBlocks||[];halfHourChapters.length=0;halfHourChapters.push(...buildHalfHourChapters(blocks));$('journeyClusterCount').textContent=halfHourChapters.length?tx(`${halfHourChapters.length} 个半小时`,`${halfHourChapters.length} half-hours`):'';
+  if(!blocks.length){selectedHalfHourID='';$('journeyRibbon').innerHTML=`<span style="align-self:center;color:var(--muted);font-size:11px">${tx('从第一段活动开始，这里会慢慢长出一天的形状。','The shape of the day will grow here from its first moment.')}</span>`;$('journeyPreview').dataset.chapter='';$('journeyPreview').dataset.block='';$('journeyPreviewKicker').textContent=tx('等第一笔','Waiting for the first note');$('journeyPreviewTitle').textContent=tx('今天还在展开','The day is still unfolding');$('journeyPreviewMeta').textContent=tx('工作、阅读或走神，也都是一天的一部分。','Work, reading, and wandering all belong to the day.');$('journeyAsk').disabled=true;return}
+  $('journeyRibbon').innerHTML=halfHourChapters.map(chapter=>{const matching=activeCategory==='all'||chapter.segments.some(segment=>segment.category===activeCategory),segments=chapter.segments.map(segment=>`<i class="chapter-segment ${activeCategory!=='all'&&segment.category!==activeCategory?'filtered':''}" style="--segment:${colors[segment.category]||colors.admin};left:${segment.left}%;width:${segment.width}%" title="${esc(segment.block.title)} · ${fmtDuration(segment.seconds)}"></i>`).join(''),quiet=!chapter.activeSeconds,openLabel=quiet?tx('空白','open'):chapter.quietSeconds>=60?`${tx('留白','open')} ${fmtDuration(chapter.quietSeconds)}`:categoryLabel(chapter.category);return `<button type="button" class="half-hour-chapter ${quiet?'quiet':''} ${matching?'':'muted'}" data-half-hour="${esc(chapter.id)}" data-chapter-blocks="${esc(chapter.blockIDs.join(','))}" style="--category:${colors[chapter.category]||colors.admin}" aria-label="${fmtTime(chapter.start)}—${fmtTime(chapter.end)} · ${esc(chapter.label)}"><span class="chapter-top"><span class="chapter-clock">${fmtTime(chapter.start)}</span><span class="chapter-used">${quiet?tx('留白','quiet'):fmtDuration(chapter.activeSeconds)}</span></span><span class="chapter-main"><span class="chapter-identity">${chapter.representative?identityIcon(chapter.representative,categoryIcon(chapter.category)):uiIcon('time')}</span><strong class="chapter-label">${esc(chapter.label)}</strong></span><span class="chapter-track">${segments}</span><span class="chapter-foot"><span>${fmtTime(chapter.start)}—${fmtTime(chapter.end)}</span><span>${esc(openLabel)}</span></span></button>`}).join('');
+  const score=chapter=>activeCategory==='all'?chapter.activeSeconds:chapter.segments.filter(segment=>segment.category===activeCategory).reduce((sum,segment)=>sum+segment.seconds,0),candidates=halfHourChapters.filter(chapter=>score(chapter)>0),featured=(candidates.length?candidates:halfHourChapters).reduce((best,chapter)=>score(chapter)>score(best)?chapter:best,(candidates.length?candidates:halfHourChapters)[0]);if(!halfHourChapters.some(chapter=>chapter.id===selectedHalfHourID))selectedHalfHourID=featured.id;updateJourneyPreview(selectedHalfHourID,tx('今天最满的一格','Fullest half-hour'),true);activateIdentityIcons();
 }
 function renderFilters(){
   const available=categoryOrder.filter(id=>(state.categories||[]).some(x=>x.id===id));
@@ -481,13 +502,20 @@ function sendRange(mode){
 $('rangeTabs').addEventListener('click',event=>{const button=event.target.closest('[data-range]');if(!button)return;sendRange(button.dataset.range)});
 $('startDate').addEventListener('change',()=>{if($('endDate').value)sendRange('custom')});$('endDate').addEventListener('change',()=>{if($('startDate').value)sendRange('custom')});
 $('categoryFilters').addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(!button)return;activeCategory=button.dataset.filter;renderFilters();renderJourneyRibbon();renderTimeline()});
-$('journeyRibbon').addEventListener('mouseover',event=>{const cluster=event.target.closest('[data-flow-cluster]');if(cluster)updateJourneyPreview(cluster.dataset.flowCluster)});
-$('journeyRibbon').addEventListener('focusin',event=>{const cluster=event.target.closest('[data-flow-cluster]');if(cluster)updateJourneyPreview(cluster.dataset.flowCluster)});
-$('journeyRibbon').addEventListener('click',event=>{const button=event.target.closest('[data-flow-cluster]');if(!button)return;const cluster=flowClusters.find(item=>item.id===button.dataset.flowCluster);if(!cluster)return;let block=activeCategory==='all'?cluster.representative:cluster.blocks.filter(item=>item.category===activeCategory).sort((a,b)=>(Number(b.activeSeconds)||0)-(Number(a.activeSeconds)||0))[0];if(!block){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline();block=cluster.representative}updateJourneyPreview(cluster.id);const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===block.id);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
+$('journeyRibbon').addEventListener('mouseover',event=>{const chapter=event.target.closest('[data-half-hour]');if(chapter)updateJourneyPreview(chapter.dataset.halfHour)});
+$('journeyRibbon').addEventListener('focusin',event=>{const chapter=event.target.closest('[data-half-hour]');if(chapter)updateJourneyPreview(chapter.dataset.halfHour)});
+$('journeyRibbon').addEventListener('mouseleave',()=>{if(selectedHalfHourID)updateJourneyPreview(selectedHalfHourID)});
+$('journeyRibbon').addEventListener('click',event=>{const button=event.target.closest('[data-half-hour]');if(!button)return;const chapter=halfHourChapters.find(item=>item.id===button.dataset.halfHour);if(!chapter)return;let block=activeCategory==='all'?chapter.representative:chapter.blocks.filter(item=>item.category===activeCategory).sort((a,b)=>(Number(b.activeSeconds)||0)-(Number(a.activeSeconds)||0))[0];if(!block&&chapter.representative){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline();block=chapter.representative}updateJourneyPreview(chapter.id,'',true);if(!block)return;const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===block.id);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
 $('timeline').addEventListener('click',event=>{const toggle=event.target.closest('[data-toggle]');if(toggle){toggle.closest('.activity-card')?.classList.toggle('open');return}const link=event.target.closest('[data-url]');if(link)post({type:'openExternal',url:link.dataset.url})});
 $('reflectionSections').addEventListener('click',event=>{const button=event.target.closest('[data-evidence]');if(button)locateEvidence(button.dataset.evidence)});
 $('materialsGrid').addEventListener('click',event=>{const button=event.target.closest('[data-url]');if(button)post({type:'openExternal',url:button.dataset.url})});
-$('synthesizeBtn').addEventListener('click',()=>post({type:'synthesize',prompt:$('prompt').value.trim()}));
+function selectedHalfHour(){return halfHourChapters.find(item=>item.id===($('journeyPreview').dataset.chapter||selectedHalfHourID))||null}
+function seedLookingBack(promptKey='spent'){
+  const chapter=selectedHalfHour();if(!chapter||!chapter.activeSeconds)return;focusedLookingBackID=chapter.id;const copy={spent:tx('这半小时，我把时间花在哪里了？','How did I spend this half hour?'),interrupt:tx('这半小时，哪里被打断或切换得最频繁？','Where was I interrupted or switching most in this half hour?'),carry:tx('从这半小时里，明天最值得接着做什么？','What from this half hour is most worth picking up tomorrow?')};$('prompt').value=copy[promptKey]||copy.spent;$('prompt').focus();
+}
+$('journeyAsk').addEventListener('click',()=>seedLookingBack('spent'));
+$('promptSuggestions').addEventListener('click',event=>{const button=event.target.closest('[data-prompt]');if(button)seedLookingBack(button.dataset.prompt)});
+$('synthesizeBtn').addEventListener('click',()=>{const chapter=halfHourChapters.find(item=>item.id===focusedLookingBackID)||null;post({type:'synthesize',prompt:$('prompt').value.trim(),focusStartMS:chapter?new Date(chapter.start).getTime():null,focusEndMS:chapter?new Date(chapter.end).getTime():null})});
 $('privacyBtn').addEventListener('click',()=>{$('ignoredApps').value=(state.config?.ignoredApps||[]).join('\n');$('ignoredDomains').value=(state.config?.ignoredDomains||[]).join('\n');$('privacyModal').classList.add('open')});
 $('cancelPrivacy').addEventListener('click',()=>$('privacyModal').classList.remove('open'));
 $('privacyModal').addEventListener('click',event=>{if(event.target===$('privacyModal'))$('privacyModal').classList.remove('open')});

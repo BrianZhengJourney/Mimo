@@ -349,7 +349,6 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             pushState()
             return
         }
-        guard confirmModelScope() else { return }
         let rawPrompt = (body["prompt"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let prompt = rawPrompt.isEmpty
@@ -357,7 +356,10 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 ? "请用自然、克制的中文，帮我回看今天。"
                 : "Help me look back at today in natural, understated English.")
             : String(rawPrompt.prefix(2_000))
-        let input = ReflectionModelInput(snapshot: snapshot, prompt: prompt)
+        let focusRange = modelFocusRange(body)
+        guard confirmModelScope(focusRange: focusRange) else { return }
+        let input = ReflectionModelInput(
+            snapshot: snapshot, prompt: prompt, focusRange: focusRange)
         let generation = UUID()
         analysisGeneration = generation
         analysisTask?.cancel()
@@ -415,17 +417,36 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             ? OpenAIReflectionModel(keyReader: { MimoSecret.openAI.read() }) : nil
     }
 
-    private func confirmModelScope() -> Bool {
+    private func modelFocusRange(_ body: [String: Any]) -> ReflectionDateRange? {
+        guard let startMS = (body["focusStartMS"] as? NSNumber)?.doubleValue,
+              let endMS = (body["focusEndMS"] as? NSNumber)?.doubleValue,
+              startMS.isFinite, endMS.isFinite, endMS > startMS else { return nil }
+        let start = Date(timeIntervalSince1970: startMS / 1_000)
+        let end = Date(timeIntervalSince1970: endMS / 1_000)
+        guard start >= snapshot.range.start, end <= snapshot.range.end,
+              end.timeIntervalSince(start) <= 30 * 60 + 1 else { return nil }
+        return ReflectionDateRange(start: start, end: end)
+    }
+
+    private func confirmModelScope(focusRange: ReflectionDateRange? = nil) -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = preferredLanguage.hasPrefix("zh") ? "再看一眼今天" : "Take another look at today"
+        alert.messageText = preferredLanguage.hasPrefix("zh")
+            ? (focusRange == nil ? "再看一眼今天" : "回看这半小时")
+            : (focusRange == nil ? "Take another look at today" : "Look back at this half hour")
         let range = "\(Self.dayFormatter.string(from: snapshot.range.start)) → \(Self.dayFormatter.string(from: snapshot.range.end.addingTimeInterval(-1)))"
+        let focusLine = focusRange.map {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: preferredLanguage.hasPrefix("zh") ? "zh_CN" : "en_US")
+            formatter.dateFormat = "HH:mm"
+            return "\(formatter.string(from: $0.start))—\(formatter.string(from: $0.end))"
+        }
         if preferredLanguage.hasPrefix("zh") {
-            alert.informativeText = "日期：\(range)\n\nMimo 会选取最多 240 条代表性活动证据和学习材料标题，交给 OpenAI 帮你整理。URL 中的凭证、敏感参数和片段会先移除；不会发送屏幕内容或键盘输入。"
+            alert.informativeText = "日期：\(range)\(focusLine.map { "\n本次重点：\($0)" } ?? "")\n\nMimo 会选取最多 240 条代表性活动证据和学习材料标题，交给 OpenAI 帮你整理。URL 中的凭证、敏感参数和片段会先移除；不会发送屏幕内容或键盘输入。"
             alert.addButton(withTitle: "帮我整理")
             alert.addButton(withTitle: "取消")
         } else {
-            alert.informativeText = "Date: \(range)\n\nMimo will select up to 240 representative activity records and learning-material titles for OpenAI to organize. Credentials, sensitive URL parameters, and fragments are removed first. No screen contents or keystrokes are sent."
+            alert.informativeText = "Date: \(range)\(focusLine.map { "\nFocus: \($0)" } ?? "")\n\nMimo will select up to 240 representative activity records and learning-material titles for OpenAI to organize. Credentials, sensitive URL parameters, and fragments are removed first. No screen contents or keystrokes are sent."
             alert.addButton(withTitle: "Organize it")
             alert.addButton(withTitle: "Cancel")
         }
@@ -747,7 +768,11 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         }.first
     }
 
-    private var preferredLanguage: String { Locale.preferredLanguages.first ?? "zh-CN" }
+    /// Follow Mimo's in-app bilingual choice instead of the Mac's primary
+    /// locale, so Settings and Today Journal never disagree about language.
+    private var preferredLanguage: String {
+        voiceLanguage() == "en" ? "en-US" : "zh-CN"
+    }
 
     private static let dayFormatter: DateFormatter = {
         let value = DateFormatter()

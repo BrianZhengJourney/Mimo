@@ -75,6 +75,15 @@ struct FocusSurfaceUITests {
                !settings.contains("begin a quest") &&
                !settings.contains("focus streaks"),
                "Settings should teach Focus without retired game language")
+        expect(settings.contains("rule-groups")
+               && settings.contains("rule-segment")
+               && settings.contains("technicalRules")
+               && settings.contains("本机与技术地址")
+               && settings.contains("ruleSource"),
+               "focus categories should use a visual three-way control and fold technical hosts away")
+        expect(main.contains("isTechnicalActivityKey")
+               && main.contains("198.18") && main.contains("192.168"),
+               "loopback, private-network, and benchmark addresses should be recognized as technical noise")
         expect(!readme.contains("focus quests") &&
                !readme.contains("strip, quest log"),
                "release documentation should match the Today/Week surface")

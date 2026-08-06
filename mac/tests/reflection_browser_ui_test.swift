@@ -35,11 +35,11 @@ struct ReflectionBrowserUITests {
                && html.contains("class=\"timeline\"")
                && html.contains("materials-grid"),
                "the dashboard visualizes category share, chronology, and learning material cards")
-        expect(html.contains("journeyRibbon") && html.contains("flow-cluster")
-               && html.contains("cluster-texture") && html.contains("buildFlowClusters")
+        expect(html.contains("journeyRibbon") && html.contains("half-hour-chapter")
+               && html.contains("chapter-track") && html.contains("buildHalfHourChapters")
                && html.contains("journey-preview") && html.contains("journey-phase")
                && html.contains("activity-hover") && html.contains("material-insight-overlay"),
-               "the day journey groups raw rhythm into semantic clusters with evidence texture")
+               "the day journey presents activity on strict half-hour chapters with evidence texture")
         expect(html.contains("const uiIcon=") && html.contains("categoryIcon")
                && html.contains("metric-primary") && html.contains("activity-icon")
                && html.contains("reflection-section-title"),
@@ -54,11 +54,15 @@ struct ReflectionBrowserUITests {
                && !html.contains("trailSubtitle")
                && !html.contains("materialsSubtitle"),
                "repeated explanatory copy is removed from the focused journal surface")
-        expect(html.contains("journeyPreview")
+        expect(html.contains("journeyPreview") && html.contains("journeyAsk")
                && html.contains("updateJourneyPreview")
                && html.contains("addEventListener('focusin'")
                && !html.contains("journey-popover"),
-               "journey hover context uses one reserved preview dock instead of covering neighbors")
+               "journey hover context uses one reserved preview dock and can seed Looking Back")
+        expect(html.contains("prompt-suggestion")
+               && html.contains("focusStartMS") && html.contains("focusEndMS")
+               && controller.contains("focusRange"),
+               "Looking Back can ground a question in the selected half-hour")
         expect(!html.contains("left:calc(100% + 15px)")
                && !html.contains("@media(max-width:1180px){.activity-hover")
                && html.contains(".activity-main:hover + .activity-hover"),
@@ -111,6 +115,7 @@ struct ReflectionBrowserUITests {
                "native fixtures remain hermetic and open before production tracking")
         expect(controller.contains("OpenAIReflectionModel(keyReader:")
                && controller.contains("MimoSecret.openAI.isConfigured")
+               && controller.contains("voiceLanguage() == \"en\"")
                && controller.contains("再看一眼今天")
                && controller.contains("No screen contents or keystrokes"),
                "AI enrichment uses the existing optional provider behind native scope confirmation")

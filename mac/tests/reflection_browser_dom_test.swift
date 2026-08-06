@@ -60,7 +60,7 @@ struct ReflectionBrowserDOMTests {
         expect(waiter.finished && !waiter.failed, "fixture loads in a real WKWebView")
         _ = evaluate("window.reflectionFixture('1')", in: webView)
 
-        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.flow-cluster').length,clusterTicks:document.querySelectorAll('.cluster-tick').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
+        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
                                in: webView) as? String
         let object = try JSONSerialization.jsonObject(
             with: Data((initial ?? "{}").utf8)) as? [String: Any]
@@ -69,34 +69,38 @@ struct ReflectionBrowserDOMTests {
                && object?["sections"] as? Int == 5
                && object?["raw"] as? Int == 6,
                "populated fixture renders blocks, learning cards, reflection, and raw evidence")
-        expect(object?["journey"] as? Int == 5
-               && object?["clusterTicks"] as? Int == 5
+        expect(object?["journey"] as? Int == 14
+               && object?["chapterSegments"] as? Int == 8
+               && (object?["quiet"] as? Int ?? 0) >= 1
                && (object?["phases"] as? Int ?? 0) >= 2
                && object?["activityHovers"] as? Int == 5
                && object?["materialOverlays"] as? Int == 3,
-               "flow clusters retain every block as internal texture alongside day phases")
+               "strict half-hours retain every event slice, including visible quiet gaps")
         expect((object?["identityImages"] as? Int ?? 0) >= 4
                && (object?["appIdentities"] as? Int ?? 0) >= 1
                && (object?["siteIdentities"] as? Int ?? 0) >= 1,
                "app activities and websites render representative identity artwork")
-        expect((evaluate("(()=>{const base=new Date();base.setHours(8,0,0,0);const categories=['building','communication','admin','learning'];const blocks=Array.from({length:80},(_,index)=>({id:`dense-${index}`,title:`App ${index%6}`,category:categories[index%4],start:new Date(base.getTime()+index*60000).toISOString(),end:new Date(base.getTime()+(index+1)*60000).toISOString(),activeSeconds:60,apps:[`App ${index%6}`],domains:[],contextSwitches:1,eventIDs:[],events:[]}));const clusters=buildFlowClusters(blocks);return clusters.length>=6&&clusters.length<=10&&clusters.flatMap(cluster=>cluster.blocks).length===80})()",
+        expect((evaluate("(()=>{const base=new Date();base.setHours(8,0,0,0);const categories=['building','communication','admin','learning'];const blocks=Array.from({length:80},(_,index)=>{const event={id:`dense-event-${index}`,start:new Date(base.getTime()+index*60000).toISOString(),end:new Date(base.getTime()+(index+1)*60000).toISOString(),durationSeconds:60,app:`App ${index%6}`,title:`App ${index%6}`,category:categories[index%4]};return{id:`dense-${index}`,title:event.title,category:event.category,start:event.start,end:event.end,activeSeconds:60,apps:[event.app],domains:[],contextSwitches:1,eventIDs:[event.id],events:[event]}});const chapters=buildHalfHourChapters(blocks);return chapters.length===3&&chapters.every(chapter=>new Date(chapter.start).getMinutes()%30===0&&new Date(chapter.end)-new Date(chapter.start)===1800000)&&chapters.reduce((sum,chapter)=>sum+chapter.activeSeconds,0)===4800&&chapters.flatMap(chapter=>chapter.segments).length===80})()",
                          in: webView) as? Bool) == true,
-               "dense days collapse into a small set of clusters without dropping moments")
+               "dense days align to exact half-hour boundaries without dropping active time")
         expect((object?["donut"] as? String)?.contains("conic-gradient") == true,
                "category distribution renders as a visual donut")
 
-        expect((evaluate("const cluster=document.querySelector('.flow-cluster');cluster.focus();document.getElementById('journeyPreview').dataset.cluster===cluster.dataset.flowCluster",
+        expect((evaluate("const chapter=document.querySelector('.half-hour-chapter:not(.quiet)');chapter.focus();document.getElementById('journeyPreview').dataset.chapter===chapter.dataset.halfHour",
                          in: webView) as? Bool) == true,
-               "keyboard focus updates the same cluster preview as hover")
+               "keyboard focus updates the same half-hour preview as hover")
         expect((evaluate("const map=document.querySelector('.journey-map').getBoundingClientRect();const preview=document.getElementById('journeyPreview').getBoundingClientRect();preview.left>=map.left&&preview.right<=map.right&&preview.top>=map.top&&preview.bottom<=map.bottom",
                          in: webView) as? Bool) == true,
                "journey preview remains inside its reserved map area")
         expect((evaluate("const card=document.querySelector('.activity-card');card.focus();const panel=document.querySelector('.trail-panel').getBoundingClientRect();const hover=card.querySelector('.activity-hover').getBoundingClientRect();hover.height>0&&hover.left>=panel.left&&hover.right<=panel.right",
                          in: webView) as? Bool) == true,
                "activity hover context remains inside the trail panel")
-        expect((evaluate("[...document.querySelectorAll('[data-flow-cluster]')].find(item=>item.dataset.clusterBlocks.split(',').includes('b4')).click();document.querySelector('[data-block=b4]').classList.contains('located')",
+        expect((evaluate("[...document.querySelectorAll('[data-half-hour]')].find(item=>item.dataset.chapterBlocks.split(',').includes('b4')).click();document.querySelector('[data-block=b4]').classList.contains('located')",
                          in: webView) as? Bool) == true,
-               "selecting a flow cluster locates its representative detailed activity")
+               "selecting a half-hour locates its representative detailed activity")
+        expect((evaluate("document.querySelector('.half-hour-chapter:not(.quiet)').click();document.getElementById('journeyAsk').click();document.getElementById('prompt').value.includes('半小时')",
+                         in: webView) as? Bool) == true,
+               "the selected half-hour can seed a focused Looking Back question")
 
         expect((evaluate("document.querySelector('.raw-toggle').click();document.querySelector('.activity-card').classList.contains('open')",
                          in: webView) as? Bool) == true,

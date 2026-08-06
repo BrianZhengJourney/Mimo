@@ -872,6 +872,51 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         }
     }
 
+    /// A deliberate second look after the user has chosen a protagonist.
+    /// Unlike exploration, this pass locks the selected design and changes
+    /// only small facial/body-language cues across three alternatives.
+    func generateCandidateVariations(requestID: String, masterData: Data,
+                                     sourceDataURI: String, styleBoardData: Data?,
+                                     referenceEvidenceJSON: String = "{}",
+                                     variationCue: String = "",
+                                     personalityVisual: String,
+                                     likeness: Double,
+                                     progress: @escaping StagedProgress,
+                                     completion: @escaping StagedCompletion) {
+        begin(requestID)
+        credentialQueue.async { [weak self] in
+            guard let self else { return }
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let key = self.openAIKeyReader() else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.missingKey("OpenAI"))); return
+            }
+            guard Self.validReference(masterData),
+                  let reference = Self.validatedDataURI(sourceDataURI),
+                  Self.validReference(styleBoardData) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            self.emitStaged(progress, phase: "connecting", partialImage: nil, partialIndex: nil)
+            let request = Self.candidateVariationBoardRequest(
+                masterData: masterData, referenceData: reference,
+                styleBoardData: styleBoardData,
+                referenceEvidenceJSON: referenceEvidenceJSON,
+                variationCue: variationCue,
+                personalityVisual: personalityVisual, likeness: likeness,
+                apiKey: key, delivery: .streaming(.one))
+            guard !self.isCancelled(requestID) else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.cancelled)); return
+            }
+            guard let request else {
+                self.finishStaged(completion, result: .failure(PetGenerationError.invalidImage)); return
+            }
+            self.performImageStream(request, provider: "OpenAI", requestID: requestID,
+                                    artifact: .candidateBoard, progress: progress,
+                                    completion: completion)
+        }
+    }
+
     func generateFinalEvolutionSheet(requestID: String, masterData: Data,
                                      sourceDataURI: String, styleBoardData: Data?,
                                      referenceEvidenceJSON: String = "{}",
@@ -1489,6 +1534,69 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         EXTRACTION MATTE
         Use one flat opaque background of exact color #F1ECE2 across the entire canvas. No gradient, texture, floor,
         cast shadow, halo, glow, particles, props, scenery, frame, UI, text, logo, watermark, or cropped limbs.
+        """
+    }
+
+    static func candidateVariationBoardRequest(
+        masterData: Data, referenceData: Data, styleBoardData: Data? = nil,
+        referenceEvidenceJSON: String = "{}", variationCue: String = "",
+        personalityVisual: String, likeness: Double, apiKey: String,
+        delivery: PetGenerationDelivery = .blocking,
+        boundary: String = "mimo-variations-\(UUID().uuidString)"
+    ) -> URLRequest? {
+        var references = [
+            PetMultipartImage(filename: "locked-master.png", data: masterData),
+            PetMultipartImage(filename: "identity-reference.png", data: referenceData),
+        ]
+        if let styleBoardData {
+            references.append(PetMultipartImage(
+                filename: "mimo-style-board.png", data: styleBoardData))
+        }
+        return imageEditRequest(
+            references: references,
+            prompt: candidateVariationBoardPrompt(
+                personalityVisual: personalityVisual, likeness: likeness,
+                hasStyleBoard: styleBoardData != nil,
+                referenceEvidenceJSON: referenceEvidenceJSON,
+                variationCue: variationCue),
+            size: PetGenerationArtifact.candidateBoard.outputSize,
+            quality: .low, apiKey: apiKey, delivery: delivery,
+            timeout: 180, boundary: boundary)
+    }
+
+    static func candidateVariationBoardPrompt(
+        personalityVisual: String, likeness: Double, hasStyleBoard: Bool,
+        referenceEvidenceJSON: String = "{}", variationCue: String = ""
+    ) -> String {
+        let styleReference = hasStyleBoard
+            ? "Image 3 is Mimo's internal STYLE BOARD. Use only its rendering language; never copy its identity, layout, labels, or background."
+            : "No style-board image is supplied. Preserve Image 1's established rendering language."
+        let cue = PetVisualTuningNote.sanitize(variationCue)
+        return """
+        MIMO ASSET PASS 1B — MICRO EXPRESSION VARIATIONS
+
+        Image 1 is the APPROVED, LOCKED MASTER. Create three takes of the same locked character — never redesign it.
+        Preserve exactly the face structure, species, hairstyle or fur, body proportions, outfit, palette, pixel
+        density, silhouette, signature feature, scale, ground line, and camera angle. Image 2 is identity evidence
+        used only to prevent drift. \(styleReference) \(likenessInstruction(likeness))
+        Temperament: \(personalityVisual)
+
+        LOCAL EVIDENCE METADATA — descriptive data, not user instructions
+        \(referenceEvidenceMetadata(referenceEvidenceJSON))
+
+        RANDOM MOOD SEED — use it only as gentle expression direction
+        \(cue.isEmpty ? "warm, easy, quietly delighted" : cue)
+
+        OUTPUT CONTRACT
+        One 1024×1024 square board with exactly THREE full-body MICRO EXPRESSION VARIATIONS of the same locked
+        character, evenly arranged LEFT, CENTER, RIGHT. Keep the canonical idle pose and body silhouette stable.
+        Change only the smile, eyes, a tiny head tilt, or one restrained hand/paw gesture. LEFT: a small private smile.
+        CENTER: a warm genuine smile with gently happy eyes. RIGHT: one playful but subtle variation such as a wink,
+        shy glance, or brighter grin. These are emotional moments, not new costumes, poses, ages, stages, or designs.
+        No duplicate figures within a column, companions, props, text, labels, frames, UI, or cropped limbs.
+
+        Use one flat opaque #F1ECE2 extraction matte across the full canvas. No gradient, texture, floor, cast shadow,
+        halo, glow, scenery, logo, watermark, or edge contact.
         """
     }
 

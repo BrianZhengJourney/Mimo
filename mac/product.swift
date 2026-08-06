@@ -52,6 +52,7 @@ struct CandidateGenerationRecovery {
     let providerSeconds: Double
     let usage: PetGenerationUsage
     let styleBoardUsed: Bool
+    let mode: String
     let createdAt: Date
 }
 
@@ -374,10 +375,10 @@ extension AppDelegate {
     private static let studioPrivacyScopedSettingsTypes: Set<String> = [
         "petUpload",
         "petGenerateCandidates",
+        "petGenerateVariations",
         "petGenerateEvolution",
         "petRegenerateStage",
         "petRetryLocalProcessing",
-        "petContinueInBackground",
         "petInstallRaster",
         "petRegenerateExpressions",
     ]
@@ -839,9 +840,15 @@ extension AppDelegate {
         let code = bid.map { automationStatus($0) } ?? OSStatus(-1)
         var rules: [[String: Any]] = []
         for (key, label) in seenItems {
-            var row: [String: Any] = ["key": key, "label": label,
-                                      "kind": ruleOverrides[key] ?? defaultKind(key)]
-            if let uri = appIconDataURI(key) { row["icon"] = uri }          // local app icon only
+            let icon = appIconDataURI(key)
+            let source = isTechnicalActivityKey(key) ? "technical"
+                : (icon == nil ? "site" : "app")
+            var row: [String: Any] = [
+                "key": key, "label": label,
+                "kind": ruleOverrides[key] ?? defaultKind(key),
+                "source": source,
+            ]
+            if let icon { row["icon"] = icon }          // local app icon only
             rules.append(row)
         }
         rules.sort { ($0["label"] as? String ?? "").lowercased() < ($1["label"] as? String ?? "").lowercased() }
@@ -1532,7 +1539,8 @@ extension AppDelegate {
                         temperamentID: profile.id, likeness: likeness,
                         styleProfile: styleProfile,
                         providerSeconds: providerSeconds, usage: output.usage,
-                        styleBoardUsed: style != nil, createdAt: Date())
+                        styleBoardUsed: style != nil, mode: "candidates",
+                        createdAt: Date())
                     self.pendingLocalRecoveries[requestID] = .candidates(recovery)
                     self.processCandidateGeneration(requestID: requestID,
                                                     recovery: recovery,
@@ -1540,6 +1548,62 @@ extension AppDelegate {
                 }
             }
         )
+    }
+
+    private func startCandidateVariationGeneration(
+        requestID: String, candidate: PendingCandidateBoardDraft,
+        candidateIndex: Int, variationCue: String
+    ) {
+        guard reserveProviderGeneration(requestID) else { return }
+        let purgeEpoch = generationPurgeEpoch
+        let startedAt = Date()
+        let style = MimoStyleReference.requestData(profile: candidate.styleProfile)
+        let profile = CustomPetTemperaments.profile(for: candidate.temperamentID)
+        petGenerator.generateCandidateVariations(
+            requestID: requestID,
+            masterData: candidate.candidatePNGs[candidateIndex],
+            sourceDataURI: candidate.sourceDataURI,
+            styleBoardData: style,
+            referenceEvidenceJSON: candidate.referenceEvidenceJSON,
+            variationCue: variationCue,
+            personalityVisual: profile.promptFragment,
+            likeness: candidate.likeness,
+            progress: { [weak self] phase, partial, _ in
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
+                self.studioProgress(requestID: requestID, phase: phase,
+                                    startedAt: startedAt, partial: partial)
+            }, completion: { [weak self] result in
+                guard let self, self.studioGenerationIsCurrent(
+                    requestID, purgeEpoch: purgeEpoch) else { return }
+                switch result {
+                case .failure(let error):
+                    self.studioProviderError(
+                        requestID: requestID, error: error,
+                        startedAt: startedAt, phase: "variations")
+                case .success(let output):
+                    let providerSeconds = Date().timeIntervalSince(startedAt)
+                    let retained = self.retainRaw(
+                        output.data, requestID: requestID, phase: .candidates,
+                        quality: PetGenerationQuality.low.rawValue,
+                        providerSeconds: providerSeconds, purgeEpoch: purgeEpoch)
+                    let recovery = CandidateGenerationRecovery(
+                        rawPNG: output.data,
+                        sourceDataURI: candidate.sourceDataURI,
+                        referenceEvidenceJSON: candidate.referenceEvidenceJSON,
+                        styleTuningNote: candidate.styleTuningNote,
+                        temperamentID: candidate.temperamentID,
+                        likeness: candidate.likeness,
+                        styleProfile: candidate.styleProfile,
+                        providerSeconds: providerSeconds,
+                        usage: output.usage, styleBoardUsed: style != nil,
+                        mode: "variations", createdAt: Date())
+                    self.pendingLocalRecoveries[requestID] = .candidates(recovery)
+                    self.processCandidateGeneration(
+                        requestID: requestID, recovery: recovery,
+                        outputRetained: retained)
+                }
+            })
     }
 
     private func processCandidateGeneration(requestID: String,
@@ -1601,6 +1665,7 @@ extension AppDelegate {
                         "partialImages": 1,
                         "styleBoardUsed": recovery.styleBoardUsed,
                         "referenceCount": recovery.styleBoardUsed ? 2 : 1,
+                        "mode": recovery.mode,
                         "generationRecoveryCount": self.generationDraftStore.recoverableDraftCount(),
                     ])
                     self.releaseStudioGeneration(requestID)
@@ -3352,6 +3417,29 @@ extension AppDelegate {
             prepareCandidateGeneration(requestID: requestID, inputs: inputs,
                                        profile: profile, likeness: likeness,
                                        styleTuningNote: styleTuningNote)
+        case "petGenerateVariations":
+            pruneStudioState()
+            guard let requestID = generationRequestID(body["requestID"]),
+                  let candidateDraftID = generationRequestID(body["candidateDraftID"]),
+                  var candidate = pendingCandidateBoards[candidateDraftID],
+                  let index = (body["candidateIndex"] as? NSNumber)?.intValue,
+                  candidate.candidatePNGs.indices.contains(index) else {
+                settingsCall("petStudioError", [
+                    "requestID": body["requestID"] as? String ?? "",
+                    "kind": "setup", "phase": "input", "code": "candidate_expired",
+                    "messageZh": "选中的主角草稿已过期；没有发出新的付费请求。",
+                    "messageEn": "The selected protagonist draft expired; no paid request was submitted.",
+                    "outputRetained": false, "requestNotStarted": true,
+                    "resetTo": "candidates",
+                ])
+                return
+            }
+            candidate.lastTouchedAt = Date()
+            pendingCandidateBoards[candidateDraftID] = candidate
+            let cue = PetVisualTuningNote.sanitize(body["variationCue"] as? String)
+            startCandidateVariationGeneration(
+                requestID: requestID, candidate: candidate,
+                candidateIndex: index, variationCue: cue)
         case "petGenerateEvolution":
             pruneStudioState()
             guard let requestID = generationRequestID(body["requestID"]),
@@ -3430,11 +3518,6 @@ extension AppDelegate {
                 return
             }
             retryLocalGeneration(requestID)
-        case "petContinueInBackground":
-            if let requestID = generationRequestID(body["requestID"]) {
-                backgroundStudioRequests.insert(requestID)
-            }
-            settingsWin?.close()
         case "petRevealGenerationDrafts":
             NSWorkspace.shared.activateFileViewerSelecting([generationDraftStore.folderURL])
         case "petInstallRaster":

@@ -82,10 +82,10 @@ struct GenerationPurgeRaceTests {
                "a failed draft purge must surface as an incomplete erase")
 
         for type in [
-            "petUpload", "petGenerateCandidates", "petGenerateEvolution",
+            "petUpload", "petGenerateCandidates", "petGenerateVariations",
+            "petGenerateEvolution",
             "petRegenerateStage", "petRetryLocalProcessing",
-            "petContinueInBackground", "petInstallRaster",
-            "petRegenerateExpressions",
+            "petInstallRaster", "petRegenerateExpressions",
         ] {
             expect(product.contains("\"\(type)\""),
                    "native privacy scope must include \(type)")
@@ -110,8 +110,8 @@ struct GenerationPurgeRaceTests {
                    "settings privacy reset must perform \(operation)")
         }
         for type in [
-            "petUpload", "petGenerateCandidates", "petGenerateEvolution",
-            "petRetryLocalProcessing", "petContinueInBackground",
+            "petUpload", "petGenerateCandidates", "petGenerateVariations",
+            "petGenerateEvolution", "petRetryLocalProcessing",
             "petInstallRaster", "petRegenerateExpressions",
         ] {
             expect(settings.contains("sendStudio({type:'\(type)'"),
@@ -128,7 +128,7 @@ struct GenerationPurgeRaceTests {
                "candidate, evolution, stage provider/local callbacks need epoch guards")
         expect(occurrences("expressionGenerationIsCurrent(", in: product) >= 5,
                "expression provider and local callbacks need request+epoch guards")
-        expect(occurrences("retainRaw(", in: product) == 5
+        expect(occurrences("retainRaw(", in: product) == 6
                && occurrences("generationDraftStore.saveRaw", in: product) == 1,
                "all draft writes must pass through the fenced retainRaw boundary")
         expect(occurrences("purgeEpoch: purgeEpoch)", in: product) >= 4,

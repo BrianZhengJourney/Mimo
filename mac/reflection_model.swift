@@ -9,10 +9,13 @@ import Foundation
 struct ReflectionModelInput: Equatable {
     var snapshot: DailyActivitySnapshot
     var prompt: String?
+    var focusRange: ReflectionDateRange?
 
-    init(snapshot: DailyActivitySnapshot, prompt: String? = nil) {
+    init(snapshot: DailyActivitySnapshot, prompt: String? = nil,
+         focusRange: ReflectionDateRange? = nil) {
         self.snapshot = snapshot
         self.prompt = prompt
+        self.focusRange = focusRange
     }
 }
 
@@ -270,7 +273,7 @@ final class OpenAIReflectionModel: ReflectionModel {
         Every statement must cite one or more supplied raw event IDs. Facts describe only observed metadata. Inferences must be phrased with appropriate uncertainty. Never claim a task was completed merely because an app or page was open. For every supplied learning material, return exactly one material summary with the same materialID. Summarize only what the supplied title, source, URL metadata, and activity context support; if content is insufficient, say so instead of inventing key ideas. Match the language of the user's question. Write like a thoughtful human looking back at a day: warm, plain, specific, and concise. Avoid productivity-dashboard jargon, generic coaching, slogans, and repeated statistics.
         """
         let snapshot = input.snapshot
-        let object: [String: Any] = [
+        var object: [String: Any] = [
             "range": [
                 "startMS": snapshot.range.start.timeIntervalSince1970 * 1_000,
                 "endMS": snapshot.range.end.timeIntervalSince1970 * 1_000,
@@ -290,6 +293,12 @@ final class OpenAIReflectionModel: ReflectionModel {
             "question": bounded(SensitiveURLScrubber.scrubURLs(
                 in: input.prompt ?? "Summarize this activity range."), count: 2_000),
         ]
+        if let focus = input.focusRange {
+            object["focusWindow"] = [
+                "startMS": focus.start.timeIntervalSince1970 * 1_000,
+                "endMS": focus.end.timeIntervalSince1970 * 1_000,
+            ]
+        }
         let userData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         guard let userText = String(data: userData, encoding: .utf8) else {
             throw ReflectionModelError.invalidResponse

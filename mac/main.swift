@@ -105,6 +105,28 @@ func defaultKind(_ key: String) -> String {
     return "neutral"
 }
 
+/// Hosts used by browsers, renderers, local previews, and network probes are
+/// useful evidence for debugging but poor attention labels. Keep them in the
+/// rules data, then let Settings fold them into a quiet technical group.
+func isTechnicalActivityKey(_ key: String) -> Bool {
+    let host = key.lowercased().trimmingCharacters(
+        in: CharacterSet(charactersIn: "[] ."))
+    if host == "localhost" || host == "localhost.localdomain"
+        || host.hasSuffix(".local") { return true }
+    if host.contains(":") { return true } // IPv6 / host:port-like technical keys
+    let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+    guard parts.count == 4,
+          let a = Int(parts[0]), let b = Int(parts[1]),
+          let c = Int(parts[2]), let d = Int(parts[3]),
+          [a, b, c, d].allSatisfy({ (0...255).contains($0) }) else { return false }
+    if a == 0 || a == 10 || a == 127 || a >= 224 { return true }
+    if a == 169 && b == 254 { return true }
+    if a == 172 && (16...31).contains(b) { return true }
+    if a == 192 && b == 168 { return true }       // 192.168/16 private LAN
+    if a == 198 && (18...19).contains(b) { return true } // 198.18/15 benchmark range
+    return false
+}
+
 // YouTube is not one thing: shorts distract, while lectures can be focused reading
 func youtubeKind(path: String, title: String?) -> String {
     if path.hasPrefix("/shorts") { return "distraction" }

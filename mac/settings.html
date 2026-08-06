@@ -336,8 +336,11 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .progress-time{ margin-top:8px; color:var(--warn); font:600 10px ui-monospace,monospace; }
 .progress-actions{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 .progress-actions button{ padding:4px 7px; font-size:10px; }
-.progress-background{ color:var(--good); border-color:#7df0cf33; background:#7df0cf0b; }
+.progress-stay{ display:inline-flex; align-items:center; min-height:25px; padding:3px 7px; color:var(--good);
+  border:1px solid #7df0cf33; border-radius:8px; background:#7df0cf0b; font-size:9.5px; }
 .progress-cancel{ color:#9992ad; border-color:#ffffff12; background:#ffffff06; }
+.micro-variations{ color:var(--accent); border-color:var(--accent); background:var(--surface-raised); }
+.micro-variations:hover{ background:var(--accent-soft); }
 .partial-preview{ width:92px; height:92px; object-fit:contain; border-radius:10px;
   background:#f5edde; border:1px solid #ffffff1c; }
 .reference-review{ display:grid; gap:10px; }
@@ -426,16 +429,35 @@ button.primary{ background:linear-gradient(120deg,#cabcf5,#9ef0d9); color:#14102
   font-weight:600; border:none; padding:9px 22px; font-size:14px; }
 
 /* rules */
-.chips{ display:flex; gap:6px; margin-bottom:9px; flex-wrap:wrap; }
-.chip{ font-size:11px; padding:3px 11px; border-radius:14px; cursor:pointer;
-  background:#1c173a; border:1px solid var(--line); color:var(--dim); }
-.chip.cur{ background:#cabcf5; color:#14102b; font-weight:600; border-color:#cabcf5; }
-.rules{ max-height:230px; overflow-y:auto; }
-.rule img.ricon{ width:18px; height:18px; border-radius:4px; flex:none; }
-.rule{ display:flex; align-items:center; gap:9px; padding:5px 2px; border-bottom:1px dashed var(--line); }
-.rule:last-child{ border-bottom:none; }
-.rule .rico{ width:20px; text-align:center; }
-.rule .rname{ flex:1; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chips{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+.chip{ display:inline-flex; align-items:center; gap:5px; font-size:10.5px; padding:5px 10px; border-radius:999px; cursor:pointer;
+  background:var(--surface-raised); border:1px solid var(--line); color:var(--dim); }
+.chip b{ min-width:17px; padding:1px 5px; border-radius:999px; color:var(--dim); background:var(--surface-muted); font-size:8.5px; text-align:center; }
+.chip.cur{ color:#fffaf3; font-weight:600; border-color:var(--accent); background:var(--accent); }
+.chip.cur b{ color:var(--accent); background:#fffaf3; }
+.rules{ max-height:390px; overflow-y:auto; padding-right:3px; }
+.rule-groups{ display:grid; gap:13px; }
+.rule-group{ display:grid; gap:6px; }
+.rule-group-head{ display:flex; align-items:center; justify-content:space-between; color:var(--dim); font-size:9.5px; }
+.rule-group-head b{ color:var(--ink); font-size:10.5px; }
+.rule{ display:grid; grid-template-columns:34px minmax(0,1fr) auto; align-items:center; gap:10px; padding:9px 10px;
+  border:1px solid var(--line); border-radius:12px; background:var(--surface-raised); }
+.rule img.ricon{ width:28px; height:28px; padding:2px; border-radius:8px; object-fit:contain; background:#fff; flex:none; }
+.rule .rico{ width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:var(--surface-muted); font-size:14px; }
+.rule-copy{ min-width:0; }
+.rule .rname{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11.5px; font-weight:var(--ui-strong-weight); }
+.rule-source{ display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dim); font-size:8.5px; }
+.rule-segment{ display:flex; gap:2px; padding:2px; border:1px solid var(--line); border-radius:9px; background:var(--paper); }
+.rule-segment button{ min-width:43px; min-height:27px; padding:3px 6px; border:0; border-radius:7px; color:var(--dim); background:transparent; font-size:9.5px; }
+.rule-segment button.sel{ color:#fffaf3; background:var(--accent); }
+.rule-segment button[data-bucket="deep"].sel{ background:var(--good); }
+.rule-segment button[data-bucket="distraction"].sel{ background:var(--bad); }
+.technical-rules{ border:1px dashed var(--line); border-radius:12px; background:var(--paper); }
+.technical-rules summary{ cursor:pointer; padding:9px 10px; color:var(--dim); font-size:9.5px; list-style:none; }
+.technical-rules summary::-webkit-details-marker{ display:none; }
+.technical-rules summary::before{ content:'›'; display:inline-block; margin-right:6px; transition:transform .15s; }
+.technical-rules[open] summary::before{ transform:rotate(90deg); }
+.technical-rules .rule-group{ padding:0 7px 7px; }
 select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c173a;
   border:1px solid var(--line); border-radius:7px; padding:3px 6px; }
 
@@ -612,6 +634,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 
   <div class="studio-actions"><button class="generate-both" id="petGenerate" type="button" onclick="generateCandidates()" data-zh="生成 3 个草稿" data-en="Generate 3 drafts">生成 3 个草稿</button></div>
   <div class="final-controls" id="finalControls">
+    <button class="micro-variations" id="petVariationsGenerate" type="button" onclick="generateCandidateVariations()" title="Low · one explicit OpenAI image request" data-zh="🎲 再来 3 个小表情" data-en="🎲 3 more expressions">🎲 再来 3 个小表情</button>
     <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="生成 Medium 定稿" data-en="Create Medium final">生成 Medium 定稿</button>
   </div>
 
@@ -639,10 +662,10 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 
 <div class="tab-panel" data-panel="focus">
 <div class="sec">
-  <h2><span class="ico">📜</span><span data-zh="专注分类" data-en="Focus categories">专注分类</span></h2>
+  <h2><span class="ico">◉</span><span data-zh="专注分类" data-en="Focus categories">专注分类</span></h2>
   <div class="chips" id="chips"></div>
   <div class="rules" id="rules"><div class="note">先使用一会儿 Mac；米墨遇见的 app 和网站会出现在这里。</div></div>
-  <div class="note" data-zh="编程、终端、设计、阅读和笔记默认算作专注；🕳️ 是分心。你可以按 app 和网站调整分类。" data-en="Code, terminal, design, reading, and notes count as focus by default; 🕳️ marks distractions. You can tune each app and website.">编程、终端、设计、阅读和笔记默认算作专注；🕳️ 是分心。你可以按 app 和网站调整分类。</div>
+  <div class="note" data-zh="选一个最接近的状态即可；本机地址会收进折叠区。" data-en="Choose the closest state; local addresses stay folded away.">选一个最接近的状态即可；本机地址会收进折叠区。</div>
 </div>
 <div class="sec">
   <h2><span class="ico">🔑</span><span data-zh="权限" data-en="Access">权限</span></h2>
@@ -1198,7 +1221,7 @@ function finalPreviewHTML(sheet,state=petLab){
 }
 function phaseInfo(){
   const phase=(petLab.phase||'queued').toLowerCase(),local=/local|analyz|extract|process|normal|validate|matte|pack/.test(phase);
-  const known={queued:[tx('正在排队','Waiting for a slot'),tx('请求已准备好，等待开始。','The request is ready and waiting to start.')],analyzing:[tx('米墨正在本机找主角','Mimo is finding the subject locally'),tx('正在拆开拼图、识别人物与多角度，并隔离检测到的字幕、按钮、边框和物品格；这一步不会调用 API。','Splitting collages, finding people and useful angles, and isolating detected captions, controls, borders, and object-only cells. No API call happens in this step.')],connecting:[tx('正在连接 OpenAI','Connecting to OpenAI'),tx('只发送米墨自动准备的身份板、角色设定与风格板。','Sending only the identity board Mimo prepared, the character brief, and Mimo style board.')],uploading:[tx('正在发送身份板','Sending identity board'),tx('原始截图不会一起发送。','Original screenshots are not sent with it.')],generating:[tx('OpenAI 正在画','OpenAI is drawing'),tx('这是等待时间最长的一段；复杂图片可能接近两分钟，服务繁忙时也可能更久。关掉设置会继续。','This is usually the longest phase; complex images can approach two minutes and service load can make it longer. Closing Settings will not stop it.')],partial:[tx('第一张预览到了','First preview arrived'),tx('OpenAI 仍在完成最终图；完成后会自动替换这张预览。','OpenAI is still finishing the final image; the completed result will replace this preview automatically.')],processing:[tx('米墨正在本机处理','Mimo is processing locally'),tx('OpenAI 已经完成。这里不会再次调用 API；正在去背景、检查边缘并对齐。','OpenAI has finished. No new API call; removing matte, checking edges, and aligning.')],downloading:[tx('正在接收图片','Receiving the image'),tx('生成已完成，正在把结果带回这台 Mac。','Generation finished; bringing the result back to this Mac.')],extracting:[tx('米墨正在本机去背景','Mimo is cleaning it locally'),tx('OpenAI 已经完成。只在这台 Mac 上重新去背景与检查边缘。','OpenAI has finished. Only matte removal and edge checks are rerunning on this Mac.')],validating:[tx('正在做最后检查','Running final checks'),tx('确认三段角色完整、透明且没有被裁掉。','Checking that every form is complete, transparent, and unclipped.') ]};
+  const known={queued:[tx('正在排队','Waiting for a slot'),tx('请求已准备好，等待开始。','The request is ready and waiting to start.')],analyzing:[tx('米墨正在本机找主角','Mimo is finding the subject locally'),tx('正在拆开拼图、识别人物与多角度，并隔离检测到的字幕、按钮、边框和物品格；这一步不会调用 API。','Splitting collages, finding people and useful angles, and isolating detected captions, controls, borders, and object-only cells. No API call happens in this step.')],connecting:[tx('正在连接 OpenAI','Connecting to OpenAI'),tx('只发送米墨自动准备的身份板、角色设定与风格板。','Sending only the identity board Mimo prepared, the character brief, and Mimo style board.')],uploading:[tx('正在发送身份板','Sending identity board'),tx('原始截图不会一起发送。','Original screenshots are not sent with it.')],generating:[tx('OpenAI 正在画','OpenAI is drawing'),tx('这是等待时间最长的一段；页面会留在这里，画好后直接展示结果。','This is usually the longest phase. This page stays open and shows the result when it is ready.')],partial:[tx('第一张预览到了','First preview arrived'),tx('OpenAI 仍在完成最终图；完成后会自动替换这张预览。','OpenAI is still finishing the final image; the completed result will replace this preview automatically.')],processing:[tx('米墨正在本机处理','Mimo is processing locally'),tx('OpenAI 已经完成。这里不会再次调用 API；正在去背景、检查边缘并对齐。','OpenAI has finished. No new API call; removing matte, checking edges, and aligning.')],downloading:[tx('正在接收图片','Receiving the image'),tx('生成已完成，正在把结果带回这台 Mac。','Generation finished; bringing the result back to this Mac.')],extracting:[tx('米墨正在本机去背景','Mimo is cleaning it locally'),tx('OpenAI 已经完成。只在这台 Mac 上重新去背景与检查边缘。','OpenAI has finished. Only matte removal and edge checks are rerunning on this Mac.')],validating:[tx('正在做最后检查','Running final checks'),tx('确认三段角色完整、透明且没有被裁掉。','Checking that every form is complete, transparent, and unclipped.') ]};
   const fallback=local?[tx('米墨正在本机处理','Mimo is processing locally'),tx('这一段不会产生新的 API 费用。','This phase does not add API cost.')]:[tx('OpenAI 正在生成','OpenAI is generating'),tx('实际时间取决于服务负载与生成复杂度。','Timing varies with provider load and image complexity.')];
   const copy=known[phase]||fallback;if(petLab.phaseMessage)copy[1]=petLab.phaseMessage;
   const post=/extract|process|normal|validate|matte|pack/.test(phase);
@@ -1210,7 +1233,7 @@ function progressHTML(){
   const cancelTitle=tx('明确取消请求；如果 OpenAI 已经开始生成，仍可能产生费用，而且最终结果可能无法取回。','Explicitly cancel the request; if OpenAI already started, cost may still be incurred and the final result may not be recoverable.');
   const cancelArmed=Date.now()<(petLab.cancelArmedUntil||0);
   const cancel=info.local&&info.phase!=='analyzing'?'':`<button type="button" class="progress-cancel" title="${esc(cancelTitle)}" onclick="cancelStudioOperation()">${info.phase==='analyzing'?tx('停止本机分析','Stop local analysis'):cancelArmed?tx('再次点击：确认取消','Click again: confirm cancel'):tx('取消请求','Cancel request')}</button>`;
-  return `<div class="studio-progress ${partial?'has-preview':''}"><div class="progress-copy"><b>${esc(info.title)}</b><p>${esc(info.detail)}</p><div class="progress-time" id="studioElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</div><div class="phase-track" aria-hidden="true"><i class="on"></i><i class="${info.step>=1?'on':''}"></i><i class="${info.step>=2?'on':''}"></i></div><div class="progress-actions"><button type="button" class="progress-background" onclick="continueStudioInBackground()">${tx('后台继续 · 关掉设置','Continue in background')}</button>${cancel}</div></div>${partial?`<img class="partial-preview" src="${esc(partial)}" alt="${tx('生成中的局部预览','Partial generation preview')}">`:''}</div>${diagnosticsHTML()}`;
+  return `<div class="studio-progress ${partial?'has-preview':''}"><div class="progress-copy"><b>${esc(info.title)}</b><p>${esc(info.detail)}</p><div class="progress-time" id="studioElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</div><div class="phase-track" aria-hidden="true"><i class="on"></i><i class="${info.step>=1?'on':''}"></i><i class="${info.step>=2?'on':''}"></i></div><div class="progress-actions"><span class="progress-stay">${tx('页面会留在这里','This page stays open')}</span>${cancel}</div></div>${partial?`<img class="partial-preview" src="${esc(partial)}" alt="${tx('生成中的局部预览','Partial generation preview')}">`:''}</div>${diagnosticsHTML()}`;
 }
 function draftFeedbackForBridge(index){
   return String(petLab.candidateFeedback?.[index]||'').replace(/\s+/g,' ').trim().slice(0,160);
@@ -1273,7 +1296,7 @@ function syncVisibleDrafts(){
 }
 function renderPetLab(){
   renderStyleTuning();renderKeyState();renderReferenceSet();renderRecoveryArchive();
-  const busy=studioBusy(),importing=referencesImporting(),generate=document.getElementById('petGenerate'),evolve=document.getElementById('petEvolutionGenerate');
+  const busy=studioBusy(),importing=referencesImporting(),generate=document.getElementById('petGenerate'),evolve=document.getElementById('petEvolutionGenerate'),variations=document.getElementById('petVariationsGenerate');
   document.querySelectorAll('[data-pet-upload]').forEach(button=>button.disabled=busy||importing||petLab.references.length>=MAX_PET_REFERENCES);
   const petName=document.getElementById('petName');if(petName)petName.disabled=busy||importing;
   if(generate){const pending=Math.max(1,+petLab.importing||0);generate.disabled=busy||importing||!petLab.source;generate.textContent=importing?tx(`正在导入 ${pending} 张…`,`Importing ${pending}…`):petLab.status==='busy'&&petLab.operation==='candidates'?tx('正在生成 3 个草稿…','Generating 3 drafts…'):petLab.candidates.length?tx('重新生成 3 个草稿','Regenerate 3 drafts'):tx('生成 3 个草稿','Generate 3 drafts')}
@@ -1282,11 +1305,15 @@ function renderPetLab(){
     evolve.disabled=busy||petLab.candidateIndex===null||!petLab.candidateDraftID;
     evolve.textContent=petLab.status==='busy'&&petLab.operation==='evolution'?tx('正在生成 Medium 定稿…','Creating Medium final…'):tx('生成 Medium 定稿','Create Medium final');
   }
+  if(variations){
+    variations.disabled=busy||petLab.candidateIndex===null||!petLab.candidateDraftID;
+    variations.textContent=petLab.status==='busy'&&petLab.operation==='variations'?tx('正在画小表情…','Drawing expressions…'):tx('🎲 再来 3 个小表情','🎲 3 more expressions');
+  }
   const result=document.getElementById('petSheetResult'),state=document.getElementById('petLabState');if(!result||!state)return;
   result.setAttribute('aria-busy',petLab.status==='busy'?'true':'false');
   if(petLab.status==='busy'){
-    const title=petLab.localRetry?tx('本机重新处理 · 不会调用 OpenAI','Local retry · no OpenAI call'):petLab.operation==='candidates'?tx('正在生成 3 个草稿','Generating 3 drafts'):tx('正在生成 Medium 定稿','Creating Medium final');
-    result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${petLab.operation==='candidates'?'LOW':'MEDIUM'}</span></div>${progressHTML()}`;
+    const title=petLab.localRetry?tx('本机重新处理 · 不会调用 OpenAI','Local retry · no OpenAI call'):petLab.operation==='candidates'?tx('正在生成 3 个草稿','Generating 3 drafts'):petLab.operation==='variations'?tx('正在画 3 个小表情','Drawing 3 expressions'):tx('正在生成 Medium 定稿','Creating Medium final');
+    result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${petLab.operation==='evolution'?'MEDIUM':'LOW'}</span></div>${progressHTML()}`;
   }else if(petLab.status==='error'){
     const preserved=petLab.sheet?`${finalPreviewHTML(petLab.sheet)}<div style="height:8px"></div>`:petLab.candidates.length?`${candidateGridHTML()}<div style="height:8px"></div>`:'';
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('这一步没有完成','This step did not finish')}</b><span class="sheet-meta err">${petLab.errorKind==='local'?'LOCAL':petLab.errorKind==='setup'?'SETUP':'OPENAI'} · ${tx('失败','FAILED')}</span></div>${preserved}${errorHTML()}`;
@@ -1297,7 +1324,7 @@ function renderPetLab(){
   }else if(petLab.sheet){
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('完整伴灵已完成','Your familiar is ready')}</b><span class="sheet-meta">MEDIUM</span></div>${finalPreviewHTML(petLab.sheet)}${diagnosticsHTML()}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('让它住进桌面 ✦','Bring it home ✦')}</button></div>`;
   }else if(petLab.candidates.length){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('选择一个草稿','Choose one draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateGridHTML()}${diagnosticsHTML()}`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${petLab.operation==='variations'?tx('选一个最舒服的小表情','Choose the expression that feels right'):tx('选择一个草稿','Choose one draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateGridHTML()}${diagnosticsHTML()}`;
   }else{
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('等待参考图','Waiting for references')}</b><span class="sheet-meta">AUTO</span></div><div class="sheet-empty">${tx('图片全部就绪后，米墨会自动生成 3 个草稿。','Mimo automatically makes 3 drafts after every image is ready.')}</div>`;
   }
@@ -1403,14 +1430,26 @@ function generateEvolution(){
     candidateIndex:index,draftFeedback:draftFeedbackForBridge(index),quality:'medium',
     stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge()});
 }
+const candidateVariationCues=[
+  ['轻轻笑，眼神放松，像刚刚听见一句好消息','a small relaxed smile, as if hearing a little good news'],
+  ['有点害羞的笑，目光温柔，动作克制','a slightly shy smile, soft eyes, restrained body language'],
+  ['明亮但不夸张的笑，眼睛微微弯起','a bright but understated smile with gently curved happy eyes'],
+  ['俏皮眨眼，保留原来的姿势与气质','a playful wink while preserving the original pose and temperament'],
+  ['安心、舒服的微笑，像终于松了一口气','a comfortable relieved smile, like quietly exhaling'],
+];
+function generateCandidateVariations(){
+  if(!canGenerate())return;const index=petLab.candidateIndex;
+  if(!petLab.candidateDraftID||index===null){setupStudioError(tx('先选定一个主角，再做小表情变化。','Choose a protagonist before making expression variations.'));return}
+  const cue=candidateVariationCues[Math.floor(Math.random()*candidateVariationCues.length)][LANG==='zh'?0:1];
+  const requestID=beginStudioOperation('variations');
+  sendStudio({type:'petGenerateVariations',requestID,candidateDraftID:petLab.candidateDraftID,candidateIndex:index,variationCue:cue});
+}
 function retryStudioOperation(){
   const operation=petLab.operation;
   petLab.status='ready';
   if(operation==='evolution')return generateEvolution();
+  if(operation==='variations')return generateCandidateVariations();
   return generateCandidates();
-}
-function continueStudioInBackground(){
-  if(petLab.status==='busy')sendStudio({type:'petContinueInBackground',requestID:petLab.requestID});
 }
 function cancelStudioOperation(){
   if(petLab.status!=='busy'||!petLab.requestID)return;const cancelledRequestID=petLab.requestID;
@@ -1459,7 +1498,7 @@ function petStudioProgress(event){
 function petCandidateResult(event){
   if(event.requestID!==petLab.requestID)return;const candidates=(event.candidates||event.images||[]).filter(candidate=>candidateImage(candidate));
   if(!candidates.length){petStudioError({...event,kind:'local',message:tx('OpenAI 返回了结果，但没有找到可展示的候选角色。','OpenAI returned a result, but no displayable character candidates were found.')});return}
-  const keepPrevious=!!petLab.sheet&&!!petLab.draftID;finishStudioOperation(event);Object.assign(petLab,{requestID:null,status:'ready',operation:'candidates',candidates,
+  const keepPrevious=!!petLab.sheet&&!!petLab.draftID;finishStudioOperation(event);Object.assign(petLab,{requestID:null,status:'ready',operation:event.mode==='variations'?'variations':'candidates',candidates,
     candidateDraftID:event.candidateDraftID||event.draftID||event.requestID,candidateIndex:null,candidateFeedback:{},preservedResult:keepPrevious,
     stageBusyIndex:null,error:'',errorKind:'',errorCode:''});
   if(!keepPrevious)Object.assign(petLab,{draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null]});
@@ -2020,14 +2059,41 @@ let ruleFilter = 'all';
 function setFilter(f){ ruleFilter = f; renderChips(); renderRules(); }
 
 function renderChips(){
-  document.getElementById('chips').innerHTML = filters().map(([f, label]) =>
-    `<span class="chip ${ruleFilter === f ? 'cur' : ''}" onclick="setFilter('${f}')">${label}</span>`).join('');
+  const rows=(S.rules||[]).filter(r=>ruleSource(r)!=='technical');
+  document.getElementById('chips').innerHTML = filters().map(([f, label]) =>{
+    const count=f==='all'?rows.length:rows.filter(r=>ruleBucket(r.kind)===f).length;
+    return `<span class="chip ${ruleFilter === f ? 'cur' : ''}" onclick="setFilter('${f}')">${label}<b>${count}</b></span>`;
+  }).join('');
 }
 
 function ruleBucket(kind){
   if (kind === 'neutral') return 'neutral';
   if (kind === 'distraction') return 'distraction';
   return 'deep';
+}
+
+function ruleSource(rule){
+  if(rule?.source)return rule.source;
+  const key=String(rule?.key||'').toLowerCase();
+  if(key==='localhost'||/^\d{1,3}(?:\.\d{1,3}){3}$/.test(key)||key.includes(':'))return 'technical';
+  return rule?.icon?'app':'site';
+}
+function ruleFocusKind(rule){return ruleBucket(rule.kind)==='deep'?rule.kind:(ruleSource(rule)==='site'?'paper':'code')}
+function setRuleKind(encodedKey,kind){
+  const key=decodeURIComponent(encodedKey),rule=(S.rules||[]).find(item=>item.key===key);if(rule)rule.kind=kind;
+  renderChips();renderRules();send({type:'rule',key,kind});
+}
+function ruleRow(rule){
+  const source=ruleSource(rule),bucket=ruleBucket(rule.kind),encoded=encodeURIComponent(String(rule.key)).replace(/'/g,'%27');
+  const safeDomain=source==='site'&&/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,}$/i.test(rule.key)?rule.key:'';
+  const icon=rule.icon?`<img class="ricon" src="${rule.icon}" alt="">`:safeDomain?`<img class="ricon" src="https://${safeDomain}/favicon.ico" alt="" onerror="this.outerHTML='<span class=rico>◎</span>'">`:`<span class="rico">${source==='technical'?'⌁':KIND_ICO[rule.kind]||'◎'}</span>`;
+  const sourceLabel=source==='app'?tx('App','App'):source==='site'?String(rule.key):tx('本机地址','Local address');
+  const choices=[['deep',tx('专注','Focus'),ruleFocusKind(rule)],['neutral',tx('日常','Everyday'),'neutral'],['distraction',tx('分心','Distract'),'distraction']];
+  return `<div class="rule">${icon}<span class="rule-copy"><span class="rname" title="${esc(rule.key)}">${esc(rule.label)}</span><small class="rule-source">${esc(sourceLabel)}</small></span><span class="rule-segment">${choices.map(([choice,label,kind])=>`<button type="button" data-bucket="${choice}" class="${bucket===choice?'sel':''}" onclick="setRuleKind('${encoded}','${kind}')">${label}</button>`).join('')}</span></div>`;
+}
+function ruleGroup(title,rows){
+  if(!rows.length)return '';
+  return `<section class="rule-group"><div class="rule-group-head"><b>${title}</b><span>${rows.length}</span></div>${rows.map(ruleRow).join('')}</section>`;
 }
 
 function renderRules(){
@@ -2037,16 +2103,11 @@ function renderRules(){
     return;
   }
   const rows = S.rules.filter(r => ruleFilter === 'all' || ruleBucket(r.kind) === ruleFilter);
-  box.innerHTML = rows.map(r => `
-    <div class="rule">
-      ${r.icon
-        ? `<img class="ricon" src="${r.icon}" onerror="this.outerHTML='<span class=rico>${KIND_ICO[r.kind] || '\u{1F610}'}</span>'">`
-        : `<span class="rico">${KIND_ICO[r.kind] || '\u{1F610}'}</span>`}
-      <span class="rname" title="${r.key}">${r.label}</span>
-      <select onchange="send({type:'rule', key:'${r.key.replace(/'/g, "\\'")}', kind:this.value})">
-        ${kinds().map(([k, n]) => `<option value="${k}" ${k === r.kind ? 'selected' : ''}>${n}</option>`).join('')}
-      </select></div>`).join('')
-    || `<div class="note">${tx('这里还没有内容。','nothing in this bucket yet.')}</div>`;
+  const apps=rows.filter(r=>ruleSource(r)==='app'),sites=rows.filter(r=>ruleSource(r)==='site'),technicalRules=rows.filter(r=>ruleSource(r)==='technical');
+  if(!rows.length){box.innerHTML=`<div class="note">${tx('这里还没有内容。','Nothing in this view yet.')}</div>`;return}
+  const primary=`${ruleGroup(tx('应用','Apps'),apps)}${ruleGroup(tx('网站','Websites'),sites)}`;
+  const technical=technicalRules.length?`<details class="technical-rules" id="technicalRules"><summary>${tx(`本机与技术地址 · ${technicalRules.length}`,`Local & technical addresses · ${technicalRules.length}`)}</summary>${ruleGroup(tx('不会占据主要注意力','Kept out of the main list'),technicalRules)}</details>`:'';
+  box.innerHTML = `<div class="rule-groups">${primary}${technical}</div>`;
 }
 
 /* Swift pushes the whole state here */
