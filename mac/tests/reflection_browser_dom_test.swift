@@ -60,7 +60,7 @@ struct ReflectionBrowserDOMTests {
         expect(waiter.finished && !waiter.failed, "fixture loads in a real WKWebView")
         _ = evaluate("window.reflectionFixture('1')", in: webView)
 
-        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,identityFallbacks:document.querySelectorAll('.identity-fallback').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
+        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,identityFallbacks:document.querySelectorAll('.identity-fallback').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,routeSteps:document.querySelectorAll('[data-thread-node]').length,returnSteps:document.querySelectorAll('.journey-route-step.returning').length,clusterMeta:document.querySelectorAll('.journey-cluster-meta').length,graphHeight:parseFloat(document.getElementById('journeyGraph').style.height),donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
                                in: webView) as? String
         let object = try JSONSerialization.jsonObject(
             with: Data((initial ?? "{}").utf8)) as? [String: Any]
@@ -81,15 +81,38 @@ struct ReflectionBrowserDOMTests {
                && (object?["appIdentities"] as? Int ?? 0) >= 1
                && (object?["siteIdentities"] as? Int ?? 0) >= 1,
                "app activities and websites render representative artwork or a clear fallback")
+        expect(object?["routeSteps"] as? Int == 5
+               && object?["returnSteps"] as? Int == 1
+               && object?["clusterMeta"] as? Int == 4
+               && (object?["graphHeight"] as? Int ?? 0) >= 400,
+               "the semantic overview exposes a readable five-step route, one return, and four spacious topic zones: \(initial ?? "{}")")
+        if let capturePath = ProcessInfo.processInfo.environment["MIMO_CAPTURE_PATH"] {
+            _ = evaluate("document.querySelector('.journey-map').scrollIntoView({block:'start'})", in: webView)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+            var snapshotFinished = false
+            var snapshot: NSImage?
+            webView.takeSnapshot(with: nil) { image, _ in
+                snapshot = image
+                snapshotFinished = true
+            }
+            expect(spin(until: { snapshotFinished }), "visual snapshot timed out")
+            let png = snapshot?.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))?
+                .representation(using: .png, properties: [:])
+            expect(png != nil, "visual snapshot could not be encoded")
+            try png?.write(to: URL(fileURLWithPath: capturePath), options: .atomic)
+        }
         expect((evaluate("(()=>{const base=new Date();base.setHours(8,0,0,0);const categories=['building','communication','admin','learning'];const blocks=Array.from({length:80},(_,index)=>{const event={id:`dense-event-${index}`,start:new Date(base.getTime()+index*60000).toISOString(),end:new Date(base.getTime()+(index+1)*60000).toISOString(),durationSeconds:60,app:`App ${index%6}`,title:`App ${index%6}`,category:categories[index%4]};return{id:`dense-${index}`,title:event.title,category:event.category,start:event.start,end:event.end,activeSeconds:60,apps:[event.app],domains:[],contextSwitches:1,eventIDs:[event.id],events:[event]}});const chapters=buildHalfHourChapters(blocks);return chapters.length===3&&chapters.every(chapter=>new Date(chapter.start).getMinutes()%30===0&&new Date(chapter.end)-new Date(chapter.start)===1800000)&&chapters.reduce((sum,chapter)=>sum+chapter.activeSeconds,0)===4800&&chapters.flatMap(chapter=>chapter.segments).length===80})()",
                          in: webView) as? Bool) == true,
                "dense days align to exact half-hour boundaries without dropping active time")
         expect((object?["donut"] as? String)?.contains("conic-gradient") == true,
                "category distribution renders as a visual donut")
 
-        expect((evaluate("(()=>{const first=document.querySelector('.journey-node');const before=first?.style.left;document.querySelector('[data-graph-layout=topic]').click();const after=document.querySelector('.journey-node')?.style.left;const ok=document.querySelector('[data-graph-layout=topic]').classList.contains('active')&&document.querySelectorAll('.journey-cluster').length>0&&before!==after;document.querySelector('[data-graph-layout=time]').click();return ok})()",
+        expect((evaluate("(()=>{const topicBefore=document.querySelector('.journey-node')?.style.left;document.querySelector('[data-graph-layout=time]').click();const timeX=document.querySelector('.journey-node')?.style.left;document.querySelector('[data-graph-layout=topic]').click();const topicAfter=document.querySelector('.journey-node')?.style.left;return document.querySelector('[data-graph-layout=topic]').classList.contains('active')&&document.querySelectorAll('.journey-cluster').length===4&&topicBefore===topicAfter&&timeX!==topicAfter})()",
                          in: webView) as? Bool) == true,
                "the same local graph can be read as chronological flow or spatial topic clusters")
+        expect((evaluate("(()=>{const step=document.querySelector('[data-thread-node]');step.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));const ok=document.getElementById('journeyGraph').classList.contains('has-hover')&&document.querySelectorAll('.journey-node.related').length>=1;document.getElementById('journeyThread').dispatchEvent(new MouseEvent('mouseleave'));return ok})()",
+                         in: webView) as? Bool) == true,
+               "hovering the human-readable route reveals its corresponding graph neighborhood")
 
         expect((evaluate("const chapter=document.querySelector('.half-hour-chapter:not(.quiet)');chapter.focus();document.getElementById('journeyPreview').dataset.chapter===chapter.dataset.halfHour",
                          in: webView) as? Bool) == true,

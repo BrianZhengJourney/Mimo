@@ -48,8 +48,12 @@ struct ReflectionBrowserUITests {
                && html.contains("setJourneyGraphHover")
                && html.contains("journey-cluster")
                && html.contains("data-graph-layout=\"topic\"")
-               && html.contains("journeyClusterRuns"),
-               "the journey switches between time and semantic topic clusters with explicit returns")
+               && html.contains("journeyClusterRuns")
+               && html.contains("journeyThreadSteps")
+               && html.contains("data-thread-node")
+               && html.contains("let journeyGraphLayout='topic'")
+               && html.contains("journey-cluster-meta"),
+               "the journey leads with a readable semantic route, then switches to exact time with explicit returns")
         expect(html.contains("state.journeyGraph")
                && controller.contains("JourneyGraphStore")
                && controller.contains("journeyGraph.jsonObject")

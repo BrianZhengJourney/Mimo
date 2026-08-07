@@ -26,9 +26,10 @@ chronological nodes + return edges + semantic clusters
 
 - **今日旅程**：相同主题可在 15 分钟内续接；相同大类的快速工具切换会合并为一个
   activity block。每个 block 始终保留全部 raw event ID。
-- **Clustered graph**：可切换两种读法。「时间」严格表达发生顺序；「主题」把跨 App/网站
-  的相关节点聚在一起。实线是下一步，`return` 是回到同一地方，`topic-return`
-  是离开后又接回同一主题。hover 会同时高亮整个主题。
+- **Clustered graph**：默认先看「主题」。顶部把一天压成可读的主线，回到旧主题时明确显示
+  `↩`；下方每个主题区同时显示投入时间、活动段数和跨日回访。点击或 hover 主线会高亮对应
+  节点与关系；「时间」模式则严格表达发生顺序。实线是下一步，`return` 是回到同一地方，
+  `topic-return` 是离开后又接回同一主题。
 - **半小时轴与 overlay**：图下方保留严格 30 分钟格；可拖到下方形成清晰起止边界。
   activity 与 learning material 在 hover/focus 时展开上下文，键盘也能访问。
 - **时间可视化**：Building、Learning、Communication、Planning、Admin、
