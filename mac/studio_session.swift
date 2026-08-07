@@ -63,11 +63,12 @@ private struct StoredEvolutionDraft: Codable {
 }
 
 private struct FamiliarStudioEnvelope: Codable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
     var schemaVersion = Self.schemaVersion
     var ui: StoredStudioUI?
     var candidate: StoredCandidateDraft?
     var evolution: StoredEvolutionDraft?
+    var recovery: StudioLocalRecoveryCheckpoint?
 }
 
 final class FamiliarStudioSessionStore {
@@ -152,6 +153,28 @@ final class FamiliarStudioSessionStore {
         try update { $0.evolution = stored }
     }
 
+    func saveRecovery(_ value: StudioLocalRecoveryCheckpoint) throws {
+        guard UUID(uuidString: value.requestID) != nil,
+              value.providerSeconds.isFinite, value.providerSeconds >= 0,
+              value.styleTuningNote.utf8.count <= 2_048,
+              (value.referenceEvidenceJSON?.utf8.count ?? 0) <= 512 * 1_024,
+              (value.masterPNG?.count ?? 0) <= Self.maximumReferenceBytes,
+              (value.sourceDataURI?.utf8.count ?? 0)
+                <= Self.maximumReferenceBytes * 4 / 3 + 1_024 else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        try update { $0.recovery = value }
+    }
+
+    func restoredRecovery() -> StudioLocalRecoveryCheckpoint? { load()?.recovery }
+
+    func clearRecovery(requestID: String? = nil) throws {
+        try update { envelope in
+            guard requestID == nil || envelope.recovery?.requestID == requestID else { return }
+            envelope.recovery = nil
+        }
+    }
+
     func restoredCandidate() -> (String, PendingCandidateBoardDraft)? {
         guard let value = load()?.candidate else { return nil }
         return (value.id, PendingCandidateBoardDraft(
@@ -187,7 +210,8 @@ final class FamiliarStudioSessionStore {
 
     func runtimePayload() -> [String: Any]? {
         guard let envelope = load(), envelope.ui != nil
-                || envelope.candidate != nil || envelope.evolution != nil else { return nil }
+                || envelope.candidate != nil || envelope.evolution != nil
+                || envelope.recovery != nil else { return nil }
         var output: [String: Any] = [:]
         if let ui = envelope.ui {
             output["name"] = ui.name
@@ -222,6 +246,11 @@ final class FamiliarStudioSessionStore {
             output["sheetQuality"] = evolution.quality
             output["stageQualities"] = evolution.stageQualities
         }
+        if let recovery = envelope.recovery {
+            output["recoveryRequestID"] = recovery.requestID
+            output["recoveryKind"] = recovery.kind.rawValue
+            output["recoveryOperation"] = recovery.operation
+        }
         return output
     }
 
@@ -234,6 +263,7 @@ final class FamiliarStudioSessionStore {
     private func update(_ mutate: (inout FamiliarStudioEnvelope) -> Void) throws {
         lock.lock(); defer { lock.unlock() }
         var envelope = loadUnlocked() ?? FamiliarStudioEnvelope()
+        envelope.schemaVersion = FamiliarStudioEnvelope.schemaVersion
         mutate(&envelope)
         try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true,
                                         attributes: [.posixPermissions: 0o700])
@@ -252,7 +282,9 @@ final class FamiliarStudioSessionStore {
         guard let data = try? Data(contentsOf: fileURL),
               let value = try? PropertyListDecoder().decode(
                 FamiliarStudioEnvelope.self, from: data),
-              value.schemaVersion == FamiliarStudioEnvelope.schemaVersion else { return nil }
+              (1...FamiliarStudioEnvelope.schemaVersion).contains(value.schemaVersion) else {
+            return nil
+        }
         return value
     }
 

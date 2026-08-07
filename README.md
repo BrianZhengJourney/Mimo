@@ -26,7 +26,9 @@ The repository has moved beyond the original browser concept:
   localhost ActivityWatch adapter can supplement window/tab/AFK evidence.
   Optional AI enrichment never blocks the fully local dashboard.
 - Mimo Studio reference preprocessing, canonical character generation,
-  expression assets, provider abstraction, generation ledger, and recovery.
+  expression assets, provider abstraction, generation ledger, and restart-safe
+  local recovery. A paid image and its provider-free processing recipe are
+  installed atomically and retained for at most 24 hours.
 - Mimo Studio includes four default Starter Actions after adoption: cursor
   gaze, sleep, tennis, and wall stand/sit. One click runs them in sequence.
 - Each card discloses calls and estimated cost, checkpoints every completed
@@ -76,9 +78,11 @@ references → identity board → canonical master → action families
            → local normalization/QA → user preview → atomic install
 ```
 
-This resumable Studio workflow is now implemented for the four-action starter
-pack. Paid visual generation remains user-triggered; the app never silently
-spends, retries, or installs.
+Studio drafts, finals, and local image-processing failures survive restart.
+Interrupted provider requests are never silently replayed; retrying them is an
+explicit new request. Incomplete adopted expressions remain repairable from the
+familiar manager. The four-action starter pack uses its own durable job ledger
+and resumes only after explicit user intent.
 
 ### Quick Look and Today Journal
 

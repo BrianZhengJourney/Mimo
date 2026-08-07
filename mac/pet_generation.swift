@@ -634,6 +634,14 @@ struct PetGenerationUsage: Equatable {
         return values
     }
 
+    init(dictionary: [String: Int]) {
+        inputTokens = dictionary["inputTokens"]
+        outputTokens = dictionary["outputTokens"]
+        totalTokens = dictionary["totalTokens"]
+        imageInputTokens = dictionary["imageInputTokens"]
+        textInputTokens = dictionary["textInputTokens"]
+    }
+
     fileprivate init(_ object: [String: Any]?) {
         func integer(_ value: Any?) -> Int? {
             if let value = value as? Int { return value }

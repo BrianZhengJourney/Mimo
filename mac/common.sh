@@ -26,6 +26,7 @@ APP_SOURCES=(
   character_sheet.swift
   action_sheet.swift
   action_sheet_run.swift
+  studio_recovery.swift
   generation_draft.swift
   studio_session.swift
   generation_ledger.swift

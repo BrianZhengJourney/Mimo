@@ -1,4 +1,4 @@
-// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
+// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift studio_recovery.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
 import Cocoa
 
 func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

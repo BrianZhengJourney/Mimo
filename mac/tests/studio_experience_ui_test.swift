@@ -72,9 +72,17 @@ struct StudioExperienceUITests {
                && product.contains("restorePersistedStudioSession")
                && product.contains("studioSessionStore.saveCandidate")
                && product.contains("studioSessionStore.saveEvolution")
+               && product.contains("persistLocalRecovery")
+               && product.contains("generationDraftStore.rawData")
+               && session.contains("StudioLocalRecoveryCheckpoint")
+               && html.contains("可跨重启继续")
                && session.contains("interrupted")
                && session.contains("never silently replayed"),
-               "references, choices, and successful paid outputs should survive restart without replaying work")
+               "references, choices, paid outputs, and no-spend local retries should survive restart without replaying provider work")
+        expect(html.contains("petManagerExpressionRepair")
+               && html.contains("repairManagedPetExpressions")
+               && html.contains("petRegenerateExpressions"),
+               "an incomplete adopted familiar should expose expression repair after restart")
 
         print("studio experience UI tests passed")
     }

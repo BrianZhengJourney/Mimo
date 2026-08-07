@@ -111,6 +111,11 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
   border-radius:10px; color:var(--ink); background:var(--surface); font-size:12px; outline:none; }
 .pet-manager-field input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 .pet-manager-hint{ margin-top:-7px; color:var(--dim); font-size:9.5px; }
+.pet-manager-repair{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 10px; border:1px solid var(--line); border-radius:11px; background:var(--surface); }
+.pet-manager-repair[hidden]{ display:none; }
+.pet-manager-repair span{ color:var(--dim); font-size:10px; line-height:1.4; }
+.pet-manager-repair button{ flex:none; color:var(--accent); }
 .pet-manager-status{ min-height:16px; color:var(--bad); font-size:10px; line-height:1.5; }
 .pet-manager-status[data-tone="busy"]{ color:var(--dim); }
 .pet-manager-actions{ display:flex; align-items:center; gap:7px; padding-top:2px; }
@@ -796,6 +801,11 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
           data-placeholder-zh="输入新分类，或选择已有分类" data-placeholder-en="Type or choose a category"></label>
       <datalist id="petManagerCategoryOptions"></datalist>
       <div class="pet-manager-hint" data-zh="留空即不分类" data-en="Leave blank for no category">留空即不分类</div>
+      <div class="pet-manager-repair" id="petManagerExpressionRepair" hidden>
+        <span data-zh="眨眼、微笑、休息还没补全" data-en="Blink, smile, and rest are incomplete">眨眼、微笑、休息还没补全</span>
+        <button id="petManagerExpressionButton" type="button" onclick="repairManagedPetExpressions()"
+          data-zh="补画表情" data-en="Complete expressions">补画表情</button>
+      </div>
       <div class="pet-manager-status" id="petManagerStatus" role="status" aria-live="polite"></div>
       <div class="pet-manager-actions">
         <button class="pet-manager-save" type="submit" data-zh="保存" data-en="Save">保存</button>
@@ -987,7 +997,7 @@ function adoptStudioPrivacyGeneration(value){
   studioPrivacyGeneration=String(next);return true;
 }
 const isCurrentStudioPrivacyEvent=event=>String(event?.studioPrivacyGeneration??'')===studioPrivacyGeneration;
-function sendStudio(message){send({...message,studioPrivacyGeneration})}
+function sendStudio(message){return send({...message,studioPrivacyGeneration})}
 function studioCheckpointPayload(){
   syncPrimaryReference();return{name:petLab.name,primaryReferenceID:petLab.primaryReferenceID,
     references:petLab.references.map(ref=>({id:ref.id,name:ref.name||'',source:ref.source,width:ref.width,height:ref.height})),
@@ -1002,6 +1012,7 @@ function checkpointStudioSession(immediate=false){
 function restoreStudioSession(session){
   if(!session||typeof session!=='object')return;
   const refs=Array.isArray(session.references)?session.references.filter(ref=>ref&&ref.id&&ref.source).slice(0,MAX_PET_REFERENCES):[];
+  const recoverable=!!(session.recoveryRequestID&&session.rawPreview&&session.canRetryLocally),interrupted=!!session.interrupted&&!recoverable;
   Object.assign(petLab,{name:session.name||petLab.name,references:refs,primaryReferenceID:session.primaryReferenceID||refs[0]?.id||null,
     temperamentID:session.temperamentID||petLab.temperamentID,stylePresetID:session.stylePresetID||petLab.stylePresetID,
     styleTuningNote:session.styleTuningNote||petLab.styleTuningNote,styleTuningCustomized:!!session.styleTuningCustomized,
@@ -1009,9 +1020,14 @@ function restoreStudioSession(session){
     candidateIndex:Number.isInteger(session.candidateIndex)?session.candidateIndex:null,candidateFeedback:session.candidateFeedback||{},
     draftID:session.draftID||null,sheet:session.sheet||null,sheetQuality:session.sheetQuality||null,
     stageQualities:Array.isArray(session.stageQualities)?session.stageQualities:[null,null,null],
-    status:session.sheet||session.candidates?.length?'ready':session.interrupted?'error':'idle',operation:session.operation||null,
-    error:session.interrupted?tx('上次生成在 Mimo 关闭时中断；没有自动重发，也不会重复产生费用。','The last generation was interrupted when Mimo closed. It was not replayed and no duplicate charge was created.'):'',
-    errorKind:session.interrupted?'setup':'',errorCode:session.interrupted?'interrupted':'',requestID:null,startedAt:null});
+    status:recoverable||interrupted?'error':session.sheet||session.candidates?.length?'ready':'idle',operation:session.recoveryOperation||session.operation||null,
+    error:recoverable?tx('上次 OpenAI 已经返回图片；可以从本机处理断点继续，不会再次请求 OpenAI。','OpenAI already returned the image. Continue from the local-processing checkpoint without another OpenAI request.'):interrupted?tx('上次请求在 Mimo 关闭时中断；没有自动重发。如果选择重试，会明确开始一个新请求。','The last request was interrupted when Mimo closed and was not replayed. Choosing retry explicitly starts a new request.'):'',
+    errorKind:recoverable?'local':interrupted?'provider':'',errorCode:recoverable?'restart_recovery':interrupted?'interrupted':'',
+    rawPreview:recoverable?session.rawPreview:null,recoveryDraftID:recoverable?session.recoveryRequestID:null,
+    recoveryRequestID:recoverable?session.recoveryRequestID:null,recoveryUntil:recoverable?session.recoveryUntil:null,
+    providerCompleted:recoverable,canRetryLocally:recoverable,outputRetained:recoverable,
+    providerSeconds:recoverable?Number(session.providerSeconds)||0:null,localSeconds:recoverable?Number(session.localSeconds)||0:null,
+    requestID:null,startedAt:null});
   syncPrimaryReference();const name=document.getElementById('petName');if(name)name.value=petLab.name;
 }
 function petStudioCheckpointFailed(event){petLab.referenceNoticeZh=event?.messageZh||'工作区恢复点没有保存成功。';petLab.referenceNoticeEn=event?.messageEn||'The Studio checkpoint was not saved.';renderReferenceSet()}
@@ -1327,7 +1343,7 @@ function errorHTML(){
   const retained=local&&petLab.outputRetained?tx('OpenAI 原始图已放进本机恢复档案，最多保留 24 小时。','The raw OpenAI output is in the local recovery archive for at most 24 hours.'):'';
   const canRecover=local&&petLab.providerCompleted&&petLab.recoveryRequestID&&petLab.canRetryLocally;
   const until=recoveryDate(petLab.recoveryUntil);
-  const expiry=until?tx(`会话内安全恢复可用到 ${until.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`,`In-session safe recovery available until ${until.toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'})}`):tx('这张原图仍可检查','The raw output remains inspectable');
+  const expiry=until?tx(`可跨重启继续 · 保留到 ${until.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`,`Restart-safe recovery · kept until ${until.toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'})}`):tx('这张原图仍可检查','The raw output remains inspectable');
   const recovery=local&&petLab.rawPreview?`<div class="recovery-row"><img class="recovery-preview" src="${esc(petLab.rawPreview)}" alt="${tx('OpenAI 原始结果预览','Raw OpenAI result preview')}"><div class="recovery-copy"><strong>${canRecover?tx('OpenAI 已完成 · 可在本机安全重试','OpenAI finished · safe local retry available'):tx('OpenAI 原始结果','Raw OpenAI output')}</strong>${esc(canRecover?expiry:(retained||tx('只在当前会话中可见','Visible in this session only')))}</div></div>`:'';
   const retryLocal=canRecover?`<button type="button" onclick="retryLocalProcessing()">${tx('在本机安全重新提取','Retry safe local extraction')}</button>`:'';
   let setupAction=`<button type="button" onclick="document.getElementById('apiSetup').open=true">${tx('检查 API 连接','Check API connection')}</button>`;
@@ -1550,7 +1566,7 @@ function petDraftExpired(event){
 function retryLocalProcessing(){
   if(studioBusy()||!petLab.providerCompleted||!petLab.canRetryLocally||!petLab.recoveryRequestID)return;
   const until=recoveryDate(petLab.recoveryUntil);if(until&&Date.now()>until.getTime()){
-    petLab.error=tx('会话内安全恢复已经过期；原图档案仍可检查，但重新生成需要新的 OpenAI 请求。','In-session safe recovery expired. The raw archive remains inspectable, but generating again needs a new OpenAI request.');
+    petLab.error=tx('这份跨重启恢复点已过期；如果原图档案仍在，仍可手动检查。','This restart-safe checkpoint expired; if its raw archive still exists, it remains available for manual inspection.');
     petLab.errorKind='setup';petLab.canRetryLocally=false;petLab.recoveryRequestID=null;renderPetLab();return;
   }
   Object.assign(petLab,{requestID:petLab.recoveryRequestID,status:'busy',phase:'extracting',phaseMessage:tx('使用已经生成的图片，只在这台 Mac 上重新去背景与检查边缘。','Using the existing image; only matte removal and edge checks run again on this Mac.'),
@@ -1636,12 +1652,14 @@ function customPetAdopted(event){
 function petExpressionProgress(event){
   petLab.expr={status:'busy',characterID:event.characterID,stageIndex:event.stageIndex||0,
     phase:event.phase||'',completed:event.completed||0,total:event.total||3,error:null};
+  syncManagedPetExpressionProgress(event,'busy');
   renderPetLab();
 }
 function petExpressionResult(event){
   if(event.spec)S.customPets=(S.customPets||[]).filter(p=>p.characterID!==event.spec.characterID).concat([event.spec]);
   petLab.expr={status:'busy',characterID:event.characterID,stageIndex:event.stageIndex||0,
     phase:'stage-done',completed:event.completed||0,total:event.total||3,error:null};
+  syncManagedPetExpressionProgress(event,'busy');
   renderPetLab();
 }
 function petExpressionCancelled(event){
@@ -1653,11 +1671,13 @@ function petExpressionError(event){
   petLab.expr={status:'error',characterID:event.characterID,stageIndex:event.stageIndex||0,
     completed:petLab.expr?.completed||0,total:petLab.expr?.total||3,
     error:(LANG==='zh'?event.messageZh:event.messageEn)||event.message||tx('表情生成失败','Expression generation failed')};
+  syncManagedPetExpressionProgress(event,'error');
   renderPetLab();
 }
 function petExpressionDone(event){
   petLab.expr={status:'done',characterID:event.characterID,stageIndex:0,
     completed:event.completed||0,total:event.total||3,error:null};
+  syncManagedPetExpressionProgress(event,'done');
   renderPetLab();
 }
 function regenerateExpressions(){
@@ -1993,6 +2013,30 @@ function managedPetName(){
   const pet=managedPet(),metadata=managedPetMetadata();
   return metadata.displayName||pet?.m?.name||tx('伴灵','Familiar');
 }
+function managedPetNeedsExpressions(){
+  const pet=managedPet();
+  return !!(pet?.custom&&!pet.legacy&&petManagerUI.characterID===S.character
+    &&managedPetMetadata().deleted!==true&&!pet.m?.expressionURLs?.['2']);
+}
+function syncManagedPetExpressionProgress(event,status){
+  if(!petManagerUI.characterID||event?.characterID!==petManagerUI.characterID)return;
+  const button=document.getElementById('petManagerExpressionButton');
+  if(button)button.disabled=status==='busy';
+  if(status==='error')showPetManagerError((LANG==='zh'?event.messageZh:event.messageEn)||event.message||tx('表情没有补完，可以重试。','Expressions were not completed; you can retry.'));
+  else if(status==='done')showPetManagerProgress(tx('表情已补好。','Expressions are complete.'));
+  else showPetManagerProgress(tx('正在补画表情；可以继续使用其他功能。','Completing expressions; you can keep using Mimo.'));
+  syncPetManagerLanguage();
+}
+function repairManagedPetExpressions(){
+  const characterID=petManagerUI.characterID;
+  if(!characterID||!managedPetNeedsExpressions())return;
+  const button=document.getElementById('petManagerExpressionButton');if(button)button.disabled=true;
+  showPetManagerProgress(tx('正在补画表情；可以继续使用其他功能。','Completing expressions; you can keep using Mimo.'));
+  if(!sendStudio({type:'petRegenerateExpressions',characterID})){
+    if(button)button.disabled=false;
+    showPetManagerError(tx('无法连接到 Mimo，请再试一次。','Could not reach Mimo; try again.'));
+  }
+}
 function setPetManagerFormDisabled(disabled){
   const form=document.getElementById('petManagerForm');if(form)form.inert=!!disabled;
   document.querySelectorAll('#petManagerForm button,#petManagerForm input').forEach(el=>el.disabled=!!disabled);
@@ -2006,6 +2050,8 @@ function syncPetManagerLanguage(){
   const overlay=document.getElementById('petManagerOverlay');if(!overlay||overlay.hidden||!petManagerUI.characterID)return;
   const metadata=managedPetMetadata(),archived=metadata.archived===true,deleted=metadata.deleted===true;
   const archive=document.getElementById('petManagerArchive'),remove=document.getElementById('petManagerDelete');
+  const repair=document.getElementById('petManagerExpressionRepair');
+  if(repair)repair.hidden=!managedPetNeedsExpressions();
   if(archive){archive.hidden=false;archive.textContent=deleted?(archived?tx('恢复到已隐藏','Restore to Hidden'):tx('恢复伴灵','Restore familiar')):archived?tx('取消隐藏','Unhide'):tx('隐藏','Hide')}
   if(remove){remove.hidden=deleted;remove.textContent=tx('删除','Delete')}
   const title=document.getElementById('petDeleteConfirmTitle'),copy=document.getElementById('petDeleteConfirmCopy');

@@ -1,4 +1,4 @@
-// sources: generation_draft.swift
+// sources: studio_recovery.swift generation_draft.swift
 import Foundation
 
 private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -54,6 +54,36 @@ struct GenerationDraftTests {
         expect(processed.status == .processed && processed.processedAsset == "processed.png",
                "a recovered draft should become processed")
         expect(processed.warnings == ["recovered panel overlap"], "recovery warnings should be transparent")
+
+        let recoveryID = UUID().uuidString
+        let recovery = StudioLocalRecoveryCheckpoint(
+            requestID: recoveryID.lowercased(), kind: .replacement,
+            sourceDataURI: nil, referenceEvidenceJSON: nil,
+            styleTuningNote: "warm", temperamentID: nil, likeness: nil,
+            styleProfile: nil, providerSeconds: 3.5, usage: [:],
+            styleBoardUsed: false, mode: nil, masterPNG: nil,
+            draftFeedback: nil, selectedCandidateIndex: nil,
+            quality: "medium", candidateDraftID: nil,
+            parentDraftID: UUID().uuidString, stage: "seed",
+            createdAt: now)
+        _ = try store.saveRaw(
+            requestID: recoveryID, pngData: png, phase: .replacement,
+            quality: "medium", providerSeconds: 3.5,
+            recovery: recovery, now: now)
+        let restoredRecovery = try store.recovery(requestID: recoveryID)
+        expect(restoredRecovery == recovery,
+               "raw output and local recipe should install atomically")
+        expect(store.recoverableRecoveryIDs(now: now).contains(recoveryID.lowercased()),
+               "an installed local recipe should be discoverable after restart")
+        try store.discardRecovery(requestID: recoveryID)
+        expectThrows("discarding recovery should remove only the local recipe") {
+            _ = try store.recovery(requestID: recoveryID)
+        }
+        let rawAfterDiscard = try store.rawData(requestID: recoveryID)
+        expect(rawAfterDiscard == png,
+               "discarding recovery must retain the paid raw output archive")
+        expect(!store.recoverableRecoveryIDs(now: now).contains(recoveryID.lowercased()),
+               "a superseded recipe must not reappear after restart")
 
         expectThrows("arbitrary IDs must not become paths") {
             _ = try store.saveRaw(requestID: "../escape", pngData: png, phase: .candidates,

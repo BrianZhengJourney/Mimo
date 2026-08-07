@@ -20,7 +20,7 @@ enum FamiliarGenerationDraftStatus: String, Codable, Sendable {
 }
 
 struct FamiliarGenerationDraftManifest: Codable, Equatable, Sendable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
 
     let schemaVersion: Int
     let requestID: String
@@ -35,6 +35,7 @@ struct FamiliarGenerationDraftManifest: Codable, Equatable, Sendable {
     var localSeconds: Double?
     var failureMessage: String?
     var warnings: [String]
+    var recoveryAsset: String?
 }
 
 enum FamiliarGenerationDraftError: LocalizedError {
@@ -62,7 +63,9 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
     static let manifestFilename = "manifest.json"
     static let rawFilename = "raw.png"
     static let processedFilename = "processed.png"
+    static let recoveryFilename = "recovery.plist"
     static let maximumPNGBytes = 20 * 1024 * 1024
+    static let maximumRecoveryBytes = 50 * 1024 * 1024
     static let maximumStoredBytes = 100 * 1024 * 1024
     static let retention: TimeInterval = 24 * 60 * 60
 
@@ -83,13 +86,21 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
 
     @discardableResult
     func saveRaw(requestID: String, pngData: Data, phase: FamiliarGenerationPhase,
-                 quality: String, providerSeconds: Double?, now: Date = Date()) throws
+                 quality: String, providerSeconds: Double?,
+                 recovery: StudioLocalRecoveryCheckpoint? = nil,
+                 now: Date = Date()) throws
         -> FamiliarGenerationDraftManifest {
         try synchronized {
             try prepareStorage()
             try purgeExpiredLocked(now: now)
             let canonical = try canonicalRequestID(requestID)
             try validatePNG(pngData)
+            if let recovery {
+                guard recovery.requestID == canonical else {
+                    throw FamiliarGenerationDraftError.invalidRequestID
+                }
+                try validateRecovery(recovery)
+            }
             let destination = draftURL(canonical)
             guard !fileManager.fileExists(atPath: destination.path), isDescendant(destination, of: draftsURL) else {
                 throw FamiliarGenerationDraftError.unsafePath
@@ -115,13 +126,21 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
                 providerSeconds: providerSeconds,
                 localSeconds: nil,
                 failureMessage: nil,
-                warnings: []
+                warnings: [],
+                recoveryAsset: recovery == nil ? nil : Self.recoveryFilename
             )
             try pngData.write(to: temporary.appendingPathComponent(Self.rawFilename), options: [.atomic])
+            if let recovery {
+                let encoder = PropertyListEncoder()
+                encoder.outputFormat = .binary
+                try encoder.encode(recovery).write(
+                    to: temporary.appendingPathComponent(Self.recoveryFilename),
+                    options: [.atomic])
+            }
             try encode(manifest).write(to: temporary.appendingPathComponent(Self.manifestFilename), options: [.atomic])
             try fileManager.moveItem(at: temporary, to: destination)
             cleanup = false
-            try enforceMaximumStorageLocked(preserving: requestID)
+            try enforceMaximumStorageLocked(preserving: canonical)
             return manifest
         }
     }
@@ -174,6 +193,47 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
         }
     }
 
+    func recovery(requestID: String) throws -> StudioLocalRecoveryCheckpoint {
+        try synchronized {
+            try prepareStorage()
+            try purgeExpiredLocked(now: Date())
+            let canonical = try canonicalRequestID(requestID)
+            let manifest = try loadManifest(canonical)
+            guard manifest.recoveryAsset == Self.recoveryFilename else {
+                throw FamiliarGenerationDraftError.missingDraft
+            }
+            let url = draftURL(canonical).appendingPathComponent(Self.recoveryFilename)
+            guard isSafeRegularFile(url, maximumBytes: Self.maximumRecoveryBytes),
+                  isDescendant(url, of: draftsURL),
+                  let data = try? Data(contentsOf: url),
+                  let value = try? PropertyListDecoder().decode(
+                    StudioLocalRecoveryCheckpoint.self, from: data),
+                  value.requestID == canonical else {
+                throw FamiliarGenerationDraftError.corruptManifest
+            }
+            try validateRecovery(value)
+            return value
+        }
+    }
+
+    func recoverableRecoveryIDs(now: Date = Date()) -> [String] {
+        (try? synchronized {
+            try prepareStorage()
+            try purgeExpiredLocked(now: now)
+            return try fileManager.contentsOfDirectory(
+                at: draftsURL, includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]).compactMap { entry -> (String, Date)? in
+                    guard UUID(uuidString: entry.lastPathComponent) != nil,
+                          let manifest = try? loadManifest(entry.lastPathComponent),
+                          manifest.recoveryAsset == Self.recoveryFilename,
+                          (try? recoveryUnlocked(requestID: manifest.requestID)) != nil else {
+                        return nil
+                    }
+                    return (manifest.requestID, manifest.createdAt)
+                }.sorted { $0.1 > $1.1 }.map(\.0)
+        }) ?? []
+    }
+
     func recoverableDraftCount(now: Date = Date()) -> Int {
         (try? synchronized {
             try prepareStorage()
@@ -187,6 +247,33 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
                 return manifest.status == .received || manifest.status == .failedLocalProcessing
             }.count
         }) ?? 0
+    }
+
+    /// Stop a retained raw output from being auto-restored after the user has
+    /// moved on to a new request. The paid image stays available in the local
+    /// archive; only the provider-free processing recipe is discarded.
+    func discardRecovery(requestID: String) throws {
+        try synchronized {
+            try prepareStorage()
+            let canonical = try canonicalRequestID(requestID)
+            let directory = draftURL(canonical)
+            var manifest = try loadManifest(canonical)
+            guard manifest.recoveryAsset == Self.recoveryFilename else { return }
+            let recoveryURL = directory.appendingPathComponent(Self.recoveryFilename)
+            guard isDescendant(recoveryURL, of: draftsURL) else {
+                throw FamiliarGenerationDraftError.unsafePath
+            }
+            if fileManager.fileExists(atPath: recoveryURL.path) {
+                guard isSafeRegularFile(recoveryURL, maximumBytes: Self.maximumRecoveryBytes) else {
+                    throw FamiliarGenerationDraftError.unsafePath
+                }
+                try fileManager.removeItem(at: recoveryURL)
+            }
+            manifest.recoveryAsset = nil
+            try encode(manifest).write(
+                to: directory.appendingPathComponent(Self.manifestFilename),
+                options: [.atomic])
+        }
     }
 
     func delete(requestID: String) throws {
@@ -267,12 +354,44 @@ final class FamiliarGenerationDraftStore: @unchecked Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let manifest = try? decoder.decode(FamiliarGenerationDraftManifest.self, from: data),
-              manifest.schemaVersion == FamiliarGenerationDraftManifest.schemaVersion,
+              (1...FamiliarGenerationDraftManifest.schemaVersion).contains(
+                manifest.schemaVersion),
               manifest.requestID == requestID,
               manifest.rawAsset == Self.rawFilename else {
             throw FamiliarGenerationDraftError.corruptManifest
         }
         return manifest
+    }
+
+    private func recoveryUnlocked(requestID: String) throws
+        -> StudioLocalRecoveryCheckpoint {
+        let manifest = try loadManifest(requestID)
+        guard manifest.recoveryAsset == Self.recoveryFilename else {
+            throw FamiliarGenerationDraftError.missingDraft
+        }
+        let url = draftURL(requestID).appendingPathComponent(Self.recoveryFilename)
+        guard isSafeRegularFile(url, maximumBytes: Self.maximumRecoveryBytes),
+              isDescendant(url, of: draftsURL),
+              let data = try? Data(contentsOf: url),
+              let value = try? PropertyListDecoder().decode(
+                StudioLocalRecoveryCheckpoint.self, from: data),
+              value.requestID == requestID else {
+            throw FamiliarGenerationDraftError.corruptManifest
+        }
+        try validateRecovery(value)
+        return value
+    }
+
+    private func validateRecovery(_ value: StudioLocalRecoveryCheckpoint) throws {
+        guard UUID(uuidString: value.requestID) != nil,
+              value.providerSeconds.isFinite, value.providerSeconds >= 0,
+              value.styleTuningNote.utf8.count <= 2_048,
+              (value.referenceEvidenceJSON?.utf8.count ?? 0) <= 512 * 1_024,
+              (value.masterPNG?.count ?? 0) <= Self.maximumPNGBytes,
+              (value.sourceDataURI?.utf8.count ?? 0)
+                <= Self.maximumPNGBytes * 4 / 3 + 1_024 else {
+            throw FamiliarGenerationDraftError.corruptManifest
+        }
     }
 
     private func encode(_ manifest: FamiliarGenerationDraftManifest) throws -> Data {

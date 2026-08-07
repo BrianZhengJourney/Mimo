@@ -1,4 +1,4 @@
-// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
+// sources: starter_action.swift pet_provider.swift custom_pet.swift character_sheet.swift action_sheet.swift studio_recovery.swift generation_draft.swift generation_ledger.swift style_reference.swift reference_preprocessor.swift pet_generation.swift
 // compile-only: one paid OpenAI walk-inbetween generation; opt-in only
 // Run from the repository root after `./mac/test.sh action_inbetween`:
 //   action_inbetween_live_run --confirm-paid OUTPUT_DIR PET_SHEET KEYFRAME_RAW KEYFRAME_STRIP

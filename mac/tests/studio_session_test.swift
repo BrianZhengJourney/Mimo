@@ -1,4 +1,4 @@
-// sources: studio_session.swift
+// sources: studio_recovery.swift studio_session.swift
 import Foundation
 
 enum MimoStyleProfile: String {
@@ -94,8 +94,37 @@ struct StudioSessionTests {
         expect(FamiliarStudioSessionStore(root: root).restoredEvolution()?.0 == evolutionID,
                "the paid final and its stages survive restart")
 
-        let attributes = try FileManager.default.attributesOfItem(
-            atPath: root.appendingPathComponent("StudioSession/session.plist").path)
+        let sessionURL = root.appendingPathComponent("StudioSession/session.plist")
+        var legacy = try PropertyListSerialization.propertyList(
+            from: Data(contentsOf: sessionURL), options: [], format: nil) as! [String: Any]
+        legacy["schemaVersion"] = 1
+        try PropertyListSerialization.data(
+            fromPropertyList: legacy, format: .binary, options: 0).write(
+                to: sessionURL, options: .atomic)
+        expect(FamiliarStudioSessionStore(root: root).restoredEvolution()?.0 == evolutionID,
+               "schema-v1 sessions remain readable after the restart-recovery upgrade")
+
+        let recoveryID = UUID().uuidString.lowercased()
+        let recovery = StudioLocalRecoveryCheckpoint(
+            requestID: recoveryID, kind: .evolution,
+            sourceDataURI: source, referenceEvidenceJSON: "{}",
+            styleTuningNote: "quiet", temperamentID: "quiet-curious",
+            likeness: 0.7, styleProfile: "creature-v1",
+            providerSeconds: 12, usage: ["totalTokens": 42],
+            styleBoardUsed: true, mode: nil, masterPNG: image,
+            draftFeedback: "smaller ears", selectedCandidateIndex: 1,
+            quality: "medium", candidateDraftID: requestID,
+            parentDraftID: nil, stage: nil, createdAt: Date())
+        try restoredStore.saveRecovery(recovery)
+        let restartedRecovery = FamiliarStudioSessionStore(root: root).restoredRecovery()
+        expect(restartedRecovery == recovery
+               && FamiliarStudioSessionStore(root: root).runtimePayload()?["recoveryRequestID"] as? String == recoveryID,
+               "the no-spend local-processing recipe survives restart beside the raw draft")
+        try restoredStore.clearRecovery(requestID: recoveryID)
+        expect(FamiliarStudioSessionStore(root: root).restoredRecovery() == nil,
+               "a completed or explicitly discarded recovery recipe clears atomically")
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: sessionURL.path)
         expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600,
                "the durable Studio checkpoint is private to the current user")
 

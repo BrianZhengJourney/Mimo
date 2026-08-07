@@ -430,6 +430,171 @@ extension AppDelegate {
             pendingEvolutionSheets[id] = evolution
             visibleEvolutionDraftID = id
         }
+        let sessionCheckpoint = studioSessionStore.restoredRecovery()
+        var checkpoints: [StudioLocalRecoveryCheckpoint] = []
+        if let sessionCheckpoint { checkpoints.append(sessionCheckpoint) }
+        for id in generationDraftStore.recoverableRecoveryIDs()
+            where !checkpoints.contains(where: { $0.requestID == id }) {
+            if let value = try? generationDraftStore.recovery(requestID: id) {
+                checkpoints.append(value)
+            }
+        }
+        checkpoints.sort { $0.createdAt > $1.createdAt }
+        guard let restored = checkpoints.compactMap({ checkpoint
+            -> (StudioLocalRecoveryCheckpoint, PendingLocalGenerationRecovery)? in
+            guard let rawPNG = try? generationDraftStore.rawData(
+                    requestID: checkpoint.requestID),
+                  let recovery = localRecovery(from: checkpoint, rawPNG: rawPNG) else {
+                return nil
+            }
+            return (checkpoint, recovery)
+        }).first else {
+            if sessionCheckpoint != nil { try? studioSessionStore.clearRecovery() }
+            return
+        }
+        let (checkpoint, recovery) = restored
+        // Studio exposes one unambiguous continuation. Older paid images stay
+        // in the archive, but their recipes must not surface one-by-one after
+        // the newest recovery succeeds.
+        for stale in checkpoints where stale.requestID != checkpoint.requestID {
+            try? generationDraftStore.discardRecovery(requestID: stale.requestID)
+        }
+        pendingLocalRecoveries[checkpoint.requestID] = recovery
+        if sessionCheckpoint?.requestID != checkpoint.requestID {
+            try? studioSessionStore.saveRecovery(checkpoint)
+        }
+    }
+
+    private func localRecovery(
+        from value: StudioLocalRecoveryCheckpoint, rawPNG: Data
+    ) -> PendingLocalGenerationRecovery? {
+        let usage = PetGenerationUsage(dictionary: value.usage)
+        switch value.kind {
+        case .candidates:
+            guard let source = value.sourceDataURI,
+                  let evidence = value.referenceEvidenceJSON,
+                  let temperament = value.temperamentID,
+                  let likeness = value.likeness else { return nil }
+            return .candidates(.init(
+                rawPNG: rawPNG, sourceDataURI: source,
+                referenceEvidenceJSON: evidence,
+                styleTuningNote: value.styleTuningNote,
+                temperamentID: temperament, likeness: likeness,
+                styleProfile: MimoStyleProfile.resolve(value.styleProfile),
+                providerSeconds: value.providerSeconds, usage: usage,
+                styleBoardUsed: value.styleBoardUsed,
+                mode: value.mode ?? "candidates", createdAt: value.createdAt))
+        case .evolution:
+            guard let master = value.masterPNG,
+                  let source = value.sourceDataURI,
+                  let evidence = value.referenceEvidenceJSON,
+                  let temperament = value.temperamentID,
+                  let likeness = value.likeness,
+                  let selected = value.selectedCandidateIndex,
+                  let candidateID = value.candidateDraftID else { return nil }
+            return .evolution(.init(
+                rawPNG: rawPNG, masterPNG: master, sourceDataURI: source,
+                referenceEvidenceJSON: evidence,
+                styleTuningNote: value.styleTuningNote,
+                draftFeedback: value.draftFeedback ?? "",
+                temperamentID: temperament, likeness: likeness,
+                styleProfile: MimoStyleProfile.resolve(value.styleProfile),
+                selectedCandidateIndex: selected,
+                quality: PetFinalGenerationQuality.resolve(value.quality),
+                providerSeconds: value.providerSeconds, usage: usage,
+                candidateDraftID: candidateID,
+                styleBoardUsed: value.styleBoardUsed, createdAt: value.createdAt))
+        case .replacement:
+            guard let parentID = value.parentDraftID,
+                  let stage = value.stage.flatMap(PetEvolutionStage.init(rawValue:)) else {
+                return nil
+            }
+            return .replacement(.init(
+                rawPNG: rawPNG, parentDraftID: parentID, stage: stage,
+                quality: PetFinalGenerationQuality.resolve(value.quality),
+                styleTuningNote: value.styleTuningNote,
+                providerSeconds: value.providerSeconds, usage: usage,
+                styleBoardUsed: value.styleBoardUsed, createdAt: value.createdAt))
+        }
+    }
+
+    private func localRecoveryCheckpoint(
+        requestID: String, recovery: PendingLocalGenerationRecovery
+    ) -> StudioLocalRecoveryCheckpoint {
+        let checkpoint: StudioLocalRecoveryCheckpoint
+        switch recovery {
+        case .candidates(let value):
+            checkpoint = .init(
+                requestID: requestID, kind: .candidates,
+                sourceDataURI: value.sourceDataURI,
+                referenceEvidenceJSON: value.referenceEvidenceJSON,
+                styleTuningNote: value.styleTuningNote,
+                temperamentID: value.temperamentID, likeness: value.likeness,
+                styleProfile: value.styleProfile.rawValue,
+                providerSeconds: value.providerSeconds,
+                usage: value.usage.dictionary, styleBoardUsed: value.styleBoardUsed,
+                mode: value.mode, masterPNG: nil, draftFeedback: nil,
+                selectedCandidateIndex: nil, quality: nil,
+                candidateDraftID: nil, parentDraftID: nil, stage: nil,
+                createdAt: value.createdAt)
+        case .evolution(let value):
+            checkpoint = .init(
+                requestID: requestID, kind: .evolution,
+                sourceDataURI: value.sourceDataURI,
+                referenceEvidenceJSON: value.referenceEvidenceJSON,
+                styleTuningNote: value.styleTuningNote,
+                temperamentID: value.temperamentID, likeness: value.likeness,
+                styleProfile: value.styleProfile.rawValue,
+                providerSeconds: value.providerSeconds,
+                usage: value.usage.dictionary, styleBoardUsed: value.styleBoardUsed,
+                mode: nil, masterPNG: value.masterPNG,
+                draftFeedback: value.draftFeedback,
+                selectedCandidateIndex: value.selectedCandidateIndex,
+                quality: value.quality.rawValue,
+                candidateDraftID: value.candidateDraftID,
+                parentDraftID: nil, stage: nil, createdAt: value.createdAt)
+        case .replacement(let value):
+            checkpoint = .init(
+                requestID: requestID, kind: .replacement,
+                sourceDataURI: nil, referenceEvidenceJSON: nil,
+                styleTuningNote: value.styleTuningNote,
+                temperamentID: nil, likeness: nil, styleProfile: nil,
+                providerSeconds: value.providerSeconds,
+                usage: value.usage.dictionary, styleBoardUsed: value.styleBoardUsed,
+                mode: nil, masterPNG: nil, draftFeedback: nil,
+                selectedCandidateIndex: nil, quality: value.quality.rawValue,
+                candidateDraftID: nil, parentDraftID: value.parentDraftID,
+                stage: value.stage.rawValue, createdAt: value.createdAt)
+        }
+        return checkpoint
+    }
+
+    @discardableResult
+    private func persistLocalRecovery(
+        requestID: String, recovery: PendingLocalGenerationRecovery,
+        outputRetained: Bool
+    ) -> Bool {
+        guard outputRetained else { return false }
+        let checkpoint = localRecoveryCheckpoint(
+            requestID: requestID, recovery: recovery)
+        do {
+            try studioSessionStore.saveRecovery(checkpoint)
+            return true
+        } catch {
+            NSLog("Mimo could not save local recovery %@: %@",
+                  requestID, error.localizedDescription)
+            settingsCall("petStudioCheckpointFailed", [
+                "messageZh": "OpenAI 原图已保留，但本机续处理恢复点没有保存成功。",
+                "messageEn": "The raw OpenAI image was retained, but its local-processing checkpoint was not saved.",
+            ])
+            return false
+        }
+    }
+
+    private func clearLocalRecovery(_ requestID: String) {
+        pendingLocalRecoveries.removeValue(forKey: requestID)
+        try? studioSessionStore.clearRecovery(requestID: requestID)
+        try? generationDraftStore.discardRecovery(requestID: requestID)
     }
 
     private func checkOpenAIHealth(force: Bool = false) {
@@ -962,7 +1127,20 @@ extension AppDelegate {
             "buildDirty": Bundle.main.infoDictionary?["MimoBuildDirty"] as? Bool ?? false,
             "buildSignature": Bundle.main.infoDictionary?["MimoBuildSignature"] as? String ?? "temporary",
         ]
-        if let session = studioSessionStore.runtimePayload() {
+        if var session = studioSessionStore.runtimePayload() {
+            if let requestID = session["recoveryRequestID"] as? String,
+               pendingLocalRecoveries[requestID] != nil,
+               let manifest = try? generationDraftStore.manifest(requestID: requestID),
+               let rawPNG = try? generationDraftStore.rawData(requestID: requestID) {
+                session["rawPreview"] = PetGenerationCoordinator.dataURI(rawPNG)
+                session["providerCompleted"] = true
+                session["outputRetained"] = true
+                session["canRetryLocally"] = true
+                session["providerSeconds"] = manifest.providerSeconds ?? 0
+                session["localSeconds"] = manifest.localSeconds ?? 0
+                session["recoveryUntil"] = manifest.expiresAt.timeIntervalSince1970 * 1_000
+                session["recoveryFailureMessage"] = manifest.failureMessage ?? ""
+            }
             state["studioSession"] = session
         }
         state.merge(openAIKeyStatePayload()) { _, new in new }
@@ -1132,7 +1310,14 @@ extension AppDelegate {
     func pruneStudioState(now: Date = Date()) {
         let sessionCutoff = now.addingTimeInterval(-30 * 60)
         let ledgerCutoff = now.addingTimeInterval(-FamiliarGenerationDraftStore.retention)
-        pendingLocalRecoveries = pendingLocalRecoveries.filter { $0.value.createdAt >= sessionCutoff }
+        pendingLocalRecoveries = pendingLocalRecoveries.filter {
+            $0.value.createdAt >= ledgerCutoff
+                && (try? generationDraftStore.manifest(requestID: $0.key)) != nil
+        }
+        if let persisted = studioSessionStore.restoredRecovery(),
+           pendingLocalRecoveries[persisted.requestID] == nil {
+            try? studioSessionStore.clearRecovery(requestID: persisted.requestID)
+        }
         let recoveryParentIDs = pendingLocalRecoveries.values.compactMap { recovery -> String? in
             if case .replacement(let value) = recovery { return value.parentDraftID }
             return nil
@@ -1272,6 +1457,13 @@ extension AppDelegate {
     private func reserveProviderGeneration(_ requestID: String) -> Bool {
         switch studioGenerationLedger.reserve(requestID: requestID) {
         case .accepted:
+            // A newly authorized provider request supersedes an older failed
+            // branch. Clear only its local recipe; successful candidate/final
+            // checkpoints remain available as preserved results.
+            let superseded = Set(pendingLocalRecoveries.keys)
+                .union(generationDraftStore.recoverableRecoveryIDs())
+            for oldRequestID in superseded { clearLocalRecovery(oldRequestID) }
+            try? studioSessionStore.clearRecovery()
             activeStudioDraftRequestID = requestID
             return true
         case .duplicateActive:
@@ -1438,6 +1630,7 @@ extension AppDelegate {
     private func retainRaw(_ rawPNG: Data, requestID: String,
                            phase: FamiliarGenerationPhase, quality: String,
                            providerSeconds: Double,
+                           recovery: StudioLocalRecoveryCheckpoint? = nil,
                            purgeEpoch: UInt64) -> Bool {
         guard generationPurgeEpoch == purgeEpoch,
               activeStudioDraftRequestID == requestID
@@ -1445,7 +1638,8 @@ extension AppDelegate {
         do {
             try generationDraftStore.saveRaw(requestID: requestID, pngData: rawPNG,
                                              phase: phase, quality: quality,
-                                             providerSeconds: providerSeconds)
+                                             providerSeconds: providerSeconds,
+                                             recovery: recovery)
             return true
         } catch {
             NSLog("Mimo could not retain generated output %@: %@", requestID, error.localizedDescription)
@@ -1638,11 +1832,6 @@ extension AppDelegate {
                                              startedAt: startedAt, phase: "candidates")
                 case .success(let output):
                     let providerSeconds = Date().timeIntervalSince(startedAt)
-                    let retained = self.retainRaw(
-                        output.data, requestID: requestID, phase: .candidates,
-                        quality: PetGenerationQuality.low.rawValue,
-                        providerSeconds: providerSeconds,
-                        purgeEpoch: purgeEpoch)
                     let recovery = CandidateGenerationRecovery(
                         rawPNG: output.data, sourceDataURI: source,
                         referenceEvidenceJSON: referenceEvidenceJSON,
@@ -1652,7 +1841,17 @@ extension AppDelegate {
                         providerSeconds: providerSeconds, usage: output.usage,
                         styleBoardUsed: style != nil, mode: "candidates",
                         createdAt: Date())
+                    let checkpoint = self.localRecoveryCheckpoint(
+                        requestID: requestID, recovery: .candidates(recovery))
+                    let retained = self.retainRaw(
+                        output.data, requestID: requestID, phase: .candidates,
+                        quality: PetGenerationQuality.low.rawValue,
+                        providerSeconds: providerSeconds, recovery: checkpoint,
+                        purgeEpoch: purgeEpoch)
                     self.pendingLocalRecoveries[requestID] = .candidates(recovery)
+                    _ = self.persistLocalRecovery(
+                        requestID: requestID, recovery: .candidates(recovery),
+                        outputRetained: retained)
                     self.processCandidateGeneration(requestID: requestID,
                                                     recovery: recovery,
                                                     outputRetained: retained)
@@ -1694,10 +1893,6 @@ extension AppDelegate {
                         startedAt: startedAt, phase: "variations")
                 case .success(let output):
                     let providerSeconds = Date().timeIntervalSince(startedAt)
-                    let retained = self.retainRaw(
-                        output.data, requestID: requestID, phase: .candidates,
-                        quality: PetGenerationQuality.low.rawValue,
-                        providerSeconds: providerSeconds, purgeEpoch: purgeEpoch)
                     let recovery = CandidateGenerationRecovery(
                         rawPNG: output.data,
                         sourceDataURI: candidate.sourceDataURI,
@@ -1709,7 +1904,17 @@ extension AppDelegate {
                         providerSeconds: providerSeconds,
                         usage: output.usage, styleBoardUsed: style != nil,
                         mode: "variations", createdAt: Date())
+                    let checkpoint = self.localRecoveryCheckpoint(
+                        requestID: requestID, recovery: .candidates(recovery))
+                    let retained = self.retainRaw(
+                        output.data, requestID: requestID, phase: .candidates,
+                        quality: PetGenerationQuality.low.rawValue,
+                        providerSeconds: providerSeconds, recovery: checkpoint,
+                        purgeEpoch: purgeEpoch)
                     self.pendingLocalRecoveries[requestID] = .candidates(recovery)
+                    _ = self.persistLocalRecovery(
+                        requestID: requestID, recovery: .candidates(recovery),
+                        outputRetained: retained)
                     self.processCandidateGeneration(
                         requestID: requestID, recovery: recovery,
                         outputRetained: retained)
@@ -1772,7 +1977,7 @@ extension AppDelegate {
                         }
                     }
                     self.visibleCandidateDraftID = requestID
-                    self.pendingLocalRecoveries.removeValue(forKey: requestID)
+                    self.clearLocalRecovery(requestID)
                     self.settingsCall("petCandidateResult", [
                         "requestID": requestID,
                         "candidateDraftID": requestID,
@@ -1794,7 +1999,7 @@ extension AppDelegate {
                     self.announceStudioBackground(requestID, kind: "success", "3 个 Low 草稿已经画好，打开设置来选主角。", "Three Low drafts are ready; open Settings to pick the master.")
                 case .failure(let error):
                     let canRetry = !salvageNearEdge && self.canSalvageNearEdge(error)
-                    if !canRetry { self.pendingLocalRecoveries.removeValue(forKey: requestID) }
+                    if !canRetry { self.clearLocalRecovery(requestID) }
                     self.studioLocalError(
                         requestID: requestID, error: error, rawPNG: recovery.rawPNG,
                         providerSeconds: recovery.providerSeconds,
@@ -2752,10 +2957,6 @@ extension AppDelegate {
                                              startedAt: startedAt, phase: "evolution")
                 case .success(let output):
                     let providerSeconds = Date().timeIntervalSince(startedAt)
-                    let retained = self.retainRaw(
-                        output.data, requestID: requestID, phase: .evolution,
-                        quality: quality.rawValue, providerSeconds: providerSeconds,
-                        purgeEpoch: purgeEpoch)
                     let recovery = EvolutionGenerationRecovery(
                         rawPNG: output.data, masterPNG: master,
                         sourceDataURI: candidate.sourceDataURI,
@@ -2770,7 +2971,16 @@ extension AppDelegate {
                         providerSeconds: providerSeconds, usage: output.usage,
                         candidateDraftID: candidateDraftID,
                         styleBoardUsed: style != nil, createdAt: Date())
+                    let checkpoint = self.localRecoveryCheckpoint(
+                        requestID: requestID, recovery: .evolution(recovery))
+                    let retained = self.retainRaw(
+                        output.data, requestID: requestID, phase: .evolution,
+                        quality: quality.rawValue, providerSeconds: providerSeconds,
+                        recovery: checkpoint, purgeEpoch: purgeEpoch)
                     self.pendingLocalRecoveries[requestID] = .evolution(recovery)
+                    _ = self.persistLocalRecovery(
+                        requestID: requestID, recovery: .evolution(recovery),
+                        outputRetained: retained)
                     self.processEvolutionGeneration(requestID: requestID,
                                                     recovery: recovery,
                                                     outputRetained: retained)
@@ -2836,7 +3046,7 @@ extension AppDelegate {
                         }
                     }
                     self.visibleEvolutionDraftID = requestID
-                    self.pendingLocalRecoveries.removeValue(forKey: requestID)
+                    self.clearLocalRecovery(requestID)
                     self.settingsCall("petEvolutionResult", [
                         "requestID": requestID,
                         "draftID": requestID,
@@ -2856,7 +3066,7 @@ extension AppDelegate {
                     self.announceStudioBackground(requestID, kind: "success", "三段伴灵图已经做好，打开设置可以预览或带回桌面。", "The three-form familiar is ready; open Settings to preview or install it.")
                 case .failure(let error):
                     let canRetry = !salvageNearEdge && self.canSalvageNearEdge(error)
-                    if !canRetry { self.pendingLocalRecoveries.removeValue(forKey: requestID) }
+                    if !canRetry { self.clearLocalRecovery(requestID) }
                     self.studioLocalError(
                         requestID: requestID, error: error, rawPNG: recovery.rawPNG,
                         providerSeconds: recovery.providerSeconds,
@@ -2906,11 +3116,6 @@ extension AppDelegate {
                                              startedAt: startedAt, phase: "replacement")
                 case .success(let output):
                     let providerSeconds = Date().timeIntervalSince(startedAt)
-                    let retained = self.retainRaw(
-                        output.data, requestID: requestID, phase: .replacement,
-                        quality: quality.rawValue,
-                        providerSeconds: providerSeconds,
-                        purgeEpoch: purgeEpoch)
                     let recovery = StageGenerationRecovery(
                         rawPNG: output.data, parentDraftID: parentDraftID,
                         stage: stage, quality: quality,
@@ -2918,7 +3123,17 @@ extension AppDelegate {
                         providerSeconds: providerSeconds,
                         usage: output.usage, styleBoardUsed: style != nil,
                         createdAt: Date())
+                    let checkpoint = self.localRecoveryCheckpoint(
+                        requestID: requestID, recovery: .replacement(recovery))
+                    let retained = self.retainRaw(
+                        output.data, requestID: requestID, phase: .replacement,
+                        quality: quality.rawValue,
+                        providerSeconds: providerSeconds, recovery: checkpoint,
+                        purgeEpoch: purgeEpoch)
                     self.pendingLocalRecoveries[requestID] = .replacement(recovery)
+                    _ = self.persistLocalRecovery(
+                        requestID: requestID, recovery: .replacement(recovery),
+                        outputRetained: retained)
                     self.processStageGeneration(requestID: requestID,
                                                 recovery: recovery,
                                                 outputRetained: retained)
@@ -2933,7 +3148,7 @@ extension AppDelegate {
                                         salvageNearEdge: Bool = false) {
         guard let parent = pendingEvolutionSheets[recovery.parentDraftID] else {
             activeStageParents.removeValue(forKey: requestID)
-            pendingLocalRecoveries.removeValue(forKey: requestID)
+            clearLocalRecovery(requestID)
             studioLocalError(
                 requestID: requestID,
                 error: PetGenerationError.provider("The evolution preview expired before the replacement could be merged."),
@@ -2972,7 +3187,7 @@ extension AppDelegate {
                             localSeconds: localSeconds)
                     }
                     guard var updated = self.pendingEvolutionSheets[recovery.parentDraftID] else {
-                        self.pendingLocalRecoveries.removeValue(forKey: requestID)
+                        self.clearLocalRecovery(requestID)
                         self.studioLocalError(
                             requestID: requestID,
                             error: PetGenerationError.provider("The evolution preview expired before the replacement could be merged."),
@@ -3005,7 +3220,7 @@ extension AppDelegate {
                     }
                     self.visibleEvolutionDraftID = recovery.parentDraftID
                     self.activeStageParents.removeValue(forKey: requestID)
-                    self.pendingLocalRecoveries.removeValue(forKey: requestID)
+                    self.clearLocalRecovery(requestID)
                     if recoveredNearEdge {
                         warnings.append([
                             "zh": "这个形态很靠近画布，但仍有完整边距；已用安全恢复模式提取。",
@@ -3039,7 +3254,7 @@ extension AppDelegate {
                     self.announceStudioBackground(requestID, kind: "success", "这一段已经重画完成，另外两段保持不变。", "That form is redrawn; the other two are unchanged.")
                 case .failure(let error):
                     let canRetry = !salvageNearEdge && self.canSalvageNearEdge(error)
-                    if !canRetry { self.pendingLocalRecoveries.removeValue(forKey: requestID) }
+                    if !canRetry { self.clearLocalRecovery(requestID) }
                     self.studioLocalError(
                         requestID: requestID, error: error, rawPNG: recovery.rawPNG,
                         providerSeconds: recovery.providerSeconds,
@@ -3636,9 +3851,10 @@ extension AppDelegate {
                 if let evolution = pendingEvolutionSheets.removeValue(forKey: id) {
                     for relatedID in evolution.relatedRequestIDs {
                         _ = try? generationDraftStore.delete(requestID: relatedID)
+                        clearLocalRecovery(relatedID)
                     }
                 }
-                pendingLocalRecoveries.removeValue(forKey: id)
+                clearLocalRecovery(id)
                 activeStageParents.removeValue(forKey: id)
                 backgroundStudioRequests.remove(id)
                 if visibleCandidateDraftID == id { visibleCandidateDraftID = nil }
@@ -3849,7 +4065,7 @@ extension AppDelegate {
                 visibleCandidateDraftID = nil
                 for relatedID in evolution.relatedRequestIDs {
                     pendingCandidateBoards.removeValue(forKey: relatedID)
-                    pendingLocalRecoveries.removeValue(forKey: relatedID)
+                    clearLocalRecovery(relatedID)
                     _ = try? generationDraftStore.delete(requestID: relatedID)
                 }
                 guard let characterID = spec["characterID"] as? String,
