@@ -11,6 +11,7 @@
   --line:#ddd5c8;--line-soft:#eee7dc;--accent:#8b563e;--accent-soft:#f2e8df;
   --building:#a9583d;--learning:#577d70;--communication:#99743e;
   --planning:#716c9b;--admin:#8a8176;--entertainment:#a36773;
+  --seal:#a03c2e;
   --shadow:0 1px 0 rgba(55,47,38,.025);--radius:20px;
 }
 *{box-sizing:border-box}
@@ -74,24 +75,49 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
 .journey-thread-label{color:var(--accent);font-size:9px;font-weight:750;white-space:nowrap}.journey-thread-route{min-width:0;display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none}.journey-thread-route::-webkit-scrollbar{display:none}.journey-route-step{--route:var(--admin);min-width:0;flex:none;display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border:0;border-radius:8px;background:color-mix(in srgb,var(--route),white 91%);color:var(--route);font:700 9px/1.3 inherit;white-space:nowrap}.journey-route-step span{max-width:160px;overflow:hidden;text-overflow:ellipsis}.journey-route-step .ui-icon{width:10px;height:10px}.journey-route-step.returning:before{content:"↩";font-weight:800}.journey-route-step:hover,.journey-route-step:focus-visible{outline:1px solid color-mix(in srgb,var(--route),white 45%);background:color-mix(in srgb,var(--route),white 86%)}.journey-route-arrow{flex:none;color:var(--line);font-size:10px}.journey-key{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:8px;white-space:nowrap}.journey-key span{display:inline-flex;align-items:center;gap:4px}.edge-key{display:inline-block;width:17px;height:0;border-top:1.5px solid #a99d90}.edge-key.return{border-top-style:dashed;border-color:var(--accent)}
 .journey-graph{position:relative;height:340px;border:1px solid var(--line-soft);border-radius:17px;background:radial-gradient(circle at 48% 38%,rgba(255,255,255,.98),rgba(251,247,239,.82) 72%);overflow:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .journey-scene{position:relative;height:100%;min-width:100%}
-.journey-links,.journey-clusters{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.journey-cluster{fill:color-mix(in srgb,var(--cluster),white 91%);stroke:color-mix(in srgb,var(--cluster),white 69%);stroke-width:1;stroke-dasharray:3 5;transition:opacity .18s}
-.journey-cluster-label{position:absolute;display:flex;align-items:center;gap:5px;border:0;border-radius:8px;padding:4px 6px;background:transparent;color:var(--cluster);font:700 9px/1.25 inherit;letter-spacing:.01em;white-space:nowrap;pointer-events:none;transition:opacity .16s,background .16s,box-shadow .16s}.journey-cluster-label>span{min-width:0;overflow:hidden;text-overflow:ellipsis}.journey-cluster-label small,.journey-cluster-meta{flex:none}.journey-cluster-label small{padding:1px 4px;border-radius:99px;background:color-mix(in srgb,var(--cluster),white 88%);font-size:7.5px}.journey-cluster-meta{color:var(--muted);font-weight:550}.cluster-edit-hint{position:absolute;right:5px;top:4px;opacity:0;padding-left:12px;background:linear-gradient(90deg,transparent,var(--paper-2) 28%);color:var(--muted);font-size:8px;font-weight:600;transition:opacity .16s}
-.journey-cluster-label .ui-icon{width:11px;height:11px}
-.journey-link{fill:none;stroke:#b8afa3;stroke-width:1.25;stroke-linecap:round;opacity:.44;transition:opacity .16s,stroke .16s,stroke-width .16s}
-.journey-link.return{stroke:var(--accent);stroke-dasharray:3 4;opacity:.28}
-.journey-link.topic-return{stroke:var(--learning);stroke-dasharray:1 5;stroke-width:1.7;opacity:.4}
-.journey-graph.has-hover .journey-link{opacity:.08}.journey-graph.has-hover .journey-link.related{opacity:.9;stroke:var(--edge-color,var(--accent));stroke-width:2.2}
-.journey-node{--category:var(--admin);--node-size:46px;position:absolute;width:var(--node-size);height:var(--node-size);padding:7px;border:1px solid color-mix(in srgb,var(--category),white 63%);border-radius:15px;background:rgba(255,253,248,.97);box-shadow:0 5px 14px rgba(65,52,39,.075);display:grid;place-items:center;transform:translate(-50%,-50%);transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .16s,border-color .16s,box-shadow .16s;z-index:2}
-.journey-node .identity-mark{width:28px;height:28px}.journey-node .identity-fallback{color:var(--category)}.journey-node .ui-icon{width:16px;height:16px}
-.journey-node:after{content:"";position:absolute;right:-3px;bottom:-3px;width:9px;height:9px;border-radius:50%;background:var(--category);border:2px solid var(--paper-2)}
-.journey-node:hover,.journey-node:focus-visible,.journey-node.selected{z-index:5;transform:translate(-50%,-50%) scale(1.13);border-color:var(--category);box-shadow:0 9px 22px color-mix(in srgb,var(--category),transparent 78%);outline:none}
-.journey-graph.has-hover .journey-node{opacity:.2}.journey-graph.has-hover .journey-node.related,.journey-graph.has-hover .journey-node.hovered{opacity:1}
-.journey-node.repeat:before{content:attr(data-return);position:absolute;top:-8px;right:-8px;min-width:17px;height:17px;padding:0 3px;border-radius:99px;background:var(--ink);color:white;font:650 8px/17px ui-monospace,SFMono-Regular,monospace;text-align:center;border:2px solid var(--paper-2)}
-.journey-node-label{position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);max-width:104px;color:var(--muted);font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.journey-node:hover .journey-node-label,.journey-node:focus-visible .journey-node-label,.journey-node.selected .journey-node-label{color:var(--ink)}
-.journey-graph.topic-layout .journey-cluster{fill:color-mix(in srgb,var(--cluster),white 94%);stroke:color-mix(in srgb,var(--cluster),white 72%);stroke-dasharray:none}.journey-graph.topic-layout .journey-cluster-label{pointer-events:auto;cursor:pointer}.journey-graph.topic-layout .journey-cluster-label:hover,.journey-graph.topic-layout .journey-cluster-label:focus-visible{outline:none;background:rgba(255,253,248,.92);box-shadow:0 0 0 1px color-mix(in srgb,var(--cluster),white 72%)}.journey-graph.topic-layout .journey-cluster-label:hover .cluster-edit-hint,.journey-graph.topic-layout .journey-cluster-label:focus-visible .cluster-edit-hint{opacity:1}.journey-graph.topic-layout .journey-link.sequence{opacity:0}.journey-graph.topic-layout .journey-node-label{opacity:.68;padding:2px 5px;border-radius:6px;background:rgba(255,253,248,.9);transition:opacity .15s}.journey-graph.topic-layout .journey-node:hover .journey-node-label,.journey-graph.topic-layout .journey-node:focus-visible .journey-node-label,.journey-graph.topic-layout .journey-node.selected .journey-node-label{opacity:1}.journey-graph.has-hover .journey-cluster-label{opacity:.2}.journey-graph.has-hover .journey-cluster-label.related{opacity:1}
-.journey-graph:not(.topic-layout) .journey-cluster-meta{display:none}
+.journey-scene>svg{position:absolute;inset:0;overflow:visible}
+.journey-graph.garden{overflow:hidden}
+.seal{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 3px;border-radius:4px;background:var(--seal);color:#fdf8f2;font:700 8px/1 ui-monospace,SFMono-Regular,monospace;transform:rotate(-3deg);box-shadow:0 1px 2px rgba(120,38,26,.25);flex:none}
+.stop-label{position:absolute;transform:translateX(-50%);max-width:150px;text-align:center;pointer-events:none;transition:opacity .18s}
+.stop-label b{display:block;font:600 12px/1.25 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-label>span{display:block;margin-top:1px;color:var(--muted);font-size:9px}
+.stop-label .seal{vertical-align:-3px;margin-left:4px}
+.stop-hit{position:absolute;width:44px;height:44px;transform:translate(-50%,-50%);border:0;background:transparent;border-radius:50%;padding:0;cursor:pointer}
+.stop-hit:focus-visible{outline:2px solid var(--accent);outline-offset:-8px}
+.scroll-rest{position:absolute;top:50%;transform:translate(-50%,-50%);color:var(--muted);font-size:9.5px;letter-spacing:.12em;writing-mode:vertical-rl;opacity:.8;pointer-events:none}
+.scroll-tick{position:absolute;bottom:8px;transform:translateX(-50%);color:var(--muted);font:500 9px ui-monospace,SFMono-Regular,monospace;opacity:.6;pointer-events:none}
+.scroll-cap{position:absolute;top:18px;color:var(--accent);font:600 10px/1.6 Georgia,"Songti SC",serif;letter-spacing:.14em;writing-mode:vertical-rl;pointer-events:none}
+.scroll-thread{stroke:var(--accent);stroke-width:1.1;fill:none;stroke-dasharray:2 5;opacity:0;transition:opacity .18s}
+.stop-dot,.ink-line{transition:opacity .16s}
+.journey-graph.dimmed .stop-dot,.journey-graph.dimmed .stop-label{opacity:.15}
+.journey-graph.dimmed .stop-dot.lit,.journey-graph.dimmed .stop-label.lit{opacity:1}
+.journey-graph.dimmed .ink-line{opacity:.13}
+.journey-graph.dimmed .scroll-thread.lit{opacity:.7}
+.journey-stone{position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center;text-align:center;border:0;background:transparent;padding:0;cursor:pointer;transition:opacity .2s,filter .2s}
+.stone-core{max-width:100%;padding:4px 10px;pointer-events:none}
+.journey-stone b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font:600 var(--stone-font,13px)/1.22 Georgia,"Songti SC",serif;letter-spacing:-.01em;overflow:hidden}
+.journey-stone .stone-meta{display:block;margin-top:2px;color:var(--muted);font-size:9.5px}
+.journey-stone .stone-visits{display:flex;gap:3px;justify-content:center;margin-top:4px}
+.journey-stone .stone-visits i{width:3.5px;height:3.5px;border-radius:50%;background:var(--category,var(--admin));opacity:.65}
+.journey-stone .stone-identity{display:block;width:20px;height:20px;margin:0 auto 3px}.journey-stone .stone-identity .ui-icon{width:13px;height:13px;color:var(--category,var(--admin))}
+.journey-stone .seal{position:absolute;top:9%;right:9%}
+.journey-stone:focus-visible{outline:none}
+.journey-stone.selected .stone-core,.journey-stone:focus-visible .stone-core{outline:1.5px solid color-mix(in srgb,var(--category,var(--admin)),white 30%);outline-offset:9px;border-radius:50%}
+.journey-graph.dimmed .journey-stone{opacity:.3;filter:saturate(.4)}
+.journey-graph.dimmed .journey-stone.lit{opacity:1;filter:none}
+.stone-trail{transition:opacity .18s}
+.journey-graph.dimmed .stone-trail{opacity:.06}
+.journey-graph.dimmed .stone-trail.lit{opacity:.6}
+.stone-rest{position:absolute;transform:translate(-50%,-50%);color:var(--muted);font-size:9px;letter-spacing:.1em;white-space:nowrap;background:rgba(250,247,240,.85);padding:2px 7px;border-radius:99px;border:1px dashed var(--line);pointer-events:none}
+.topic-detail{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;padding:9px 12px;border:1px solid var(--line-soft);border-radius:12px;background:linear-gradient(110deg,rgba(139,86,62,.045),rgba(87,125,112,.025));font-size:11px}
+.topic-detail[hidden]{display:none}
+.topic-detail b{font:600 13px/1.3 Georgia,"Songti SC",serif}
+.topic-detail .visit-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:0;border-radius:99px;background:color-mix(in srgb,var(--category,var(--accent)),white 90%);color:color-mix(in srgb,var(--category,var(--accent)),black 18%);font:600 10px ui-monospace,SFMono-Regular,monospace;cursor:pointer}
+.topic-detail .visit-chip:hover{background:color-mix(in srgb,var(--category,var(--accent)),white 82%)}
+.topic-detail .visit-arrow{color:var(--line);font-size:10px}
+.topic-detail .topic-edit{margin-left:auto;border:1px solid var(--line);border-radius:9px;background:var(--paper-2);padding:4px 8px;color:var(--accent);font-size:10px;white-space:nowrap}
+.topic-detail .topic-edit:hover{border-color:var(--accent);background:var(--accent-soft)}
+.half-hour-chapter.pinned{border-color:color-mix(in srgb,var(--category),white 32%);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--category),white 40%),0 8px 18px rgba(63,50,36,.075)}
 .journey-tooltip{position:absolute;z-index:8;min-width:190px;max-width:280px;padding:9px 11px;border:1px solid var(--line);border-radius:12px;background:rgba(255,253,248,.98);box-shadow:0 12px 30px rgba(54,43,31,.12);opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .15s,transform .15s}
 .journey-tooltip.visible{opacity:1;transform:none}.journey-tooltip b{display:block;font:600 13px/1.25 Georgia,"Songti SC",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.journey-tooltip span{display:block;margin-top:4px;color:var(--muted);font-size:9px}.journey-tooltip strong{color:var(--accent);font-weight:700}
 .journey-ribbon{display:flex;align-items:stretch;gap:5px;min-height:49px;position:relative;margin-top:9px;padding:1px 0 4px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}.journey-ribbon::-webkit-scrollbar{display:none}
@@ -281,6 +307,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px}
       </div>
       <div class="journey-thread" id="journeyThread" aria-live="polite"></div>
       <div class="journey-graph" id="journeyGraph" aria-label="今天的活动路径"></div>
+      <div class="topic-detail" id="topicDetail" hidden></div>
       <div class="journey-ribbon" id="journeyRibbon"></div>
       <div class="journey-preview" id="journeyPreview" aria-live="polite">
         <span class="journey-preview-kicker" id="journeyPreviewKicker">今天的一章</span>
@@ -354,7 +381,8 @@ let selectedHalfHourID='';
 let focusedLookingBackID='';
 let pinnedHalfHourID='';
 let draggedHalfHourID='';
-let journeyGraphNodes=[];
+let journeyModel=null;
+let selectedTopicID='';
 let journeyGraphLayout='topic';
 let editingClusterID='';
 const $=id=>document.getElementById(id);
@@ -495,55 +523,218 @@ function buildHalfHourChapters(source){
     activeSeconds=Math.min(1800,activeSeconds);const ranked=[...identities.values()].sort((a,b)=>b.seconds-a.seconds),categoryRank=[...categories.entries()].sort((a,b)=>b[1]-a[1]),category=categoryRank[0]?.[0]||'admin',primary=ranked[0],secondary=ranked[1],label=primary?`${primary.label}${secondary&&secondary.seconds/Math.max(1,activeSeconds)>=.28?` + ${secondary.label}`:''}`:tx('留白','Quiet');return{id:`half-${start}`,index:index+1,start:new Date(start).toISOString(),end:new Date(end).toISOString(),activeSeconds,quietSeconds:Math.max(0,1800-activeSeconds),segments,blocks:[...chapterBlocks.values()],blockIDs:[...chapterBlocks.keys()],category,label,representative:primary?.block||null,phase:phaseInfo(start),categorySeconds:categoryRank};
   });
 }
-function buildJourneyGraph(source,archive=state.journeyGraph){
+function buildJourneyModel(source,archive=state.journeyGraph){
   const blocks=[...(source||[])].filter(block=>Number.isFinite(new Date(block.start).getTime())&&Number.isFinite(new Date(block.end).getTime())).sort((a,b)=>new Date(a.start)-new Date(b.start)).slice(0,72);
-  if(!blocks.length)return{nodes:[],links:[],clusters:[],width:0,height:340};
-  const start=halfHourFloor(new Date(blocks[0].start).getTime()),end=Math.max(start+1800000,halfHourFloor(Math.max(...blocks.map(block=>new Date(block.end).getTime()))-1)+1800000);
-  const graph=$('journeyGraph'),timelineWidth=Math.max(graph?.clientWidth||900,Math.ceil((end-start)/1800000)*126),width=journeyGraphLayout==='topic'?Math.max(graph?.clientWidth||900,900):timelineWidth,laneIDs=categoryOrder.filter(category=>blocks.some(block=>block.category===category));
-  const laneY=new Map(laneIDs.map((category,index)=>[category,62+(laneIDs.length===1?86:index*(174/Math.max(1,laneIDs.length-1)))]));
-  const identityCounts=new Map(),lastIdentity=new Map();
-  const archivedNodes=new Map((archive?.nodes||[]).map(node=>[String(node.key),node.attributes||{}]));
-  const nodes=blocks.map((block,index)=>{const identity=flowBlockIdentity(block),begin=new Date(block.start).getTime(),finish=new Date(block.end).getTime(),mid=(begin+finish)/2,count=(identityCounts.get(identity.key)||0)+1;identityCounts.set(identity.key,count);const stored=archivedNodes.get(String(block.id)),occurrence=Number.isInteger(stored?.occurrence)?stored.occurrence:count;const baseY=laneY.get(block.category)||148,x=58+(mid-start)/Math.max(1,end-start)*(timelineWidth-116);const previous=blocks[index-1],previousMid=previous?(new Date(previous.start).getTime()+new Date(previous.end).getTime())/2:0,previousX=58+(previousMid-start)/Math.max(1,end-start)*(timelineWidth-116),close=index&&Math.abs(x-previousX)<58&&previous.category===block.category,duration=Math.max(1,Number(block.activeSeconds)||((finish-begin)/1000));return{key:String(block.id),index,block,identity,occurrence,clusterID:String(stored?.clusterID||''),size:Math.round(Math.max(42,Math.min(58,42+Math.log2(1+duration/60)*3.2))),x,y:baseY+(close?(index%2?17:-17):0),begin,finish,chapterID:`half-${halfHourFloor(begin)}`}});
-  const nodeIndex=new Map(nodes.map(node=>[node.key,node.index])),storedLinks=(archive?.edges||[]).map(edge=>({from:nodeIndex.get(String(edge.source)),to:nodeIndex.get(String(edge.target)),kind:['return','topic-return'].includes(edge.attributes?.kind)?edge.attributes.kind:'sequence'})).filter(edge=>Number.isInteger(edge.from)&&Number.isInteger(edge.to)&&edge.from!==edge.to);
-  const links=storedLinks.length?storedLinks:[];if(!storedLinks.length){for(let index=1;index<nodes.length;index++)links.push({from:index-1,to:index,kind:'sequence'});nodes.forEach(node=>{const previous=lastIdentity.get(node.identity.key);if(previous!==undefined&&previous!==node.index-1)links.push({from:previous,to:node.index,kind:'return'});lastIdentity.set(node.identity.key,node.index)})}
-  const storedClusters=(archive?.clusters||[]).map(cluster=>({id:String(cluster.id||''),category:cluster.category,label:cluster.label||categoryLabel(cluster.category),keywords:cluster.keywords||[],priorDayCount:Number(cluster.priorDayCount)||0,lastSeenAtMS:Number(cluster.lastSeenAtMS)||0,nodes:(cluster.nodeKeys||[]).map(key=>nodes[nodeIndex.get(String(key))]).filter(Boolean)})).filter(cluster=>cluster.nodes.length),clusters=storedClusters.length?storedClusters:[];if(!storedClusters.length){let current=null;nodes.forEach(node=>{const gap=current?node.begin-current.lastFinish:Infinity;if(!current||current.category!==node.block.category||gap>12*60000){current={id:`fallback-${clusters.length}`,category:node.block.category,label:node.block.title,keywords:[],priorDayCount:0,lastSeenAtMS:0,nodes:[node],lastFinish:node.finish};clusters.push(current)}else{current.nodes.push(node);current.lastFinish=Math.max(current.lastFinish,node.finish)}})}
-  clusters.forEach(cluster=>cluster.nodes.forEach(node=>{node.clusterID=cluster.id}));
-  let height=300;
-  if(journeyGraphLayout==='topic'){
-    const count=Math.max(1,clusters.length),columns=count<=3?count:count===4?2:count<=6?3:4,rows=Math.ceil(count/columns),inset=18,gap=16,cellWidth=(width-inset*2-gap*(columns-1))/columns,cellHeight=176;height=Math.max(340,inset*2+rows*cellHeight+gap*(rows-1));
-    clusters.forEach((cluster,clusterIndex)=>{const column=clusterIndex%columns,row=Math.floor(clusterIndex/columns),left=inset+column*(cellWidth+gap),top=inset+row*(cellHeight+gap),right=left+cellWidth,bottom=top+cellHeight,centerX=(left+right)/2,centerY=top+104;cluster.frame={left,top,right,bottom};const count=cluster.nodes.length;cluster.nodes.forEach((node,nodeIndex)=>{if(count===1){node.x=centerX;node.y=centerY;return}if(count===2){node.x=centerX+(nodeIndex?40:-40);node.y=centerY;return}if(count===3){const positions=[[-42,-23],[42,-23],[0,38]];node.x=centerX+positions[nodeIndex][0];node.y=centerY+positions[nodeIndex][1];return}if(count===4){node.x=centerX+(nodeIndex%2?40:-40);node.y=centerY+(nodeIndex<2?-28:31);return}const angle=Math.PI*2*nodeIndex/count-Math.PI/2,radiusX=Math.min(72,(cellWidth-74)/2),radiusY=42;node.x=centerX+Math.cos(angle)*radiusX;node.y=centerY+Math.sin(angle)*radiusY})})
+  if(!blocks.length)return{topics:[],stays:[],seq:[],total:0};
+  const clusterByBlock=new Map((archive?.nodes||[]).map(node=>[String(node.key),String(node.attributes?.clusterID||'')]));
+  const clusterInfo=new Map((archive?.clusters||[]).map(cluster=>[String(cluster.id||''),cluster]));
+  const topics=new Map(),assignments=[];
+  for(const block of blocks){
+    const identity=flowBlockIdentity(block);
+    let id=clusterByBlock.get(String(block.id))||'';
+    if(!clusterInfo.has(id))id=`local-${block.category}|${identity.key}`;
+    if(!topics.has(id)){
+      const stored=clusterInfo.get(id)||null;
+      topics.set(id,{id,archived:Boolean(stored),category:stored?.category||block.category,label:stored?.label||block.title,prior:Number(stored?.priorDayCount)||0,seconds:0,blocks:[],firstMS:Infinity,lastMS:0,rep:block,repSeconds:-1,visits:0});
+    }
+    const topic=topics.get(id),seconds=Math.max(0,Number(block.activeSeconds)||0);
+    topic.seconds+=seconds;topic.blocks.push(block);
+    topic.firstMS=Math.min(topic.firstMS,new Date(block.start).getTime());
+    topic.lastMS=Math.max(topic.lastMS,new Date(block.end).getTime());
+    if(seconds>topic.repSeconds){topic.rep=block;topic.repSeconds=seconds;if(!topic.archived)topic.label=block.title}
+    assignments.push({block,topicID:id,startMS:new Date(block.start).getTime(),endMS:new Date(block.end).getTime(),seconds});
   }
-  return{nodes,links,clusters,width,height};
+  const stays=[];
+  for(const item of assignments){
+    const last=stays[stays.length-1];
+    if(last&&last.topicID===item.topicID&&item.startMS-last.endMS<12*60000){
+      last.endMS=Math.max(last.endMS,item.endMS);last.seconds+=item.seconds;last.blocks.push(item.block);
+      if(item.seconds>last.repSeconds){last.rep=item.block;last.repSeconds=item.seconds}
+    }else stays.push({topicID:item.topicID,topic:topics.get(item.topicID),startMS:item.startMS,endMS:item.endMS,seconds:item.seconds,blocks:[item.block],rep:item.block,repSeconds:item.seconds});
+  }
+  const visitCount=new Map();
+  for(const stay of stays){const visit=(visitCount.get(stay.topicID)||0)+1;visitCount.set(stay.topicID,visit);stay.visit=visit;stay.chapterID=`half-${halfHourFloor(stay.startMS)}`}
+  for(const[id,count]of visitCount)topics.get(id).visits=count;
+  const seq=[];
+  stays.forEach((stay,index)=>{
+    if(index){const gap=stay.startMS-stays[index-1].endMS;if(gap>30*60000)seq.push({type:'rest',minutes:Math.round(gap/60000)})}
+    seq.push({type:'stay',stay});
+  });
+  return{topics:[...topics.values()],stays,seq,total:assignments.reduce((sum,item)=>sum+item.seconds,0)};
 }
-function journeyPath(from,to,kind){
-  if(kind==='return'||kind==='topic-return'){const lift=Math.max(24,Math.min(kind==='topic-return'?88:72,Math.abs(to.x-from.x)*.22));return`M ${from.x} ${from.y-17} C ${from.x} ${Math.min(from.y,to.y)-lift}, ${to.x} ${Math.min(from.y,to.y)-lift}, ${to.x} ${to.y-17}`}
-  const bend=Math.max(22,Math.abs(to.x-from.x)*.42);return`M ${from.x+18} ${from.y} C ${from.x+bend} ${from.y}, ${to.x-bend} ${to.y}, ${to.x-18} ${to.y}`;
+function topicOf(model,id){return model?.topics.find(topic=>topic.id===id)||null}
+const graphRng=seed=>{let hash=2166136261;for(const ch of String(seed))hash=(hash^ch.charCodeAt(0))*16777619>>>0;return()=>{hash^=hash<<13;hash^=hash>>>17;hash^=hash<<5;hash>>>=0;return(hash%1000)/1000}};
+function graphCurve(points){
+  if(points.length<2)return'';
+  let d=`M ${points[0][0]} ${points[0][1]}`;
+  for(let i=0;i<points.length-1;i++){
+    const p0=points[Math.max(0,i-1)],p1=points[i],p2=points[i+1],p3=points[Math.min(points.length-1,i+2)];
+    d+=` C ${p1[0]+(p2[0]-p0[0])/6} ${p1[1]+(p2[1]-p0[1])/6}, ${p2[0]-(p3[0]-p1[0])/6} ${p2[1]-(p3[1]-p1[1])/6}, ${p2[0]} ${p2[1]}`;
+  }
+  return d;
 }
-function journeyClusterRuns(cluster){
-  if(journeyGraphLayout==='topic')return[cluster];const ordered=[...cluster.nodes].sort((a,b)=>a.index-b.index),runs=[];ordered.forEach(node=>{const run=runs[runs.length-1];if(!run||node.index-run.nodes[run.nodes.length-1].index>1)runs.push({...cluster,nodes:[node],showLabel:runs.length===0});else run.nodes.push(node)});return runs
+function stoneBlobPath(cx,cy,r,seed){
+  const random=graphRng(seed),count=9,points=[];
+  for(let i=0;i<count;i++){const angle=Math.PI*2*i/count,radius=r*(0.88+random()*.24);points.push([cx+Math.cos(angle)*radius*1.18,cy+Math.sin(angle)*radius])}
+  points.push(points[0],points[1]);
+  return graphCurve(points)+' Z';
 }
-function journeyThreadSteps(built){
-  const clusters=new Map(built.clusters.map(cluster=>[cluster.id,cluster])),seen=new Set(),steps=[];let prior='';built.nodes.forEach(node=>{if(!node.clusterID||node.clusterID===prior)return;const cluster=clusters.get(node.clusterID);if(!cluster)return;steps.push({cluster,nodeIndex:node.index,returning:seen.has(cluster.id)});seen.add(cluster.id);prior=cluster.id});return steps
-}
-function renderJourneyThread(built){
-  const host=$('journeyThread');if(!host)return;const steps=journeyThreadSteps(built);if(!steps.length){host.innerHTML='';return}const route=steps.map((step,index)=>`${index?'<span class="journey-route-arrow">→</span>':''}<button type="button" class="journey-route-step ${step.returning?'returning':''}" data-thread-node="${step.nodeIndex}" style="--route:${colors[step.cluster.category]||colors.admin}">${uiIcon(categoryIcon(step.cluster.category))}<span>${esc(step.cluster.label)}</span></button>`).join('');host.innerHTML=`<span class="journey-thread-label">${tx('今日主线','TODAY’S THREAD')}</span><span class="journey-thread-route">${route}</span><span class="journey-key"><span><i class="edge-key"></i>${tx('接着做','next')}</span><span><i class="edge-key return"></i>${tx('回到旧主题','returned')}</span></span>`
+function renderJourneyThread(model){
+  const host=$('journeyThread');if(!host)return;
+  const seen=new Set(),steps=[];let prior='';
+  (model?.stays||[]).forEach(stay=>{if(stay.topicID===prior)return;steps.push({topic:stay.topic,returning:seen.has(stay.topicID)});seen.add(stay.topicID);prior=stay.topicID});
+  if(!steps.length){host.innerHTML='';return}
+  const route=steps.map((step,index)=>`${index?'<span class="journey-route-arrow">→</span>':''}<button type="button" class="journey-route-step ${step.returning?'returning':''}" data-thread-topic="${esc(step.topic.id)}" style="--route:${colors[step.topic.category]||colors.admin}">${uiIcon(categoryIcon(step.topic.category))}<span>${esc(step.topic.label)}</span></button>`).join('');
+  host.innerHTML=`<span class="journey-thread-label">${tx('今日主线','TODAY’S THREAD')}</span><span class="journey-thread-route">${route}</span><span class="journey-key"><span><i class="edge-key"></i>${tx('接着做','next')}</span><span><i class="edge-key return"></i>${tx('回到旧主题','returned')}</span></span>`;
 }
 function renderJourneyGraph(){
-  const graph=$('journeyGraph'),built=buildJourneyGraph(state.activityBlocks||[]);journeyGraphNodes=built.nodes;if(!graph)return;graph.classList.toggle('topic-layout',journeyGraphLayout==='topic');graph.style.height=`${built.height}px`;renderJourneyThread(built);
-  if(!built.nodes.length){graph.innerHTML=`<div class="empty" style="margin:52px 18px">${uiIcon('flow')}<strong>${tx('路径会从第一段活动长出来','Your path will grow from the first activity')}</strong></div>`;return}
-  const runs=built.clusters.flatMap(journeyClusterRuns);const clusterSVG=runs.map((cluster,index)=>{const xs=cluster.nodes.map(node=>node.x),ys=cluster.nodes.map(node=>node.y),preset=journeyGraphLayout==='topic'?cluster.frame:null,left=preset?.left??Math.max(12,Math.min(...xs)-36),right=preset?.right??Math.min(built.width-12,Math.max(...xs)+36),top=preset?.top??Math.max(12,Math.min(...ys)-35),bottom=preset?.bottom??Math.min(built.height-14,Math.max(...ys)+35);cluster.frame={left,top,right,bottom};return`<rect class="journey-cluster" data-cluster="${index}" style="--cluster:${colors[cluster.category]||colors.admin}" x="${left}" y="${top}" width="${right-left}" height="${bottom-top}" rx="24"/>`}).join('');
-  const paths=built.links.map((link,index)=>{const from=built.nodes[link.from],to=built.nodes[link.to],color=colors[to.block.category]||colors.admin;return`<path class="journey-link ${link.kind}" data-edge="${index}" data-from="${link.from}" data-to="${link.to}" style="--edge-color:${color}" d="${journeyPath(from,to,link.kind)}"/>`}).join('');
-  const labels=runs.map(cluster=>{if(cluster.showLabel===false)return'';const seconds=cluster.nodes.reduce((sum,node)=>sum+(Number(node.block.activeSeconds)||0),0),topic=journeyGraphLayout==='topic',left=cluster.frame.left+12,top=topic?cluster.frame.top+11:Math.max(3,cluster.frame.top-22),edit=topic?` data-edit-cluster="${esc(cluster.id)}"`:'';return`<button type="button" class="journey-cluster-label" data-cluster-label="${esc(cluster.id)}"${edit} tabindex="${topic?'0':'-1'}" style="--cluster:${colors[cluster.category]||colors.admin};left:${left}px;top:${top}px;max-width:${Math.max(120,cluster.frame.right-cluster.frame.left-24)}px" aria-label="${esc(tx(`整理主题 ${cluster.label}`,`Organize topic ${cluster.label}`))}">${uiIcon(categoryIcon(cluster.category))}<span>${esc(cluster.label)}</span><span class="journey-cluster-meta">${fmtDuration(seconds)} · ${cluster.nodes.length}${tx('段',' moments')}</span>${cluster.priorDayCount?`<small>↺ ${cluster.priorDayCount}${tx('天','d')}</small>`:''}${topic?`<span class="cluster-edit-hint">${tx('整理','edit')}</span>`:''}</button>`}).join('');
-  const nodeHTML=built.nodes.map(node=>{const repeated=node.occurrence>1,matching=activeCategory==='all'||node.block.category===activeCategory;return`<button type="button" class="journey-node ${repeated?'repeat':''} ${matching?'':'muted'}" data-graph-node="${node.index}" data-cluster-id="${esc(node.clusterID)}" data-block="${esc(node.block.id)}" data-half-hour="${esc(node.chapterID)}" data-return="${repeated?`↩${node.occurrence}`:''}" style="--category:${colors[node.block.category]||colors.admin};--node-size:${node.size}px;left:${node.x}px;top:${node.y}px" aria-label="${esc(node.identity.label)} · ${fmtTime(node.block.start)} · ${fmtDuration(node.block.activeSeconds)}">${identityIcon(node.block,categoryIcon(node.block.category))}<span class="journey-node-label">${esc(node.identity.label)}</span></button>`}).join('');
-  graph.innerHTML=`<div class="journey-scene" style="width:${built.width}px;height:${built.height}px"><svg class="journey-links" viewBox="0 0 ${built.width} ${built.height}" preserveAspectRatio="none">${clusterSVG}${paths}</svg>${labels}${nodeHTML}<div class="journey-tooltip" id="journeyTooltip"></div></div>`;activateIdentityIcons();
+  const graph=$('journeyGraph');if(!graph)return;
+  journeyModel=buildJourneyModel(state.activityBlocks||[]);
+  const topicMode=journeyGraphLayout==='topic';
+  graph.classList.toggle('garden',topicMode);
+  graph.classList.remove('dimmed');
+  renderJourneyThread(journeyModel);
+  if(!journeyModel.stays.length){
+    selectedTopicID='';renderTopicDetail();
+    graph.style.height='340px';
+    graph.innerHTML=`<div class="empty" style="margin:52px 18px">${uiIcon('flow')}<strong>${tx('路径会从第一段活动长出来','Your path will grow from the first activity')}</strong></div>`;
+    return;
+  }
+  if(topicMode)renderTopicGarden(graph,journeyModel);
+  else{selectedTopicID='';renderScrollJourney(graph,journeyModel)}
+  renderTopicDetail();
+  activateIdentityIcons();
 }
-function setJourneyGraphHover(rawIndex){
-  const graph=$('journeyGraph'),index=Number(rawIndex),node=journeyGraphNodes[index];if(!graph||!node)return;graph.classList.add('has-hover');
-  const related=new Set([index]);journeyGraphNodes.forEach(item=>{if(item.clusterID&&item.clusterID===node.clusterID)related.add(item.index)});graph.querySelectorAll('.journey-link').forEach(path=>{const hit=Number(path.dataset.from)===index||Number(path.dataset.to)===index;path.classList.toggle('related',hit);if(hit){related.add(Number(path.dataset.from));related.add(Number(path.dataset.to))}});graph.querySelectorAll('[data-graph-node]').forEach(button=>{const value=Number(button.dataset.graphNode);button.classList.toggle('hovered',value===index);button.classList.toggle('related',related.has(value))});graph.querySelectorAll('[data-cluster-label]').forEach(label=>label.classList.toggle('related',label.dataset.clusterLabel===node.clusterID));
-  const tooltip=$('journeyTooltip');if(!tooltip)return;const button=graph.querySelector(`[data-graph-node="${index}"]`),scene=button?.offsetParent,cluster=(state.journeyGraph?.clusters||[]).find(item=>String(item.id||'')===node.clusterID);if(!button||!scene)return;const topic=cluster?.label&&cluster.label!==node.block.title?` · ${esc(cluster.label)}`:'',history=Number(cluster?.priorDayCount)||0;tooltip.innerHTML=`<b>${esc(node.block.title)}</b><span><strong>${fmtTime(node.block.start)}—${fmtTime(node.block.end)}</strong>${topic} · ${fmtDuration(node.block.activeSeconds)}${history?` · ${tx(`过去 ${history} 天也来过`,`seen on ${history} earlier day(s)`)}`:''}${node.occurrence>1?` · ${tx(`第 ${node.occurrence} 次回到这里`,`return ${node.occurrence}`)}`:''}</span>`;tooltip.style.left=`${Math.max(10,Math.min(builtNumber(scene.clientWidth)-290,button.offsetLeft+28))}px`;tooltip.style.top=`${Math.max(10,Math.min(210,button.offsetTop-64))}px`;tooltip.classList.add('visible');
+function renderTopicGarden(graph,model){
+  const width=Math.max(320,graph.clientWidth-2),pad=34;
+  const topics=[...model.topics].sort((a,b)=>a.firstMS-b.firstMS);
+  if(!topics.some(topic=>topic.id===selectedTopicID))selectedTopicID='';
+  topics.forEach(topic=>{topic.r=Math.max(34,Math.min(92,13*Math.sqrt(Math.max(60,topic.seconds)/60)))});
+  let x=pad,rowTop=pad,rowMax=0,placedAny=false;
+  for(const topic of topics){
+    const d=topic.r*2.36;
+    if(x+d>width-pad&&placedAny){x=pad;rowTop+=rowMax+34;rowMax=0}
+    const jitter=graphRng('pos'+topic.id);
+    topic.cx=x+d/2+(jitter()-.5)*6;topic.cy=rowTop+topic.r+(jitter()-.5)*8;
+    x+=d+38;rowMax=Math.max(rowMax,topic.r*2+18);placedAny=true;
+  }
+  const height=Math.max(300,rowTop+rowMax+pad);
+  const points=model.seq.filter(item=>item.type==='stay').map(item=>{const topic=item.stay.topic,jitter=graphRng('t'+item.stay.startMS);return{x:topic.cx+(jitter()-.5)*topic.r*.9,y:topic.cy+(jitter()-.5)*topic.r*.7,id:topic.id}});
+  const restAfter=[];let cursor=0;
+  model.seq.forEach(item=>{if(item.type==='rest')restAfter.push({index:cursor-1,minutes:item.minutes});else cursor++});
+  const trails=[];
+  for(let i=0;i<points.length-1;i++){
+    const broken=restAfter.some(rest=>rest.index===i);
+    trails.push(`<path class="stone-trail" data-trail="${esc(points[i].id)}|${esc(points[i+1].id)}" d="${graphCurve([[points[i].x,points[i].y],[(points[i].x+points[i+1].x)/2,(points[i].y+points[i+1].y)/2-14],[points[i+1].x,points[i+1].y]])}" fill="none" stroke="#8b563e" stroke-width="1" stroke-dasharray="${broken?'1 9':'1 5'}" opacity="${broken?.14:.26}" stroke-linecap="round"/>`);
+  }
+  const rests=restAfter.map(rest=>{const a=points[rest.index],b=points[rest.index+1];if(!a||!b)return'';return`<span class="stone-rest" style="left:${(a.x+b.x)/2}px;top:${Math.max(16,(a.y+b.y)/2-34)}px">${tx('休','rest')} · ${fmtDuration(rest.minutes*60)}</span>`}).join('');
+  const blobs=topics.map(topic=>{const color=colors[topic.category]||colors.admin,path=stoneBlobPath(topic.cx,topic.cy,topic.r,'blob'+topic.id);return`<path d="${path}" fill="${color}" opacity=".13"/><path d="${path}" fill="none" stroke="${color}" stroke-width="1.2" opacity=".38"/>`}).join('');
+  const stones=topics.map(topic=>{
+    const fontSize=topic.r>=76?15:topic.r>=54?13.5:12;
+    const visits=topic.visits>1?`<span class="stone-visits">${Array.from({length:Math.min(topic.visits,6)},()=>'<i></i>').join('')}</span>`:'';
+    const seal=topic.prior?`<span class="seal">↺${topic.prior}</span>`:'';
+    const meta=`${fmtDuration(topic.seconds)} · ${fmtTime(topic.firstMS)}${topic.visits>1?` · ${tx(`${topic.visits}次`,`${topic.visits}×`)}`:''}`;
+    return`<button type="button" class="journey-stone ${selectedTopicID===topic.id?'selected':''}" data-stone="${esc(topic.id)}" style="--category:${colors[topic.category]||colors.admin};--stone-font:${fontSize}px;left:${topic.cx}px;top:${topic.cy}px;width:${topic.r*2.3}px;height:${topic.r*2}px" aria-label="${esc(topic.label)} · ${fmtDuration(topic.seconds)}">${seal}<span class="stone-core"><span class="stone-identity">${identityIcon(topic.rep,categoryIcon(topic.category))}</span><b>${esc(topic.label)}</b><span class="stone-meta">${meta}</span>${visits}</span></button>`;
+  }).join('');
+  graph.style.height=`${height}px`;
+  graph.__stops=[];
+  graph.innerHTML=`<div class="journey-scene" style="width:${width}px;height:${height}px"><svg width="${width}" height="${height}">${blobs}${trails.join('')}</svg>${rests}${stones}</div>`;
 }
-const builtNumber=value=>Math.max(0,Number(value)||0);
-function clearJourneyGraphHover(){const graph=$('journeyGraph');if(!graph)return;graph.classList.remove('has-hover');graph.querySelectorAll('.related,.hovered').forEach(item=>item.classList.remove('related','hovered'));$('journeyTooltip')?.classList.remove('visible')}
+function renderScrollJourney(graph,model){
+  const height=320,laneIDs=categoryOrder.filter(category=>model.topics.some(topic=>topic.category===category));
+  const laneY=new Map(laneIDs.map((category,index)=>[category,86+(laneIDs.length===1?70:index*(150/Math.max(1,laneIDs.length-1)))]));
+  const items=[];let x=92;
+  for(const item of model.seq){
+    if(item.type==='rest'){items.push({type:'rest',x:x+30,minutes:item.minutes});x+=78;continue}
+    const w=Math.max(58,Math.min(190,34+item.stay.seconds/60*2.1));
+    items.push({type:'stay',stay:item.stay,x:x+w/2});x+=w;
+  }
+  const width=Math.max(x+110,graph.clientWidth-2);
+  let stopIndex=0;
+  const stops=items.filter(item=>item.type==='stay').map(item=>{const jitter=graphRng('y'+item.stay.topicID+item.stay.visit);return{...item,index:stopIndex++,y:(laneY.get(item.stay.topic.category)||150)+(jitter()-.5)*14}});
+  const segs=[];let currentSeg=[];
+  for(const item of items){
+    if(item.type==='rest'){if(currentSeg.length)segs.push(currentSeg);currentSeg=[]}
+    else currentSeg.push(stops.find(stop=>stop.stay===item.stay));
+  }
+  if(currentSeg.length)segs.push(currentSeg);
+  const ink=segs.map(seg=>`<path class="ink-line" d="${graphCurve(seg.map(stop=>[stop.x,stop.y]))}" fill="none" stroke="#302d29" stroke-width="1.5" opacity=".5" stroke-linecap="round"/>`).join('');
+  const bridges=segs.map((seg,index)=>{if(!index)return'';const a=segs[index-1][segs[index-1].length-1],b=seg[0];return`<path class="ink-line" d="M ${a.x+8} ${a.y} C ${(a.x+b.x)/2} ${Math.min(a.y,b.y)-26}, ${(a.x+b.x)/2} ${Math.min(a.y,b.y)-26}, ${b.x-8} ${b.y}" fill="none" stroke="#b8afa3" stroke-width="1.1" stroke-dasharray="1 6" opacity=".7" stroke-linecap="round"/>`}).join('');
+  const dots=stops.map(stop=>{
+    const radius=3+Math.min(8.5,stop.stay.seconds/60*.16),color=colors[stop.stay.topic.category]||colors.admin;
+    const wash=stop.stay.seconds>=25*60?`<circle class="stop-dot" data-dot="${stop.index}" cx="${stop.x}" cy="${stop.y}" r="${radius*2.6}" fill="${color}" opacity=".1"/>`:'';
+    const ring=stop.stay.visit>1?`<circle class="stop-dot" data-dot="${stop.index}" cx="${stop.x}" cy="${stop.y}" r="${radius+3.5}" fill="none" stroke="${color}" stroke-width="1" opacity=".5" stroke-dasharray="2 3"/>`:'';
+    return`${wash}${ring}<circle class="stop-dot" data-dot="${stop.index}" cx="${stop.x}" cy="${stop.y}" r="${radius}" fill="${color}" opacity=".92"/>`;
+  }).join('');
+  const byTopic=new Map();
+  stops.forEach(stop=>{if(!byTopic.has(stop.stay.topicID))byTopic.set(stop.stay.topicID,[]);byTopic.get(stop.stay.topicID).push(stop)});
+  const threads=[...byTopic.entries()].filter(([,group])=>group.length>1).map(([id,group])=>`<path class="scroll-thread" data-thread="${esc(id)}" d="${group.map((stop,index)=>`${index?'L':'M'} ${stop.x} ${stop.y}`).join(' ')}"/>`).join('');
+  const tierEnd={above:[-1e9,-1e9],below:[-1e9,-1e9]};
+  const stopLabels=stops.map(stop=>{
+    if(stop.stay.seconds<8*60&&stop.stay.visit>1)return'';
+    const text=stop.stay.visit>1?stop.stay.topic.label:stop.stay.rep.title;
+    const labelWidth=Math.min(150,18+text.length*13);
+    const side=stop.y>=170?'above':'below',tiers=tierEnd[side];
+    let tier=0;
+    if(stop.x-labelWidth/2<tiers[0]+10){tier=1;if(stop.x-labelWidth/2<tiers[1]+10){if(stop.stay.seconds<15*60)return'';tier=tiers[0]<=tiers[1]?0:1}}
+    tiers[tier]=stop.x+labelWidth/2;
+    const y=side==='above'?stop.y-(tier?76:47):stop.y+(tier?46:16);
+    const seal=(stop.stay.visit===1&&stop.stay.topic.prior)?`<span class="seal">↺${stop.stay.topic.prior}</span>`:'';
+    const again=stop.stay.visit>1?` · ${tx('又来','again')}`:'';
+    return`<span class="stop-label" data-stoplab="${stop.index}" style="left:${stop.x}px;top:${y}px"><b>${esc(text)}</b><span>${fmtDuration(stop.stay.seconds)}${again}${seal}</span></span>`;
+  }).join('');
+  const rests=items.filter(item=>item.type==='rest').map(item=>`<span class="scroll-rest" style="left:${item.x}px">${tx('休','rest')} · ${fmtDuration(item.minutes*60)}</span>`).join('');
+  let lastHour=-1;
+  const ticks=stops.map(stop=>{const hour=new Date(stop.stay.startMS).getHours();if(hour===lastHour)return'';lastHour=hour;return`<span class="scroll-tick" style="left:${stop.x}px">${String(hour).padStart(2,'0')}:00</span>`}).join('');
+  const caps=`<span class="scroll-cap" style="left:26px">${tx('起','from')} · ${fmtTime(model.stays[0].startMS)}</span><span class="scroll-cap" style="left:${width-40}px">${tx('止','to')} · ${fmtTime(model.stays[model.stays.length-1].endMS)}</span>`;
+  const hits=stops.map(stop=>`<button type="button" class="stop-hit" data-stop="${stop.index}" data-topic="${esc(stop.stay.topicID)}" style="left:${stop.x}px;top:${stop.y}px" aria-label="${esc(stop.stay.rep.title)} · ${fmtTime(stop.stay.startMS)} · ${fmtDuration(stop.stay.seconds)}"></button>`).join('');
+  graph.style.height=`${height}px`;
+  graph.__stops=stops;
+  graph.innerHTML=`<div class="journey-scene" style="width:${width}px;height:${height}px"><svg width="${width}" height="${height}">${threads}${ink}${bridges}${dots}</svg>${stopLabels}${rests}${ticks}${caps}${hits}<div class="journey-tooltip" id="journeyTooltip"></div></div>`;
+}
+function renderTopicDetail(){
+  const host=$('topicDetail');if(!host)return;
+  const topic=journeyGraphLayout==='topic'?topicOf(journeyModel,selectedTopicID):null;
+  if(!topic){host.hidden=true;host.innerHTML='';return}
+  const visits=(journeyModel?.stays||[]).filter(stay=>stay.topicID===topic.id);
+  const chips=visits.map((stay,index)=>`${index?'<span class="visit-arrow">→</span>':''}<button type="button" class="visit-chip" data-visit-block="${esc(stay.rep.id)}" data-visit-chapter="${esc(stay.chapterID)}">${fmtTime(stay.startMS)} · ${fmtDuration(stay.seconds)}</button>`).join('');
+  const prior=topic.prior?`<span class="seal">↺${topic.prior}</span><span style="color:var(--muted)">${tx(`前 ${topic.prior} 天也在这里`,`also here on ${topic.prior} earlier day(s)`)}</span>`:'';
+  const edit=topic.archived?`<button type="button" class="topic-edit" data-edit-cluster="${esc(topic.id)}">${tx('整理这个主题','Organize topic')}</button>`:'';
+  host.style.setProperty('--category',colors[topic.category]||colors.admin);
+  host.innerHTML=`<b>${esc(topic.label)}</b><span style="color:var(--muted)">${fmtDuration(topic.seconds)} · ${tx(`来了 ${visits.length} 次`,`${visits.length} visit(s)`)}</span>${chips}${prior}${edit}`;
+  host.hidden=false;
+}
+function setJourneyGraphHover(topicID,stopIndex=null){
+  const graph=$('journeyGraph');if(!graph||!topicID)return;
+  graph.classList.add('dimmed');
+  graph.querySelectorAll('.scroll-thread').forEach(thread=>thread.classList.toggle('lit',thread.dataset.thread===topicID));
+  graph.querySelectorAll('.journey-stone').forEach(stone=>stone.classList.toggle('lit',stone.dataset.stone===topicID));
+  graph.querySelectorAll('.stone-trail').forEach(trail=>trail.classList.toggle('lit',trail.dataset.trail.split('|').includes(topicID)));
+  const stops=graph.__stops||[];
+  stops.forEach(stop=>{
+    const on=stop.stay.topicID===topicID;
+    graph.querySelectorAll(`[data-dot="${stop.index}"]`).forEach(dot=>dot.classList.toggle('lit',on));
+    graph.querySelector(`[data-stoplab="${stop.index}"]`)?.classList.toggle('lit',on);
+  });
+  const tooltip=$('journeyTooltip');
+  if(tooltip&&stopIndex!==null){
+    const stop=stops[Number(stopIndex)];
+    if(stop){
+      const topic=stop.stay.topic,topicNote=topic.label&&topic.label!==stop.stay.rep.title?` · ${esc(topic.label)}`:'';
+      tooltip.innerHTML=`<b>${esc(stop.stay.rep.title)}</b><span><strong>${fmtTime(stop.stay.startMS)}—${fmtTime(stop.stay.endMS)}</strong>${topicNote} · ${fmtDuration(stop.stay.seconds)}${topic.prior?` · ${tx(`过去 ${topic.prior} 天也来过`,`seen on ${topic.prior} earlier day(s)`)}`:''}${stop.stay.visit>1?` · ${tx(`第 ${stop.stay.visit} 次回到这里`,`return ${stop.stay.visit}`)}`:''}</span>`;
+      tooltip.style.left=`${Math.max(10,stop.x-90)}px`;
+      tooltip.style.top=`${Math.max(10,stop.y-92)}px`;
+      tooltip.classList.add('visible');
+    }
+  }
+}
+function clearJourneyGraphHover(){
+  const graph=$('journeyGraph');if(!graph)return;
+  graph.classList.remove('dimmed');
+  graph.querySelectorAll('.lit').forEach(item=>item.classList.remove('lit'));
+  $('journeyTooltip')?.classList.remove('visible');
+}
+function syncPinnedChapterClass(){document.querySelectorAll('.half-hour-chapter').forEach(item=>item.classList.toggle('pinned',item.dataset.halfHour===pinnedHalfHourID))}
 function openTopicEditor(clusterID){
   const clusters=state.journeyGraph?.clusters||[],cluster=clusters.find(item=>String(item.id||'')===String(clusterID||''));if(!cluster)return;
   editingClusterID=String(cluster.id);$('topicLabel').value=cluster.label||'';
@@ -566,11 +757,12 @@ function updateJourneyPreview(chapterID,kicker='',persist=false){
   preview.classList.remove('updated');void preview.offsetWidth;preview.classList.add('updated');
 }
 function renderJourneyRibbon(){
-  const blocks=state.activityBlocks||[];halfHourChapters.length=0;halfHourChapters.push(...buildHalfHourChapters(blocks));const topicCount=buildJourneyGraph(blocks).clusters.length;$('journeyClusterCount').textContent=halfHourChapters.length?tx(`${halfHourChapters.length} 格 · ${topicCount} 个主题`,`${halfHourChapters.length} slots · ${topicCount} topics`):'';
+  const blocks=state.activityBlocks||[];halfHourChapters.length=0;halfHourChapters.push(...buildHalfHourChapters(blocks));
   renderJourneyGraph();
+  const topicCount=journeyModel?.topics.length||0;$('journeyClusterCount').textContent=halfHourChapters.length?tx(`${halfHourChapters.length} 格 · ${topicCount} 个主题`,`${halfHourChapters.length} slots · ${topicCount} topics`):'';
   if(!blocks.length){selectedHalfHourID='';pinnedHalfHourID='';$('journeyRibbon').innerHTML='';$('journeyPreview').dataset.chapter='';$('journeyPreview').dataset.block='';$('journeyPreviewKicker').textContent=tx('等第一笔','Waiting for the first note');$('journeyPreviewTitle').textContent=tx('今天还在展开','The day is still unfolding');$('journeyPreviewMeta').textContent=tx('工作、阅读或走神，也都是一天的一部分。','Work, reading, and wandering all belong to the day.');$('journeyAsk').disabled=true;$('journeyPin').disabled=true;return}
   $('journeyRibbon').innerHTML=halfHourChapters.map(chapter=>{const matching=activeCategory==='all'||chapter.segments.some(segment=>segment.category===activeCategory),segments=chapter.segments.map(segment=>`<i class="chapter-segment ${activeCategory!=='all'&&segment.category!==activeCategory?'filtered':''}" style="--segment:${colors[segment.category]||colors.admin};left:${segment.left}%;width:${segment.width}%" title="${esc(segment.block.title)} · ${fmtDuration(segment.seconds)}"></i>`).join(''),quiet=!chapter.activeSeconds,openLabel=quiet?tx('空白','open'):chapter.quietSeconds>=60?`${tx('留白','open')} ${fmtDuration(chapter.quietSeconds)}`:categoryLabel(chapter.category);return `<button type="button" draggable="true" class="half-hour-chapter ${quiet?'quiet':''} ${matching?'':'muted'}" data-half-hour="${esc(chapter.id)}" data-chapter-blocks="${esc(chapter.blockIDs.join(','))}" style="--category:${colors[chapter.category]||colors.admin}" aria-label="${fmtTime(chapter.start)}—${fmtTime(chapter.end)} · ${esc(chapter.label)}"><span class="chapter-top"><span class="chapter-clock">${fmtTime(chapter.start)}</span><span class="chapter-used">${quiet?tx('留白','quiet'):fmtDuration(chapter.activeSeconds)}</span></span><span class="chapter-main"><span class="chapter-identity">${chapter.representative?identityIcon(chapter.representative,categoryIcon(chapter.category)):uiIcon('time')}</span><strong class="chapter-label">${esc(chapter.label)}</strong></span><span class="chapter-track">${segments}</span><span class="chapter-foot"><span>${fmtTime(chapter.start)}—${fmtTime(chapter.end)}</span><span>${esc(openLabel)}</span></span></button>`}).join('');
-  const score=chapter=>activeCategory==='all'?chapter.activeSeconds:chapter.segments.filter(segment=>segment.category===activeCategory).reduce((sum,segment)=>sum+segment.seconds,0),candidates=halfHourChapters.filter(chapter=>score(chapter)>0),featured=(candidates.length?candidates:halfHourChapters).reduce((best,chapter)=>score(chapter)>score(best)?chapter:best,(candidates.length?candidates:halfHourChapters)[0]);if(!halfHourChapters.some(chapter=>chapter.id===selectedHalfHourID))selectedHalfHourID=featured.id;updateJourneyPreview(selectedHalfHourID,tx('今天最满的一格','Fullest half-hour'),true);activateIdentityIcons();
+  const score=chapter=>activeCategory==='all'?chapter.activeSeconds:chapter.segments.filter(segment=>segment.category===activeCategory).reduce((sum,segment)=>sum+segment.seconds,0),candidates=halfHourChapters.filter(chapter=>score(chapter)>0),featured=(candidates.length?candidates:halfHourChapters).reduce((best,chapter)=>score(chapter)>score(best)?chapter:best,(candidates.length?candidates:halfHourChapters)[0]);if(!halfHourChapters.some(chapter=>chapter.id===selectedHalfHourID))selectedHalfHourID=featured.id;updateJourneyPreview(selectedHalfHourID,tx('今天最满的一格','Fullest half-hour'),true);syncPinnedChapterClass();activateIdentityIcons();
 }
 function pinnedHalfHour(){return halfHourChapters.find(item=>item.id===pinnedHalfHourID)||null}
 function renderPinnedRange(){
@@ -589,9 +781,9 @@ function blocksForPinnedRange(){
   return source.map(block=>{const raw=(block.events||[]).length?block.events:[{id:`${block.id}-event`,start:block.start,end:block.end,durationSeconds:block.activeSeconds,app:(block.apps||[])[0]||block.title,title:block.title,category:block.category}];const events=raw.map(event=>{const start=Math.max(rangeStart,new Date(event.start).getTime()),end=Math.min(rangeEnd,new Date(event.end).getTime());return end>start?{...event,start:new Date(start).toISOString(),end:new Date(end).toISOString(),durationSeconds:(end-start)/1000}:null}).filter(Boolean);if(!events.length)return null;return{...block,start:events[0].start,end:events[events.length-1].end,activeSeconds:events.reduce((sum,event)=>sum+event.durationSeconds,0),eventIDs:events.map(event=>event.id),events}}).filter(Boolean)
 }
 function pinHalfHourRange(chapterID,scroll=false){
-  if(!halfHourChapters.some(item=>item.id===chapterID))return false;pinnedHalfHourID=chapterID;selectedHalfHourID=chapterID;updateJourneyPreview(chapterID,'',true);renderPinnedRange();renderTimeline();if(scroll)$('rangeDropZone').scrollIntoView({behavior:'smooth',block:'center'});return true
+  if(!halfHourChapters.some(item=>item.id===chapterID))return false;pinnedHalfHourID=chapterID;selectedHalfHourID=chapterID;updateJourneyPreview(chapterID,'',true);renderPinnedRange();renderTimeline();syncPinnedChapterClass();if(scroll)$('rangeDropZone').scrollIntoView({behavior:'smooth',block:'center'});return true
 }
-function clearPinnedRange(){pinnedHalfHourID='';renderPinnedRange();renderTimeline()}
+function clearPinnedRange(){pinnedHalfHourID='';renderPinnedRange();renderTimeline();syncPinnedChapterClass()}
 function renderFilters(){
   const available=categoryOrder.filter(id=>(state.categories||[]).some(x=>x.id===id));
   const values=['all',...available];if(!values.includes(activeCategory))activeCategory='all';
@@ -661,20 +853,62 @@ $('rangeTabs').addEventListener('click',event=>{const button=event.target.closes
 $('startDate').addEventListener('change',()=>{if($('endDate').value)sendRange('custom')});$('endDate').addEventListener('change',()=>{if($('startDate').value)sendRange('custom')});
 $('categoryFilters').addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(!button)return;activeCategory=button.dataset.filter;renderFilters();renderJourneyRibbon();renderTimeline()});
 $('graphLayoutToggle').addEventListener('click',event=>{const button=event.target.closest('[data-graph-layout]');if(!button||button.dataset.graphLayout===journeyGraphLayout)return;journeyGraphLayout=button.dataset.graphLayout;document.querySelectorAll('[data-graph-layout]').forEach(item=>item.classList.toggle('active',item===button));clearJourneyGraphHover();renderJourneyGraph()});
-$('journeyGraph').addEventListener('mouseover',event=>{const node=event.target.closest('[data-graph-node]');if(node)setJourneyGraphHover(node.dataset.graphNode)});
-$('journeyGraph').addEventListener('focusin',event=>{const node=event.target.closest('[data-graph-node]');if(node)setJourneyGraphHover(node.dataset.graphNode)});
+$('journeyGraph').addEventListener('mouseover',event=>{const stop=event.target.closest('[data-stop]');if(stop){setJourneyGraphHover(stop.dataset.topic,stop.dataset.stop);return}const stone=event.target.closest('[data-stone]');if(stone)setJourneyGraphHover(stone.dataset.stone)});
+$('journeyGraph').addEventListener('focusin',event=>{const stop=event.target.closest('[data-stop]');if(stop){setJourneyGraphHover(stop.dataset.topic,stop.dataset.stop);return}const stone=event.target.closest('[data-stone]');if(stone)setJourneyGraphHover(stone.dataset.stone)});
 $('journeyGraph').addEventListener('mouseleave',clearJourneyGraphHover);
 $('journeyGraph').addEventListener('focusout',event=>{if(!$('journeyGraph').contains(event.relatedTarget))clearJourneyGraphHover()});
-$('journeyGraph').addEventListener('click',event=>{const editor=event.target.closest('[data-edit-cluster]');if(editor){openTopicEditor(editor.dataset.editCluster);return}const button=event.target.closest('[data-graph-node]');if(!button)return;const node=journeyGraphNodes[Number(button.dataset.graphNode)];if(!node)return;selectedHalfHourID=node.chapterID;updateJourneyPreview(node.chapterID,`${fmtTime(node.block.start)} · ${node.identity.label}`,true);document.querySelectorAll('.journey-node.selected').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');activeCategory='all';renderFilters();renderTimeline();const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===node.block.id);if(card){card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)}});
-$('journeyThread').addEventListener('mouseover',event=>{const step=event.target.closest('[data-thread-node]');if(step)setJourneyGraphHover(step.dataset.threadNode)});
-$('journeyThread').addEventListener('focusin',event=>{const step=event.target.closest('[data-thread-node]');if(step)setJourneyGraphHover(step.dataset.threadNode)});
+$('journeyGraph').addEventListener('click',event=>{
+  const stone=event.target.closest('[data-stone]');
+  if(stone){
+    selectedTopicID=selectedTopicID===stone.dataset.stone?'':stone.dataset.stone;
+    $('journeyGraph').querySelectorAll('.journey-stone').forEach(item=>item.classList.toggle('selected',item.dataset.stone===selectedTopicID));
+    renderTopicDetail();
+    return;
+  }
+  const stop=event.target.closest('[data-stop]');if(!stop)return;
+  const stay=(journeyModel?.stays||[])[Number(stop.dataset.stop)];if(!stay)return;
+  selectedHalfHourID=stay.chapterID;
+  updateJourneyPreview(stay.chapterID,`${fmtTime(stay.startMS)} · ${stay.topic.label}`,true);
+  const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===stay.rep.id);
+  if(card){document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)}
+});
+$('topicDetail').addEventListener('click',event=>{
+  const editor=event.target.closest('[data-edit-cluster]');
+  if(editor){openTopicEditor(editor.dataset.editCluster);return}
+  const chip=event.target.closest('[data-visit-block]');if(!chip)return;
+  if(chip.dataset.visitChapter){selectedHalfHourID=chip.dataset.visitChapter;updateJourneyPreview(chip.dataset.visitChapter,'',true)}
+  const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===chip.dataset.visitBlock);
+  if(card){document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)}
+});
+$('journeyThread').addEventListener('mouseover',event=>{const step=event.target.closest('[data-thread-topic]');if(step)setJourneyGraphHover(step.dataset.threadTopic)});
+$('journeyThread').addEventListener('focusin',event=>{const step=event.target.closest('[data-thread-topic]');if(step)setJourneyGraphHover(step.dataset.threadTopic)});
 $('journeyThread').addEventListener('mouseleave',clearJourneyGraphHover);
 $('journeyThread').addEventListener('focusout',event=>{if(!$('journeyThread').contains(event.relatedTarget))clearJourneyGraphHover()});
-$('journeyThread').addEventListener('click',event=>{const step=event.target.closest('[data-thread-node]');if(!step)return;$('journeyGraph').querySelector(`[data-graph-node="${step.dataset.threadNode}"]`)?.click()});
+$('journeyThread').addEventListener('click',event=>{
+  const step=event.target.closest('[data-thread-topic]');if(!step)return;
+  const topicID=step.dataset.threadTopic;
+  if(journeyGraphLayout==='topic'){
+    selectedTopicID=topicID;
+    $('journeyGraph').querySelectorAll('.journey-stone').forEach(item=>item.classList.toggle('selected',item.dataset.stone===selectedTopicID));
+    renderTopicDetail();
+    $('journeyGraph').querySelector(`[data-stone="${CSS.escape(topicID)}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }else{
+    setJourneyGraphHover(topicID);
+    const first=(journeyModel?.stays||[]).findIndex(stay=>stay.topicID===topicID);
+    if(first>=0)$('journeyGraph').querySelector(`[data-stop="${first}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  }
+});
 $('journeyRibbon').addEventListener('mouseover',event=>{const chapter=event.target.closest('[data-half-hour]');if(chapter)updateJourneyPreview(chapter.dataset.halfHour)});
 $('journeyRibbon').addEventListener('focusin',event=>{const chapter=event.target.closest('[data-half-hour]');if(chapter)updateJourneyPreview(chapter.dataset.halfHour)});
 $('journeyRibbon').addEventListener('mouseleave',()=>{if(selectedHalfHourID)updateJourneyPreview(selectedHalfHourID)});
-$('journeyRibbon').addEventListener('click',event=>{const button=event.target.closest('[data-half-hour]');if(!button)return;const chapter=halfHourChapters.find(item=>item.id===button.dataset.halfHour);if(!chapter)return;let block=activeCategory==='all'?chapter.representative:chapter.blocks.filter(item=>item.category===activeCategory).sort((a,b)=>(Number(b.activeSeconds)||0)-(Number(a.activeSeconds)||0))[0];if(!block&&chapter.representative){activeCategory='all';renderFilters();renderJourneyRibbon();renderTimeline();block=chapter.representative}updateJourneyPreview(chapter.id,'',true);if(!block)return;const card=[...document.querySelectorAll('.activity-card')].find(item=>item.dataset.block===block.id);if(!card)return;document.querySelectorAll('.activity-card.located').forEach(item=>item.classList.remove('located'));card.classList.add('located');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('located'),1800)});
+$('journeyRibbon').addEventListener('click',event=>{
+  const button=event.target.closest('[data-half-hour]');if(!button)return;
+  const id=button.dataset.halfHour;
+  if(pinnedHalfHourID===id){clearPinnedRange();updateJourneyPreview(id,'',true);return}
+  const chapter=halfHourChapters.find(item=>item.id===id);if(!chapter)return;
+  if(activeCategory!=='all'&&!chapter.segments.some(segment=>segment.category===activeCategory)){activeCategory='all';renderFilters()}
+  pinHalfHourRange(id);
+});
 $('journeyRibbon').addEventListener('dragstart',event=>{const chapter=event.target.closest('[data-half-hour]');if(!chapter)return;draggedHalfHourID=chapter.dataset.halfHour;chapter.classList.add('dragging');$('rangeDropZone').classList.add('ready');event.dataTransfer?.setData('text/plain',draggedHalfHourID);if(event.dataTransfer)event.dataTransfer.effectAllowed='copy'});
 $('journeyRibbon').addEventListener('dragend',()=>{draggedHalfHourID='';document.querySelectorAll('.half-hour-chapter.dragging').forEach(item=>item.classList.remove('dragging'));$('rangeDropZone').classList.remove('ready','drag-over')});
 $('rangeDropZone').addEventListener('dragover',event=>{event.preventDefault();$('rangeDropZone').classList.add('drag-over');if(event.dataTransfer)event.dataTransfer.dropEffect='copy'});
@@ -746,6 +980,8 @@ function fixturePayload(name='1'){
 }
 window.reflectionLoad=payload=>{state=payload||state;render()};
 window.reflectionFixture=name=>{state=fixturePayload(name);render();return true};
+let graphResizeTimer=null;
+addEventListener('resize',()=>{clearTimeout(graphResizeTimer);graphResizeTimer=setTimeout(renderJourneyGraph,160)});
 render();
 const previewFixture=!bridge?new URLSearchParams(location.hash.slice(1)).get('fixture'):'';
 if(window.__mimoReflectionFixture||previewFixture)window.reflectionFixture(window.__mimoReflectionFixture||previewFixture);
