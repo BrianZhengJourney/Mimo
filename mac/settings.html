@@ -1102,6 +1102,8 @@ function renderReferenceSet(){
       </button>
       <div class="reference-badges" aria-label="${esc(tx('分析状态','Analysis status'))}">${badges.map(b=>`<span class="reference-badge ${b.pending?'pending':''}">${esc(b.label)}</span>`).join('')}</div>
       <div class="reference-tools">
+        <button type="button" class="reference-zoom" onclick="openReferenceLightbox('${esc(ref.id)}')" aria-label="${esc(tx(`放大查看 ${name} 原图`,`Zoom into ${name}`))}">${tx('放大','Zoom')}</button>
+        ${ref.analysis?.cutout?`<button type="button" class="reference-zoom" onclick="openReferenceLightbox('${esc(ref.id)}','cutout')" aria-label="${esc(tx(`放大查看 ${name} 的抠图结果`,`Zoom into the cutout from ${name}`))}">${tx('抠图','Cutout')}</button>`:''}
         <button type="button" ${busy||index===0?'disabled':''} onclick="movePetReference('${esc(ref.id)}',-1)" aria-label="${esc(tx(`将 ${name} 向前移动`,`Move ${name} earlier`))}">←</button>
         <button type="button" ${busy||index===refs.length-1?'disabled':''} onclick="movePetReference('${esc(ref.id)}',1)" aria-label="${esc(tx(`将 ${name} 向后移动`,`Move ${name} later`))}">→</button>
         <button type="button" class="reference-remove" ${busy?'disabled':''} onclick="removePetReference('${esc(ref.id)}')" aria-label="${esc(tx(`移除 ${name}`,`Remove ${name}`))}">×</button>
@@ -1328,6 +1330,17 @@ function openCandidateLightbox(index){
 function closeCandidateLightbox(){
   const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');
   if(box)box.hidden=true;if(preview)preview.removeAttribute('src');
+}
+function openReferenceLightbox(id,kind){
+  const ref=petLab.references.find(item=>item.id===id);if(!ref)return;
+  const cutout=kind==='cutout';
+  const image=cutout?ref.analysis?.cutout:ref.source;if(!image)return;
+  const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');if(!box||!preview)return;
+  preview.src=image;
+  preview.alt=cutout?tx(`${ref.name||'参考图'} 的抠图结果放大预览`,`Cutout from ${ref.name||'reference'}, enlarged`)
+    :tx(`${ref.name||'参考图'} 原图放大预览`,`${ref.name||'Reference'} enlarged original`);
+  box.hidden=false;
+  box.querySelector('.candidate-lightbox-close')?.focus();
 }
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'){

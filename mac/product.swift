@@ -1271,6 +1271,7 @@ extension AppDelegate {
             let used = usedIDs.contains(image.inputID)
             zh.append(used ? "✓ 身份板采用" : "未采用")
             en.append(used ? "✓ used in board" : "not used")
+            var row: [String: Any] = ["id": image.inputID, "status": "ready"]
             if let person = image.usablePeople.first {
                 var zhDetail = "人物 ×\(max(1, image.detectedPersonCount))"
                 var enDetail = "person ×\(max(1, image.detectedPersonCount))"
@@ -1281,17 +1282,18 @@ extension AppDelegate {
                 case .unknown: break
                 }
                 zh.append(zhDetail); en.append(enDetail)
+                // Local-only inspection preview; the data URI never leaves the
+                // web view and lets the user verify the crop before generating.
+                row["cutout"] = "data:image/png;base64,"
+                    + person.portraitPNG.base64EncodedString()
             } else if used {
                 zh.append("主体备用"); en.append("subject fallback")
             } else {
                 zh.append("未找到清楚人物"); en.append("no clear person")
             }
-            return [
-                "id": image.inputID,
-                "status": "ready",
-                "badgesZh": Array(zh.prefix(2)),
-                "badgesEn": Array(en.prefix(2)),
-            ]
+            row["badgesZh"] = Array(zh.prefix(2))
+            row["badgesEn"] = Array(en.prefix(2))
+            return row
         }
         settingsCall("petReferenceAnalysis", ["references": rows])
     }

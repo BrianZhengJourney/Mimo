@@ -410,7 +410,7 @@ final class AppleVisionReferenceAnalyzer: MimoReferenceVisionAnalyzing {
             (region.maxY < 1 && local.maxY >= 1 - tolerance)
     }
 
-    private static func deduplicatePeople(_ observations: [MimoReferenceRawPersonObservation])
+    static func deduplicatePeople(_ observations: [MimoReferenceRawPersonObservation])
         -> [MimoReferenceRawPersonObservation] {
         observations.sorted { lhs, rhs in
             let lhsRank = lhs.confidence + (lhs.coverage == .fullBody ? 0.05 : 0)
@@ -425,9 +425,19 @@ final class AppleVisionReferenceAnalyzer: MimoReferenceVisionAnalyzing {
                 let preferredCoverage: MimoReferenceCoverage =
                     existing.coverage == .fullBody || candidate.coverage == .fullBody
                     ? .fullBody : .upperBody
-                let preferred = existing.confidence >= candidate.confidence ? existing : candidate
+                // The torso detector often outscores the full-body one on the
+                // same person; picking bounds by confidence alone used to crop
+                // full-body references at the waist. Differing coverages keep
+                // the union so the whole person survives the merge.
+                let bounds: CGRect
+                if existing.coverage == candidate.coverage {
+                    bounds = existing.confidence >= candidate.confidence
+                        ? existing.bounds : candidate.bounds
+                } else {
+                    bounds = existing.bounds.union(candidate.bounds)
+                }
                 kept[index] = MimoReferenceRawPersonObservation(
-                    bounds: preferred.bounds,
+                    bounds: bounds,
                     confidence: max(existing.confidence, candidate.confidence),
                     coverage: preferredCoverage,
                     source: existing.source == .fullFrame || candidate.source == .fullFrame

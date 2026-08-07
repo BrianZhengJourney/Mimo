@@ -403,6 +403,27 @@ struct ReferencePreprocessorTests {
         ])
         expect(countLimited.images[1].rejectionReason == .tooManyInputs,
                "excess uploads need per-image rejection evidence")
+
+        let fullBodyBox = CGRect(x: 0.30, y: 0.05, width: 0.40, height: 0.85)
+        let torsoBox = CGRect(x: 0.32, y: 0.48, width: 0.36, height: 0.40)
+        let merged = AppleVisionReferenceAnalyzer.deduplicatePeople([
+            MimoReferenceRawPersonObservation(bounds: fullBodyBox, confidence: 0.62,
+                                              coverage: .fullBody, source: .fullFrame),
+            MimoReferenceRawPersonObservation(bounds: torsoBox, confidence: 0.95,
+                                              coverage: .upperBody, source: .fullFrame),
+        ])
+        expect(merged.count == 1, "overlapping detections of one person must merge")
+        expect(merged[0].coverage == .fullBody, "merged coverage keeps full body")
+        expect(merged[0].bounds.height >= fullBodyBox.height - 0.001,
+               "a confident torso box must not shrink the crop to the waist")
+        let samecoverage = AppleVisionReferenceAnalyzer.deduplicatePeople([
+            MimoReferenceRawPersonObservation(bounds: fullBodyBox, confidence: 0.62,
+                                              coverage: .upperBody, source: .fullFrame),
+            MimoReferenceRawPersonObservation(bounds: torsoBox, confidence: 0.95,
+                                              coverage: .upperBody, source: .fullFrame),
+        ])
+        expect(samecoverage.count == 1 && samecoverage[0].bounds == torsoBox,
+               "same-coverage merges still trust the confident detection")
         print("reference preprocessor tests passed")
     }
 }
