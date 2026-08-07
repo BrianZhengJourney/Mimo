@@ -179,25 +179,15 @@ final class Companion {
     /// On-screen rect in global (screen) coordinates.
     func screenRect() -> CGRect {
         let frame = currentFrame
-        var rect = frame.rect(anchoredAt: anchor, displayHeight: displayHeight,
+        if case .attached(let id) = state {
+            // Align every attached familiar, not only one with a generated wall
+            // strip. The collision frame commonly still shows its base sprite.
+            return frame.rect(attachedTo: id, anchor: anchor,
+                              displayHeight: displayHeight,
                               cellSize: activeSprite.cellSize)
-        // Action-sheet processing centres every pose in its cell. That is right
-        // for feet-on-floor actions, but a wall pose centred on a screen-edge
-        // anchor would be half off-screen. Re-register the authored wall-facing
-        // edge to the physical wall; right-wall art is the mirrored left-wall
-        // drawing, so the same source-space edge becomes its right edge.
-        guard activeActionStripName == "wall", case .attached(let id) = state,
-              activeSprite.cellSize.height > 0 else { return rect }
-        let scale = displayHeight / activeSprite.cellSize.height
-        switch id {
-        case .workAreaLeft, .windowLeft:
-            rect.origin.x = anchor.x - frame.opaqueBounds.minX * scale
-        case .workAreaRight, .windowRight:
-            rect.origin.x = anchor.x - rect.width + frame.opaqueBounds.minX * scale
-        default:
-            break
         }
-        return rect
+        return frame.rect(anchoredAt: anchor, displayHeight: displayHeight,
+                          cellSize: activeSprite.cellSize)
     }
 
     func isOpaque(atScreenPoint point: CGPoint) -> Bool {
@@ -652,15 +642,17 @@ final class CompanionRuntime {
     /// a companion glued to the wall.
     private func cling(_ companion: Companion, to surface: Surface,
                        dt: CGFloat, world: SurfaceSet) {
-        guard let director = companion.director else {
-            companion.state = .airborne
-            return
+        let intent: CompanionIntent
+        if let director = companion.director {
+            intent = director.update(
+                dt: Double(dt), snapshot: snapshot(for: companion, world: world))
+        } else {
+            intent = CompanionIntent()
         }
-        let intent = director.update(dt: Double(dt), snapshot: snapshot(for: companion, world: world))
-        if director.currentBehaviorName == nil {
+        if companion.director?.currentBehaviorName == nil && surface.kind != .wall {
             companion.state = .airborne
             companion.integrator.velocity = .zero
-            director.reset()
+            companion.director?.reset()
             return
         }
         companion.activeActionStripName = intent.strip.flatMap {
@@ -678,6 +670,33 @@ final class CompanionRuntime {
         case .workAreaLeft, .windowLeft: companion.facingRight = false
         case .workAreaRight, .windowRight: companion.facingRight = true
         default: companion.facingRight = intent.facingRight
+        }
+
+        if surface.kind == .wall {
+            companion.anchor.x = surface.position
+            companion.anchor.y = CompanionWallSlide.nextY(
+                currentY: companion.anchor.y,
+                attachedSeconds: companion.attachedSeconds,
+                dt: dt,
+                span: surface.span)
+
+            if companion.anchor.y <= surface.span.lowerBound
+                + CompanionPhysics.surfaceTolerance {
+                if let floor = supportingFloor(below: surface, in: world) {
+                    companion.anchor.y = floor.position
+                    companion.state = .grounded(floor.id)
+                    companion.activeActionStripName = nil
+                    companion.landingElapsed = 0
+                    companion.groundedSeconds = 0
+                    companion.attachedSeconds = 0
+                    companion.director?.reset()
+                } else {
+                    companion.state = .airborne
+                    companion.integrator.velocity = .zero
+                    companion.director?.reset()
+                }
+            }
+            return
         }
 
         let along = surface.isVertical ? intent.velocity.dy : intent.velocity.dx
@@ -704,8 +723,20 @@ final class CompanionRuntime {
         if next != clamped {
             // Climbed to the end of the surface. Stop and let the pack choose
             // again rather than crawling into space.
-            director.reset()
+            companion.director?.reset()
         }
+    }
+
+    private func supportingFloor(below wall: Surface, in world: SurfaceSet) -> Surface? {
+        let id: SurfaceID
+        switch wall.id {
+        case .workAreaLeft(let displayID), .workAreaRight(let displayID):
+            id = .workAreaBottom(displayID: displayID)
+        default:
+            return nil
+        }
+        guard let floor = world.surface(with: id), floor.kind == .floor else { return nil }
+        return floor
     }
 
     /// Picks the gaze frame from the cursor's direction, or clears it.
@@ -1063,6 +1094,21 @@ final class CompanionRuntime {
     private func release(_ companion: Companion, world: SurfaceSet) {
         held = nil
         guard !pressWasDrag else {
+            if let hit = world.workAreaContact(forOutside: companion.anchor) {
+                companion.anchor = hit.point
+                companion.integrator.velocity = .zero
+                companion.director?.reset()
+                switch hit.surface.kind {
+                case .floor:
+                    companion.state = .grounded(hit.surface.id)
+                    companion.landingElapsed = 0
+                    companion.groundedSeconds = 0
+                case .wall, .ceiling:
+                    companion.state = .attached(hit.surface.id)
+                    companion.attachedSeconds = 0
+                }
+                return
+            }
             companion.state = .airborne
             companion.integrator.velocity = cursor.releaseVelocity()
             return

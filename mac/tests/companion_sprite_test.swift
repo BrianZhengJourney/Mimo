@@ -203,6 +203,36 @@ struct CompanionSpriteTests {
         }
     }
 
+    static func testAttachedRectKeepsOpaqueArtworkInsideEveryBoundary() {
+        let sheet = makeSheet(
+            cell: 64, blobs: [CGRect(x: 20, y: 10, width: 20, height: 40)])
+        let sprite = CompanionSprite.slice(sheet: sheet, frameCount: 1)!
+        let frame = sprite.frame(0)
+        let scale: CGFloat = 1
+
+        let left = frame.rect(
+            attachedTo: .workAreaLeft(displayID: 1),
+            anchor: CGPoint(x: 0, y: 60), displayHeight: 64,
+            cellSize: sprite.cellSize)
+        expectClose(left.minX + frame.opaqueBounds.minX * scale, 0, 0.01,
+                    "left-wall artwork begins at the visible boundary")
+
+        let right = frame.rect(
+            attachedTo: .workAreaRight(displayID: 1),
+            anchor: CGPoint(x: 100, y: 60), displayHeight: 64,
+            cellSize: sprite.cellSize)
+        expectClose(right.minX + frame.opaqueBounds.maxX * scale, 100, 0.01,
+                    "right-wall artwork ends at the visible boundary")
+
+        let ceiling = frame.rect(
+            attachedTo: .workAreaTop(displayID: 1),
+            anchor: CGPoint(x: 50, y: 100), displayHeight: 64,
+            cellSize: sprite.cellSize)
+        let opaqueTop = ceiling.maxY - frame.opaqueBounds.minY * scale
+        expectClose(opaqueTop, 100, 0.01,
+                    "ceiling contact keeps the artwork below the menu-bar boundary")
+    }
+
     // MARK: - Hit testing
 
     static func testHitMaskFollowsTheArtwork() {
@@ -259,6 +289,7 @@ struct CompanionSpriteTests {
         testAuthoredFrameDurationsPreserveSlowHolds()
         testPreviewPlaysSleepSettleOnceThenLoopsOnlyBreathing()
         testRectPutsFeetOnTheAnchor()
+        testAttachedRectKeepsOpaqueArtworkInsideEveryBoundary()
         testHitMaskFollowsTheArtwork()
         testHitMaskRejectsEmptySpaceInsideTheRect()
         testHitTestOutsideRectIsAlwaysMiss()

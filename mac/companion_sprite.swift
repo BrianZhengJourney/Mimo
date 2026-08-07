@@ -367,4 +367,30 @@ extension CompanionFrame {
                       y: anchor.y - anchorFromBottom,
                       width: width, height: height)
     }
+
+    /// Re-registers the visible silhouette, rather than the cell centre, to a
+    /// boundary. Generated cells contain transparent padding; putting their
+    /// ordinary feet anchor on a wall made half the familiar appear to fly out
+    /// of the display even though physics had already recorded a collision.
+    func rect(attachedTo surfaceID: SurfaceID, anchor: CGPoint,
+              displayHeight: CGFloat, cellSize: CGSize) -> CGRect {
+        var rect = rect(anchoredAt: anchor, displayHeight: displayHeight,
+                        cellSize: cellSize)
+        guard cellSize.height > 0 else { return rect }
+        let scale = displayHeight / cellSize.height
+
+        switch surfaceID {
+        case .workAreaLeft, .windowLeft:
+            rect.origin.x = anchor.x - opaqueBounds.minX * scale
+        case .workAreaRight, .windowRight:
+            rect.origin.x = anchor.x - opaqueBounds.maxX * scale
+        case .workAreaTop, .windowBottom:
+            // Image bounds are y-down. The visible top is therefore measured
+            // from the cell's bottom as `cellHeight - opaque.minY`.
+            rect.origin.y = anchor.y - (cellSize.height - opaqueBounds.minY) * scale
+        default:
+            break
+        }
+        return rect
+    }
 }

@@ -167,6 +167,59 @@ struct SurfaceSet {
         guard let best else { return nil }
         return (best.surface, best.point)
     }
+
+    /// Resolves a grab released with its anchor already beyond a display edge.
+    /// Swept collision cannot see a wall when both the start and end points are
+    /// outside it and moving farther away, so release needs this one preflight.
+    /// Points inside any display remain untouched and keep their throw velocity.
+    func workAreaContact(forOutside point: CGPoint) -> (surface: Surface, point: CGPoint)? {
+        struct Edges {
+            var bottom: Surface?
+            var top: Surface?
+            var left: Surface?
+            var right: Surface?
+        }
+
+        var grouped: [UInt32: Edges] = [:]
+        for surface in surfaces {
+            switch surface.id {
+            case .workAreaBottom(let id): grouped[id, default: Edges()].bottom = surface
+            case .workAreaTop(let id): grouped[id, default: Edges()].top = surface
+            case .workAreaLeft(let id): grouped[id, default: Edges()].left = surface
+            case .workAreaRight(let id): grouped[id, default: Edges()].right = surface
+            default: break
+            }
+        }
+
+        var candidates: [(edges: Edges, rect: CGRect, distance: CGFloat)] = []
+        for edges in grouped.values {
+            guard let bottom = edges.bottom, let top = edges.top,
+                  let left = edges.left, let right = edges.right else { continue }
+            let rect = CGRect(x: left.position, y: bottom.position,
+                              width: right.position - left.position,
+                              height: top.position - bottom.position)
+            let insideX = (rect.minX...rect.maxX).contains(point.x)
+            let insideY = (rect.minY...rect.maxY).contains(point.y)
+            if insideX && insideY { return nil }
+            let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+            let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+            candidates.append((edges, rect, dx * dx + dy * dy))
+        }
+
+        guard let nearest = candidates.min(by: { $0.distance < $1.distance }) else { return nil }
+        let rect = nearest.rect
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        let clampedX = min(max(point.x, rect.minX), rect.maxX)
+        let clampedY = min(max(point.y, rect.minY), rect.maxY)
+
+        if dx > 0 && (dy == 0 || dx <= dy) {
+            let surface = point.x < rect.minX ? nearest.edges.left : nearest.edges.right
+            return surface.map { ($0, CGPoint(x: $0.position, y: clampedY)) }
+        }
+        let surface = point.y < rect.minY ? nearest.edges.bottom : nearest.edges.top
+        return surface.map { ($0, CGPoint(x: clampedX, y: $0.position)) }
+    }
 }
 
 /// Brings a companion back when it has left the world.

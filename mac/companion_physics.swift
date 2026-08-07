@@ -61,6 +61,28 @@ enum CompanionPhysics {
     static let sweepResolution: CGFloat = 8
 }
 
+/// Passive side-wall response shared by every familiar, including one that has
+/// no generated wall strip. A throw should read as soft contact, not as the
+/// sprite centre disappearing beyond the display edge: it sticks for a beat,
+/// then loses grip at one calm, predictable speed until it reaches the floor.
+enum CompanionWallSlide {
+    static let stickDuration: CGFloat = 0.55
+    static let descentSpeed: CGFloat = 52
+
+    static func nextY(currentY: CGFloat, attachedSeconds: CGFloat, dt: CGFloat,
+                      span: ClosedRange<CGFloat>) -> CGFloat {
+        let current = min(max(currentY, span.lowerBound), span.upperBound)
+        guard dt > 0, attachedSeconds > stickDuration else { return current }
+
+        // If this frame straddles the end of the sticky pause, descend only for
+        // its post-pause fraction. This keeps the feel independent of refresh
+        // rate and avoids a one-frame jump on a busy display.
+        let frameStart = max(0, attachedSeconds - dt)
+        let slidingTime = max(0, attachedSeconds - max(frameStart, stickDuration))
+        return max(span.lowerBound, current - descentSpeed * slidingTime)
+    }
+}
+
 // MARK: - Cursor
 
 /// Tracks the cursor and, more importantly, how fast it is moving.

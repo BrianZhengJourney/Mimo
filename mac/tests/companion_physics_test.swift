@@ -206,6 +206,44 @@ struct CompanionPhysicsTests {
         }
     }
 
+    static func testWallContactSticksThenSlidesWithoutPassingTheFloor() {
+        let span: ClosedRange<CGFloat> = 0...900
+
+        expectClose(
+            CompanionWallSlide.nextY(currentY: 640, attachedSeconds: 0.20,
+                                     dt: 1.0 / 60, span: span),
+            640, 0.001,
+            "a fresh wall contact should visibly stick before it starts sliding")
+
+        let sliding = CompanionWallSlide.nextY(
+            currentY: 640, attachedSeconds: CompanionWallSlide.stickDuration + 0.10,
+            dt: 0.5, span: span)
+        expect(sliding < 640 && sliding > 600,
+               "after the pause it should descend slowly, got \(sliding)")
+
+        let atBottom = CompanionWallSlide.nextY(
+            currentY: 4, attachedSeconds: CompanionWallSlide.stickDuration + 1,
+            dt: 1, span: span)
+        expectClose(atBottom, span.lowerBound, 0.001,
+                    "wall slide must stop at the floor instead of leaving the screen")
+    }
+
+    static func testReleaseAlreadyOutsideSnapsToTheNearestBoundary() {
+        let world = SurfaceSet.workArea(
+            CGRect(x: 0, y: 0, width: 100, height: 100), displayID: 7)
+
+        guard let right = world.workAreaContact(forOutside: CGPoint(x: 112, y: 60)) else {
+            preconditionFailure("an anchor released beyond the right edge needs immediate contact")
+        }
+        expect(right.surface.id == .workAreaRight(displayID: 7),
+               "an outside release should attach to the nearest right wall")
+        expect(right.point == CGPoint(x: 100, y: 60),
+               "the anchor should be pulled back exactly onto that wall")
+
+        expect(world.workAreaContact(forOutside: CGPoint(x: 50, y: 60)) == nil,
+               "an ordinary in-bounds release must retain its throw velocity")
+    }
+
     static func testHugeTimeStepIsClamped() {
         let world = SurfaceSet([])
         var integrator = CompanionIntegrator()
@@ -374,6 +412,8 @@ struct CompanionPhysicsTests {
         testTrajectoryIsFrameRateIndependent()
         testFallLandsOnFloorNotThrough()
         testFastThrowCannotTunnel()
+        testWallContactSticksThenSlidesWithoutPassingTheFloor()
+        testReleaseAlreadyOutsideSnapsToTheNearestBoundary()
         testHugeTimeStepIsClamped()
         testGravityScaleZeroFloats()
         testCursorVelocitySurvivesAStall()
