@@ -20,6 +20,33 @@ struct PetReferenceImportTests {
         expect(PetReferenceImportPolicy.selectionLimit(reportedRemaining: -1) == 0,
                "negative remaining slots must not open the panel")
 
+        let googleImage = PetReferenceImportPolicy.remoteImageURL(
+            from: "https://images.example.com/pets/mimo.png?size=large#preview")
+        expect(googleImage?.absoluteString ==
+               "https://images.example.com/pets/mimo.png?size=large",
+               "a dragged HTTPS image URL should be accepted without its fragment")
+        expect(PetReferenceImportPolicy.remoteImageURL(
+            from: "http://images.example.com/mimo.png") == nil,
+               "web references must use HTTPS")
+        expect(PetReferenceImportPolicy.remoteImageURL(
+            from: "file:///Users/example/secret.png") == nil,
+               "a web drop must never turn a file URL into an arbitrary local read")
+        expect(PetReferenceImportPolicy.remoteImageURL(
+            from: "https://localhost:8443/mimo.png") == nil,
+               "web references must not reach localhost")
+        expect(PetReferenceImportPolicy.remoteImageURL(
+            from: "https://127.0.0.1/mimo.png") == nil,
+               "web references must not reach loopback IPs")
+        expect(PetReferenceImportPolicy.acceptsResponseContentType("image/webp"),
+               "common browser image content types should be accepted")
+        expect(PetReferenceImportPolicy.acceptsResponseContentType("application/octet-stream"),
+               "generic CDN responses should be sniffed locally as images")
+        expect(!PetReferenceImportPolicy.acceptsResponseContentType("text/html"),
+               "an HTML response must not enter image decoding")
+        expect(PetReferenceImportPolicy.displayName(
+            for: googleImage!) == "mimo",
+               "the reference tray should get a readable name from the image URL")
+
         var delivered: [Int] = []
         var completions: [() -> Void] = []
         var finished = false

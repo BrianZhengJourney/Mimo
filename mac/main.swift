@@ -490,6 +490,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var generationPurgeEpoch: UInt64 = 0
     /// Retained until every selected photo has crossed the WKWebView bridge.
     var petReferenceImportQueue: PetReferenceImportQueue<URL>?
+    /// One cookie-free, size-bounded download created only by an explicit
+    /// cross-app image drop in Mimo Studio.
+    var petRemoteReferenceDownloader: PetRemoteReferenceDownloader?
     /// Character currently receiving post-adoption expression sheets (one
     /// sequential run at a time; nil when idle).
     var expressionRunCharacterID: String?

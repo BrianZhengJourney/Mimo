@@ -48,6 +48,8 @@ struct GenerationPurgeRaceTests {
         for operation in [
             "generationPurgeEpoch &+= 1",
             "petReferenceImportQueue = nil",
+            "petRemoteReferenceDownloader?.cancel()",
+            "petRemoteReferenceDownloader = nil",
             "settingsCall(\"petPrivacyReset\"",
             "activeStudioDraftRequestID = nil",
             "activeStudioCancellationToken?.cancel()",
@@ -82,7 +84,7 @@ struct GenerationPurgeRaceTests {
                "a failed draft purge must surface as an incomplete erase")
 
         for type in [
-            "petUpload", "petGenerateCandidates", "petGenerateVariations",
+            "petUpload", "petWebReference", "petGenerateCandidates", "petGenerateVariations",
             "petGenerateEvolution",
             "petRegenerateStage", "petRetryLocalProcessing",
             "petInstallRaster", "petRegenerateExpressions",
@@ -110,7 +112,7 @@ struct GenerationPurgeRaceTests {
                    "settings privacy reset must perform \(operation)")
         }
         for type in [
-            "petUpload", "petGenerateCandidates", "petGenerateVariations",
+            "petUpload", "petWebReference", "petGenerateCandidates", "petGenerateVariations",
             "petGenerateEvolution", "petRetryLocalProcessing",
             "petInstallRaster", "petRegenerateExpressions",
         ] {

@@ -144,10 +144,17 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .petlab-actions{ display:flex; align-items:center; gap:8px; margin-top:7px; }
 .pet-name{ width:145px; color:var(--ink); background:#17132f; border:1px solid var(--line);
   border-radius:8px; padding:6px 8px; font:11px inherit; }
-.reference-set{ padding:9px; margin:-3px 0 11px; border:1px solid #cabcf528; border-radius:13px;
-  background:linear-gradient(145deg,#1c1738,#17142f); transition:border-color .16s,background .16s; }
+.reference-set{ position:relative; padding:9px; margin:-3px 0 11px; border:1px solid #cabcf528; border-radius:13px;
+  background:linear-gradient(145deg,#1c1738,#17142f); transition:border-color .16s,background .16s,transform .16s; }
 .reference-set.drag{ border-color:var(--good); background:linear-gradient(145deg,#202041,#18253b);
-  box-shadow:0 0 0 1px #7df0cf22 inset; }
+  box-shadow:0 0 0 1px #7df0cf22 inset; transform:translateY(-1px); }
+.reference-drop-cue{ position:absolute; z-index:8; inset:7px; border:1px dashed #7df0cfbb; border-radius:10px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; pointer-events:none;
+  color:#e8fff8; background:#17243bea; box-shadow:0 10px 26px #09071b88; backdrop-filter:blur(10px);
+  opacity:0; visibility:hidden; transform:scale(.985); transition:opacity .13s,transform .13s,visibility .13s; }
+.reference-set.drag .reference-drop-cue{ opacity:1; visibility:visible; transform:scale(1); }
+.reference-drop-cue span{ font-size:22px; line-height:1; color:var(--good); }
+.reference-drop-cue b{ font-size:12px; }.reference-drop-cue small{ color:#a9b8bf; font-size:9.5px; }
 .reference-set-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:7px; }
 .reference-set-head b{ color:var(--accent); font-size:10.5px; }.reference-set-head span{ color:#8f88a5; font-size:9.5px; }
 .reference-tray{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
@@ -604,6 +611,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   <div class="petlab-intro">
     <button type="button" class="pet-source" id="petSourceDrop" data-pet-upload onclick="requestPetReference()" data-aria-zh="添加伴灵参考图片" data-aria-en="Add a familiar reference image"><span id="petSourceGlyph">＋</span><img id="petSourceImg" alt=""><small data-zh="添加图片" data-en="add image">添加图片</small></button>
     <div class="petlab-copy"><b data-zh="添加图片 → 自动生成草稿 → 选一个定稿" data-en="Add images → automatic drafts → pick one final">添加图片 → 自动生成草稿 → 选一个定稿</b>
+      <span data-zh="从 Google 图片、网页或 Finder 直接拖进来" data-en="Drag straight from Google Images, the web, or Finder">从 Google 图片、网页或 Finder 直接拖进来</span>
       <div class="petlab-actions">
         <button type="button" data-pet-upload onclick="requestPetReference()" data-zh="添加参考图…" data-en="Add references…">添加参考图…</button>
         <input class="pet-name" id="petName" value="我的小伴灵" maxlength="28"
@@ -614,6 +622,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   </div>
 
   <section class="reference-set" id="petReferenceSet" aria-labelledby="petReferenceTitle">
+    <div class="reference-drop-cue" id="petReferenceDropCue" aria-hidden="true"><span>↓</span><b data-zh="松手，加入参考图" data-en="Drop to add">松手，加入参考图</b><small data-zh="网页图片或 Finder 文件" data-en="Web image or Finder file">网页图片或 Finder 文件</small></div>
     <div class="reference-set-head"><b id="petReferenceTitle" data-zh="主角参考集" data-en="Subject reference set">主角参考集</b><span id="petReferenceCount">0 / 8</span></div>
     <div class="reference-tray" id="petReferenceTray" role="list"></div>
     <p class="reference-note" id="petReferenceNote" data-zh="最多 8 张。米墨会在本机自动找出人物；图片全部就绪后直接生成 3 个草稿。" data-en="Up to 8 images. Mimo finds the subject locally and makes 3 drafts once every image is ready.">最多 8 张。米墨会在本机自动找出人物；图片全部就绪后直接生成 3 个草稿。</p>
@@ -1779,11 +1788,22 @@ function loadPetImageData(url,sourceName,options={append:true}){
   });
   return petReferenceLoadQueue;
 }
+const PET_IMAGE_EXTENSIONS=/\.(?:avif|gif|heic|heif|jpe?g|png|webp)$/i;
+function isPetImageFile(file){return !!file&&(String(file.type||'').toLowerCase().startsWith('image/')||PET_IMAGE_EXTENSIONS.test(String(file.name||'')))}
+function inferredPetImageType(file){
+  const supplied=String(file?.type||'').toLowerCase();if(supplied.startsWith('image/'))return supplied;
+  const ext=(String(file?.name||'').match(/\.([a-z0-9]+)$/i)?.[1]||'').toLowerCase();
+  return ({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif',avif:'image/avif',heic:'image/heic',heif:'image/heif'})[ext]||'application/octet-stream';
+}
 function fileDataURL(file){
-  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('read_failed'));reader.readAsDataURL(file)});
+  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{
+    let value=String(reader.result||''),mime=inferredPetImageType(file);
+    if(mime.startsWith('image/')&&!/^data:image\//i.test(value))value=value.replace(/^data:[^;,]*/i,`data:${mime}`);
+    resolve(value);
+  };reader.onerror=()=>reject(new Error('read_failed'));reader.readAsDataURL(file)});
 }
 async function addPetReferenceFiles(fileList){
-  if(studioBusy()||referencesImporting())return;const images=[...(fileList||[])].filter(file=>file.type.startsWith('image/'));
+  if(studioBusy()||referencesImporting())return;const images=[...(fileList||[])].filter(isPetImageFile);
   if(!images.length){setupStudioError(tx('请拖入 PNG、JPEG 或 WebP 图片。','Drop PNG, JPEG, or WebP images.'));return}
   const available=Math.max(0,MAX_PET_REFERENCES-petLab.references.length),selected=images.slice(0,available);
   if(!selected.length){petLab.referenceNoticeZh='已达到 8 张上限；没有添加更多图片。';petLab.referenceNoticeEn='8-image limit reached; no more images were added.';renderReferenceSet();return}
@@ -1811,13 +1831,65 @@ async function addPetReferenceFiles(fileList){
   }
   scheduleCandidateAutoGeneration();
 }
+function petDropURLCandidates(dataTransfer){
+  if(!dataTransfer)return [];
+  const values=[];
+  const html=dataTransfer.getData('text/html');
+  if(html){
+    const parsed=new DOMParser().parseFromString(html,'text/html');
+    parsed.querySelectorAll('img').forEach(img=>{
+      ['src','data-src','data-iurl','data-original'].forEach(name=>{const value=img.getAttribute(name);if(value)values.push(value)});
+      const srcset=img.getAttribute('srcset');if(srcset)srcset.split(',').forEach(item=>{const value=item.trim().split(/\s+/)[0];if(value)values.push(value)});
+    });
+    parsed.querySelectorAll('a[href]').forEach(link=>values.push(link.getAttribute('href')));
+  }
+  const uriList=dataTransfer.getData('text/uri-list');
+  if(uriList)uriList.split(/\r?\n/).map(line=>line.trim()).filter(line=>line&&!line.startsWith('#')).forEach(value=>values.push(value));
+  const plain=dataTransfer.getData('text/plain').trim();if(plain)values.push(plain.match(/https:\/\/[^\s<>"']+/i)?.[0]||plain.split(/\r?\n/)[0].trim());
+  return [...new Set(values)];
+}
+function normalizedPetDropURL(raw){
+  let value=String(raw||'').trim();if(!value)return null;if(value.startsWith('//'))value=`https:${value}`;
+  if(/^data:image\/(?:avif|gif|heic|heif|jpe?g|png|webp)[;,]/i.test(value))return value.length<28_000_000?value:null;
+  if(/^blob:/i.test(value))return 'blob:';
+  try{
+    const url=new URL(value);
+    for(const key of ['imgurl','mediaurl']){
+      const embedded=url.searchParams.get(key);if(!embedded)continue;
+      try{const imageURL=new URL(embedded);if(imageURL.protocol==='https:')return imageURL.href}catch(error){}
+    }
+    return url.protocol==='https:'?url.href:null;
+  }catch(error){return null}
+}
+async function addPetReferenceDrop(dataTransfer){
+  if(studioBusy()||referencesImporting())return;
+  if([...(dataTransfer?.files||[])].some(isPetImageFile))return addPetReferenceFiles(dataTransfer?.files);
+  const candidates=petDropURLCandidates(dataTransfer),normalized=candidates.map(normalizedPetDropURL).filter(Boolean);
+  const dataURL=normalized.find(value=>value.startsWith('data:image/'));
+  if(dataURL){
+    const ok=await loadPetImageData(dataURL,tx('网页图片','Web image'));
+    if(!ok)setupStudioError(tx('这张网页图片无法读取；请打开原图再拖。','This web image could not be read. Open the original image and drag it again.'));
+    return;
+  }
+  const remoteURL=normalized.find(value=>value.startsWith('https://'));
+  if(remoteURL){
+    sendStudio({type:'petWebReference',url:remoteURL,remaining:MAX_PET_REFERENCES-petLab.references.length});return;
+  }
+  if(normalized.includes('blob:')){
+    setupStudioError(tx('这个网页只给了临时图片。请打开原图再拖，或先下载到 Finder。','This page only provided a temporary image. Open the original image and drag it again, or download it to Finder first.'));return;
+  }
+  setupStudioError(tx('没有找到可读取的图片。请拖图片本身，不要拖网页链接。','No readable image was found. Drag the image itself, not the page link.'));
+}
 function installPetDrop(){
   const targets=[document.getElementById('petSourceDrop'),document.getElementById('petReferenceSet')].filter(Boolean);if(!targets.length)return;
   targets.forEach(drop=>{
-    ['dragenter','dragover'].forEach(type=>drop.addEventListener(type,e=>{e.preventDefault();e.stopPropagation();drop.classList.add('drag')}));
-    ['dragleave','drop'].forEach(type=>drop.addEventListener(type,e=>{e.preventDefault();e.stopPropagation();drop.classList.remove('drag')}));
-    drop.addEventListener('drop',e=>addPetReferenceFiles(e.dataTransfer?.files));
+    let dragDepth=0;
+    drop.addEventListener('dragenter',e=>{e.preventDefault();e.stopPropagation();dragDepth++;drop.classList.add('drag')});
+    drop.addEventListener('dragover',e=>{e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect='copy';drop.classList.add('drag')});
+    drop.addEventListener('dragleave',e=>{e.preventDefault();e.stopPropagation();dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)drop.classList.remove('drag')});
+    drop.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();dragDepth=0;drop.classList.remove('drag');void addPetReferenceDrop(e.dataTransfer)});
   });
+  window.addEventListener('blur',()=>targets.forEach(drop=>drop.classList.remove('drag')));
 }
 
 const kinds = () => [['code',tx('⌨️ 专注 · 编程','⌨️ focus · code')],['term',tx('💻 专注 · 终端','💻 focus · terminal')],

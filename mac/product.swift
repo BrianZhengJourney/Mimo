@@ -220,11 +220,11 @@ func appIconDataURI(_ bundleId: String) -> String? {
     return uri
 }
 
-func petReferenceDataURI(_ url: URL) -> String? {
-    let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? Int.max
-    guard fileSize > 0, fileSize <= 20 * 1024 * 1024,
-          let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
+private func normalizedPetReferenceDataURI(
+    _ imageSource: CGImageSource
+) -> String? {
+    guard let properties = CGImageSourceCopyPropertiesAtIndex(
+            imageSource, 0, nil) as? [CFString: Any],
           let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
           let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
           width.intValue > 0, height.intValue > 0,
@@ -246,6 +246,20 @@ func petReferenceDataURI(_ url: URL) -> String? {
     guard let jpeg = rep.representation(using: .jpeg,
                                         properties: [.compressionFactor: 0.88]) else { return nil }
     return "data:image/jpeg;base64," + jpeg.base64EncodedString()
+}
+
+func petReferenceDataURI(_ url: URL) -> String? {
+    let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? Int.max
+    guard fileSize > 0, fileSize <= 20 * 1024 * 1024,
+          let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+    return normalizedPetReferenceDataURI(imageSource)
+}
+
+func petReferenceDataURI(_ data: Data) -> String? {
+    guard !data.isEmpty,
+          data.count <= PetReferenceImportPolicy.maximumDownloadBytes,
+          let imageSource = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+    return normalizedPetReferenceDataURI(imageSource)
 }
 
 func validGeneratedPetSpec(_ spec: [String: Any]) -> Bool {
@@ -374,6 +388,7 @@ extension AppDelegate {
 
     private static let studioPrivacyScopedSettingsTypes: Set<String> = [
         "petUpload",
+        "petWebReference",
         "petGenerateCandidates",
         "petGenerateVariations",
         "petGenerateEvolution",
@@ -1148,6 +1163,8 @@ extension AppDelegate {
         // importPetReferenceURLs drop the one delivery that may already be
         // running.
         petReferenceImportQueue = nil
+        petRemoteReferenceDownloader?.cancel()
+        petRemoteReferenceDownloader = nil
         settingsCall("petPrivacyReset", [
             "studioPrivacyGeneration": studioPrivacyGenerationToken,
         ])
@@ -3033,6 +3050,91 @@ extension AppDelegate {
         queue.start()
     }
 
+    private func importPetWebReference(_ url: URL) {
+        guard petReferenceImportQueue == nil,
+              petRemoteReferenceDownloader == nil else { return }
+        let privacyEpoch = generationPurgeEpoch
+        let privacyToken = StudioPrivacyGeneration.token(for: privacyEpoch)
+        let sourceName = PetReferenceImportPolicy.displayName(for: url)
+        settingsCall("petReferenceImportStarted", [
+            "count": 1,
+            "skippedDueToLimit": 0,
+            "studioPrivacyGeneration": privacyToken,
+        ])
+
+        let downloader = PetRemoteReferenceDownloader { [weak self] result in
+            let normalized: Result<String, PetRemoteReferenceDownloadError>
+            switch result {
+            case .success(let data):
+                if let uri = petReferenceDataURI(data) {
+                    normalized = .success(uri)
+                } else {
+                    normalized = .failure(.unsupportedContent)
+                }
+            case .failure(let error):
+                normalized = .failure(error)
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.generationPurgeEpoch == privacyEpoch,
+                      self.petRemoteReferenceDownloader != nil else { return }
+                self.petRemoteReferenceDownloader = nil
+
+                switch normalized {
+                case .failure(let error):
+                    let message: (String, String)
+                    switch error {
+                    case .tooLarge:
+                        message = (
+                            "这张网页图片超过 20 MB；请换一张较小的图片。",
+                            "This web image is over 20 MB. Try a smaller image.")
+                    case .unsupportedContent:
+                        message = (
+                            "拖到的内容不是可读取的图片；请打开原图再拖，或先下载到 Finder。",
+                            "The dropped item was not a readable image. Open the original image and drag it again, or download it to Finder first.")
+                    case .invalidURL, .invalidResponse:
+                        message = (
+                            "这个网页没有提供可直接读取的图片；请打开原图再拖。",
+                            "This page did not provide a directly readable image. Open the original image and drag it again.")
+                    case .empty, .network, .cancelled:
+                        message = (
+                            "暂时没能取到这张网页图片；请重试，或先下载到 Finder。",
+                            "Mimo could not retrieve this web image. Try again, or download it to Finder first.")
+                    }
+                    self.settingsCall("petReferenceImportSkipped", [
+                        "messageZh": message.0,
+                        "messageEn": message.1,
+                        "studioPrivacyGeneration": privacyToken,
+                    ])
+
+                case .success(let uri):
+                    guard let web = self.settingsWeb else {
+                        self.settingsCall("petReferenceImportSkipped", [
+                            "messageZh": "网页图片已取得，但没有成功加入参考集；请再试一次。",
+                            "messageEn": "The web image was retrieved but could not be added. Try again.",
+                            "studioPrivacyGeneration": privacyToken,
+                        ])
+                        return
+                    }
+                    let script = "enqueuePetImageData(\(jsonStr(uri)), \(jsonStr(sourceName)), \(jsonStr(privacyToken)))"
+                    web.evaluateJavaScript(script) { [weak self] _, error in
+                        if error != nil,
+                           self?.generationPurgeEpoch == privacyEpoch {
+                            self?.settingsCall("petReferenceImportSkipped", [
+                                "messageZh": "网页图片没有成功加入参考集；请再试一次。",
+                                "messageEn": "The web image could not be added to the reference set. Try again.",
+                                "studioPrivacyGeneration": privacyToken,
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+        petRemoteReferenceDownloader = downloader
+        downloader.start(url)
+    }
+
     func handleSettings(_ body: [String: Any]) {
         let d = UserDefaults.standard
         let type = body["type"] as? String ?? ""
@@ -3111,7 +3213,8 @@ extension AppDelegate {
                 revealOverlay()
             }
         case "petUpload":
-            guard petReferenceImportQueue == nil else { return }
+            guard petReferenceImportQueue == nil,
+                  petRemoteReferenceDownloader == nil else { return }
             let reportedRemaining = (body["remaining"] as? NSNumber)?.intValue
             let selectionLimit = PetReferenceImportPolicy.selectionLimit(
                 reportedRemaining: reportedRemaining)
@@ -3131,6 +3234,21 @@ extension AppDelegate {
                     selected,
                     skippedDueToLimit: panel.urls.count - selected.count)
             }
+        case "petWebReference":
+            guard petReferenceImportQueue == nil,
+                  petRemoteReferenceDownloader == nil else { return }
+            guard PetReferenceImportPolicy.selectionLimit(
+                    reportedRemaining: (body["remaining"] as? NSNumber)?.intValue) > 0,
+                  let rawURL = body["url"] as? String,
+                  let url = PetReferenceImportPolicy.remoteImageURL(from: rawURL) else {
+                settingsCall("petReferenceImportSkipped", [
+                    "messageZh": "这个拖入内容不是可读取的网页图片；请打开原图再拖。",
+                    "messageEn": "The dropped item is not a readable web image. Open the original image and drag it again.",
+                    "studioPrivacyGeneration": studioPrivacyGenerationToken,
+                ])
+                return
+            }
+            importPetWebReference(url)
         case "petStarterActionStartDefaults":
             guard let characterID = activeCustomCharacterID(
                     requested: body["characterID"]) else {

@@ -128,6 +128,25 @@ struct DIYStudioFlowTests {
                 settings.contains("updateStyleTuning(this.value)"),
                 "preset notes should remain freely editable")
 
+        require(settings.contains("id=\"petReferenceDropCue\"") &&
+                settings.contains("松手，加入参考图") &&
+                settings.contains("Drop to add") &&
+                settings.contains("从 Google 图片、网页或 Finder 直接拖进来"),
+                "DIY should explain and visibly acknowledge cross-app image drops")
+        require(settings.contains("function petDropURLCandidates(dataTransfer)") &&
+                settings.contains("dataTransfer.getData('text/html')") &&
+                settings.contains("dataTransfer.getData('text/uri-list')") &&
+                settings.contains("url.searchParams.get(key)") &&
+                settings.contains("['imgurl','mediaurl']") &&
+                settings.contains("function addPetReferenceDrop(dataTransfer)") &&
+                settings.contains("sendStudio({type:'petWebReference'") &&
+                settings.contains("addPetReferenceFiles(dataTransfer?.files)"),
+                "one drop path should accept both browser URLs/HTML and Finder files")
+        require(settings.contains("blob:") &&
+                settings.contains("打开原图再拖") &&
+                settings.contains("Open the original image and drag it again"),
+                "temporary browser-only image URLs should fail with a useful recovery")
+
         if !failures.isEmpty {
             for failure in failures {
                 FileHandle.standardError.write(Data("FAIL: \(failure)\n".utf8))
