@@ -661,7 +661,8 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
     <div class="api-grid">
       <div class="api-field"><label><span>OpenAI</span><b id="openAIKeyState">未设置</b></label><input id="openAIKey" type="password" autocomplete="off" placeholder="OpenAI API key"></div>
     </div>
-    <div class="api-actions"><button type="button" onclick="savePetKeys()" data-zh="安全保存" data-en="Save securely">安全保存</button><button type="button" onclick="clearPetKey('openai')" data-zh="清除 OpenAI" data-en="Clear OpenAI">清除 OpenAI</button></div>
+    <div class="api-actions"><button type="button" id="petAuthorizeKey" hidden onclick="authorizePetKey()" data-zh="重新授权并继续" data-en="Authorize &amp; continue">重新授权并继续</button><button type="button" onclick="savePetKeys()" data-zh="安全保存" data-en="Save securely">安全保存</button><button type="button" onclick="clearPetKey('openai')" data-zh="清除 OpenAI" data-en="Clear OpenAI">清除 OpenAI</button></div>
+    <div class="note" id="petKeyAuthorizationHint" hidden data-zh="Key 还在。请在 macOS 弹窗中选择“始终允许”，不用重新填写。" data-en="Your key is still saved. Choose Always Allow in the macOS prompt; no need to enter it again.">Key 还在。请在 macOS 弹窗中选择“始终允许”，不用重新填写。</div>
     <div class="note" data-zh="GPT Image 2 · Low 草稿 → Medium 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。" data-en="GPT Image 2 · Low drafts → Medium final. Most waiting is image generation at OpenAI; local matte removal is normally brief.">GPT Image 2 · Low 草稿 → Medium 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。</div>
   </details>
 </div>
@@ -1206,10 +1207,16 @@ function renderKeyState(){
   /* The environment wins over the Keychain, so "clear key" can leave the app
      still configured and still spending. Say which one is actually in use. */
   const fromEnv=S.openAIKeySource==='environment';
-  openai.textContent=!S.openAIConfigured?tx('未设置','not set')
+  const needsAuthorization=S.openAIKeySource==='keychain-needs-authorization',pending=!!S.openAIKeyAuthorizationPending;
+  openai.textContent=pending?tx('等待 macOS 授权…','waiting for macOS…')
+    :needsAuthorization?tx('已保存 · 需要重新授权','Saved · authorization needed')
+    :!S.openAIConfigured?tx('未设置','not set')
     :fromEnv?tx('已连接（环境变量 OPENAI_API_KEY）','connected (OPENAI_API_KEY from environment)')
     :tx('已连接','connected');
   openai.className=S.openAIConfigured?'ok':'';
+  const authorize=document.getElementById('petAuthorizeKey'),hint=document.getElementById('petKeyAuthorizationHint');
+  if(authorize){authorize.hidden=!needsAuthorization&&!pending;authorize.disabled=pending}
+  if(hint)hint.hidden=!needsAuthorization&&!pending;
 }
 function candidateImage(candidate){return typeof candidate==='string'?candidate:(candidate?.image||candidate?.url||candidate?.preview||candidate?.dataURI||'')}
 function diagnosticsHTML(){
@@ -1290,6 +1297,7 @@ function errorHTML(){
   const recovery=local&&petLab.rawPreview?`<div class="recovery-row"><img class="recovery-preview" src="${esc(petLab.rawPreview)}" alt="${tx('OpenAI 原始结果预览','Raw OpenAI result preview')}"><div class="recovery-copy"><strong>${canRecover?tx('OpenAI 已完成 · 可在本机安全重试','OpenAI finished · safe local retry available'):tx('OpenAI 原始结果','Raw OpenAI output')}</strong>${esc(canRecover?expiry:(retained||tx('只在当前会话中可见','Visible in this session only')))}</div></div>`:'';
   const retryLocal=canRecover?`<button type="button" onclick="retryLocalProcessing()">${tx('在本机安全重新提取','Retry safe local extraction')}</button>`:'';
   let setupAction=`<button type="button" onclick="document.getElementById('apiSetup').open=true">${tx('检查 API 连接','Check API connection')}</button>`;
+  if(S.openAIStored&&S.openAIKeySource==='keychain-needs-authorization')setupAction=`<button type="button" onclick="authorizePetKey()">${tx('重新授权并继续','Authorize & continue')}</button>`;
   if(petLab.resetTo==='upload')setupAction=`<button type="button" onclick="requestPetReference()">${tx('添加新的参考图','Add a new reference')}</button>`;
   if(petLab.resetTo==='candidates')setupAction=`<button type="button" onclick="generateCandidates()">${tx('重新生成 Low 草稿','Generate new Low drafts')}</button>`;
   const archive=local&&petLab.outputRetained?`<button type="button" onclick="send({type:'petRevealGenerationDrafts'})">${tx('查看原图档案','Show raw archive')}</button>`:'';
@@ -1354,7 +1362,7 @@ function renderPetLab(){
   else if(petLab.sheet)state.innerHTML=`<span class="dot"></span>${tx('Medium 定稿已完成 · 可以带回桌面','Medium final ready · bring it home')}`;
   else if(petLab.candidateIndex!==null)state.innerHTML=`<span class="dot"></span>${tx(`已选择草稿 ${petLab.candidateIndex+1} · 可以生成定稿`,`Draft ${petLab.candidateIndex+1} selected · ready for final`)}`;
   else if(petLab.candidates.length)state.innerHTML=`<span class="dot"></span>${tx('3 个草稿已到 · 请选择一个','3 drafts arrived · choose one')}`;
-  else state.innerHTML=`<span class="dot"></span>${S.openAIConfigured?tx('参考图已就绪 · 即将自动生成草稿','References ready · drafts will start automatically'):tx('参考图已就绪 · 连接 OpenAI 后自动继续','References ready · connect OpenAI to continue')}`;
+  else state.innerHTML=`<span class="dot"></span>${S.openAIConfigured?tx('参考图已就绪 · 即将自动生成草稿','References ready · drafts will start automatically'):S.openAIStored?tx('Key 已保存 · 重新授权后自动继续','Key saved · authorize to continue'):tx('参考图已就绪 · 连接 OpenAI 后自动继续','References ready · connect OpenAI to continue')}`;
   syncVisibleDrafts();scheduleCandidateAutoGeneration();
 }
 setInterval(()=>{
@@ -1363,11 +1371,13 @@ setInterval(()=>{
 },250);
 function savePetKeys(){send({type:'petSaveKeys',openAI:document.getElementById('openAIKey').value})}
 function clearPetKey(provider){send({type:'petClearKey',provider})}
+function authorizePetKey(){send({type:'petAuthorizeKey'})}
+function petKeyAuthorizationStarted(){S.openAIKeyAuthorizationPending=true;renderKeyState()}
 function petKeysSaved(state){
-  S.openAIConfigured=!!state.openAIConfigured;S.openAIKeySource=state.openAIKeySource||'none';const input=document.getElementById('openAIKey');
+  S.openAIConfigured=!!state.openAIConfigured;S.openAIStored=!!state.openAIStored;S.openAIKeySource=state.openAIKeySource||'none';S.openAIKeyAuthorizationPending=false;const input=document.getElementById('openAIKey');
   if(input&&(state.cleared==='OpenAI'||!(state.failed||[]).includes('OpenAI')))input.value='';
   renderKeyState();if(state.error){document.getElementById('apiSetup').open=true;petLab.error=state.error;petLab.errorKind='setup';petLab.status='error';renderPetLab()}
-  else if(S.openAIConfigured){document.getElementById('apiSetup').open=false;scheduleCandidateAutoGeneration()}
+  else if(S.openAIConfigured){document.getElementById('apiSetup').open=false;if(petLab.errorCode==='missing_api_key')candidateAutoGenerateSignature='';scheduleCandidateAutoGeneration()}
 }
 function newRequestID(){
   if(globalThis.crypto?.randomUUID)return crypto.randomUUID();
@@ -1386,7 +1396,12 @@ function canGenerate(){
   if(!petLab.source){setupStudioError(tx('请先添加至少一张参考图。','Add at least one reference image first.'));return false}
   if(referencesImporting()){setupStudioError(tx('参考图还在导入，请等缩略图全部出现。','References are still importing; wait for every thumbnail to appear.'));return false}
   if(studioBusy())return false;
-  if(!S.openAIConfigured){document.getElementById('apiSetup').open=true;setupStudioError(tx('先连接 OpenAI，才能生成角色图。','Connect OpenAI before generating character art.'));return false}
+  if(!S.openAIConfigured){
+    document.getElementById('apiSetup').open=true;
+    if(S.openAIStored&&S.openAIKeySource==='keychain-needs-authorization')setupStudioError(tx('Key 还在；请让当前 Mimo 重新获得 macOS Keychain 授权。','Your key is still saved; authorize this Mimo build to read it from macOS Keychain.'));
+    else setupStudioError(tx('先连接 OpenAI，才能生成角色图。','Connect OpenAI before generating character art.'));
+    return false;
+  }
   return true;
 }
 function beginStudioOperation(operation,stageIndex=null){

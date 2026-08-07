@@ -321,6 +321,25 @@ struct PetGenerationTests {
     }
 
     static func main() {
+        let staleAdHocCredential = MimoSecret.resolvedSource(
+            environmentConfigured: false,
+            keychainReadable: false,
+            keychainStored: true)
+        expect(staleAdHocCredential == .keychainNeedsAuthorization,
+               "a stored key blocked after an ad-hoc rebuild must not claim to be connected")
+        expect(!staleAdHocCredential.isReady && staleAdHocCredential.isStored,
+               "a blocked key remains stored but is not ready for a paid request")
+        expect(MimoSecret.resolvedSource(
+            environmentConfigured: false,
+            keychainReadable: true,
+            keychainStored: true) == .keychain,
+               "a readable Keychain value is connected")
+        expect(MimoSecret.resolvedSource(
+            environmentConfigured: true,
+            keychainReadable: false,
+            keychainStored: true) == .environment,
+               "a valid environment key remains the highest-priority ready source")
+
         testWalkSheetRequestIsOneCallForSixteenKeyPoses()
         testStarterActionBatchUsesTheChainedThreeFrameContract()
         testEveryStarterBatchBuildsFromTheProductCatalog()

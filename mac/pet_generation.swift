@@ -27,15 +27,24 @@ enum MimoSecret: String {
             if let raw = ProcessInfo.processInfo.environment[key],
                let value = validated(raw) { return value }
         }
+        return readKeychain(interactionAllowed: true)
+    }
+
+    private func readKeychain(interactionAllowed: Bool) -> String? {
         // Local builds are ad-hoc signed, so use the standard macOS login
         // Keychain. The data-protection Keychain requires a provisioned app ID.
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "com.brianzheng.mimo",
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
+        if !interactionAllowed {
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = context
+        }
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data,
@@ -73,23 +82,43 @@ enum MimoSecret: String {
     /// Keychain in `read()`, so after "clear key" the UI still reported
     /// configured and generations kept spending — with no way to tell which
     /// credential was in use.
-    enum Source: String { case environment, keychain, none }
+    enum Source: String {
+        case environment
+        case keychain
+        case keychainNeedsAuthorization = "keychain-needs-authorization"
+        case none
 
-    var source: Source {
-        for key in environmentNames {
-            if let raw = ProcessInfo.processInfo.environment[key], validated(raw) != nil {
-                return .environment
-            }
-        }
-        return keychainHasValue ? .keychain : .none
+        var isReady: Bool { self == .environment || self == .keychain }
+        var isStored: Bool { self != .none }
     }
 
-    var isConfigured: Bool { source != .none }
+    static func resolvedSource(environmentConfigured: Bool,
+                               keychainReadable: Bool,
+                               keychainStored: Bool) -> Source {
+        if environmentConfigured { return .environment }
+        if keychainReadable { return .keychain }
+        if keychainStored { return .keychainNeedsAuthorization }
+        return .none
+    }
 
-    /// Settings only needs to know whether a credential exists. Asking for its
-    /// bytes here can summon SecurityAgent and block the app's main thread on
-    /// every ad-hoc development build. Attribute lookup is non-interactive;
-    /// the value is requested only after the user starts a generation.
+    var source: Source {
+        let environmentConfigured = environmentNames.contains { key in
+            guard let raw = ProcessInfo.processInfo.environment[key] else { return false }
+            return validated(raw) != nil
+        }
+        if environmentConfigured { return .environment }
+        let readable = readKeychain(interactionAllowed: false) != nil
+        return Self.resolvedSource(
+            environmentConfigured: false,
+            keychainReadable: readable,
+            keychainStored: readable || keychainHasValue)
+    }
+
+    var isConfigured: Bool { source.isReady }
+    var isStored: Bool { source.isStored }
+
+    /// Attribute lookup distinguishes a missing key from a key whose ACL still
+    /// trusts an older ad-hoc build. It never opens an authorization prompt.
     private var keychainHasValue: Bool {
         let context = LAContext()
         context.interactionNotAllowed = true

@@ -493,6 +493,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     /// One cookie-free, size-bounded download created only by an explicit
     /// cross-app image drop in Mimo Studio.
     var petRemoteReferenceDownloader: PetRemoteReferenceDownloader?
+    /// Prevents repeated clicks from opening overlapping Keychain prompts.
+    var keyAuthorizationInFlight = false
     /// Character currently receiving post-adoption expression sheets (one
     /// sequential run at a time; nil when idle).
     var expressionRunCharacterID: String?

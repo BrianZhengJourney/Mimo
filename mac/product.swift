@@ -402,6 +402,15 @@ extension AppDelegate {
         StudioPrivacyGeneration.token(for: generationPurgeEpoch)
     }
 
+    private func openAIKeyStatePayload() -> [String: Any] {
+        let source = MimoSecret.openAI.source
+        return [
+            "openAIConfigured": source.isReady,
+            "openAIStored": source.isStored,
+            "openAIKeySource": source.rawValue,
+        ]
+    }
+
     private func acceptsStudioPrivacyGeneration(_ body: [String: Any]) -> Bool {
         StudioPrivacyGeneration.accepts(
             body["studioPrivacyGeneration"] as? String,
@@ -903,14 +912,13 @@ extension AppDelegate {
             "login": SMAppService.mainApp.status == .enabled,
             "stats": historyStats(),
             "projects": GitWatcher.projectsDir().lastPathComponent,
-            "openAIConfigured": MimoSecret.openAI.isConfigured,
-            "openAIKeySource": MimoSecret.openAI.source.rawValue,
             "imageQuality": PetFinalGenerationQuality.resolve(
                 d.string(forKey: "petImageQuality")).rawValue,
             "generationRecoveryCount": generationDraftStore.recoverableDraftCount(),
             "studioPrivacyGeneration": studioPrivacyGenerationToken,
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
         ]
+        state.merge(openAIKeyStatePayload()) { _, new in new }
         state["settingsFontFamily"] = typography.family.rawValue
         state["settingsFontWeight"] = typography.weight.rawValue
         state["diyStylePresets"] = DIYStylePreset.runtimeDictionaries
@@ -1405,11 +1413,18 @@ extension AppDelegate {
         }
         if let generationError = error as? PetGenerationError,
            case .missingKey = generationError {
+            let keyState = openAIKeyStatePayload()
+            let keyIsStored = keyState["openAIStored"] as? Bool == true
+            settingsCall("petKeysSaved", keyState)
             settingsCall("petStudioError", [
                 "requestID": requestID, "kind": "setup", "phase": "input",
                 "code": "missing_api_key",
-                "messageZh": "请先连接 OpenAI；图片尚未发送，也不会产生费用。",
-                "messageEn": "Connect OpenAI first; no image was sent and no cost was incurred.",
+                "messageZh": keyIsStored
+                    ? "Key 仍已保存，但当前 Mimo 还没有读取权限；请重新授权。图片尚未发送，也不会产生费用。"
+                    : "请先连接 OpenAI；图片尚未发送，也不会产生费用。",
+                "messageEn": keyIsStored
+                    ? "The key is still saved, but this Mimo build cannot read it yet. Authorize it to continue; no image was sent and no cost was incurred."
+                    : "Connect OpenAI first; no image was sent and no cost was incurred.",
                 "outputRetained": false, "requestNotStarted": true,
             ])
             releaseStudioGeneration(requestID)
@@ -3458,10 +3473,7 @@ extension AppDelegate {
             if let value = body["openAI"] as? String, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 if !MimoSecret.openAI.write(value) { failed.append("OpenAI") }
             }
-            var keyState: [String: Any] = [
-                "openAIConfigured": MimoSecret.openAI.isConfigured,
-                "openAIKeySource": MimoSecret.openAI.source.rawValue,
-            ]
+            var keyState = openAIKeyStatePayload()
             if !failed.isEmpty {
                 keyState["failed"] = failed
                 keyState["error"] = voice("无法安全保存：\(failed.joined(separator: ", "))", "Could not save securely: \(failed.joined(separator: ", "))")
@@ -3471,21 +3483,41 @@ extension AppDelegate {
             if MimoSecret.openAI.isConfigured {
                 resumePostInstallStarterActions()
             }
+        case "petAuthorizeKey":
+            guard !keyAuthorizationInFlight else { return }
+            keyAuthorizationInFlight = true
+            NSApp.activate(ignoringOtherApps: true)
+            settingsWin?.makeKeyAndOrderFront(nil)
+            settingsCall("petKeyAuthorizationStarted", [:])
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let readable = MimoSecret.openAI.read() != nil
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.keyAuthorizationInFlight = false
+                    var keyState = self.openAIKeyStatePayload()
+                    keyState["authorizationAttempted"] = true
+                    if !readable || !(keyState["openAIConfigured"] as? Bool ?? false) {
+                        keyState["error"] = voice(
+                            "macOS 还没有允许当前 Mimo 读取已保存的 Key。请再试一次，并在系统弹窗中选择“始终允许”。",
+                            "macOS has not allowed this Mimo build to read the saved key. Try again and choose Always Allow in the system prompt.")
+                    }
+                    self.settingsCall("petKeysSaved", keyState)
+                    self.reflectionBrowser.providerConfigurationDidChange()
+                    if keyState["openAIConfigured"] as? Bool == true {
+                        self.resumePostInstallStarterActions()
+                    }
+                }
+            }
         case "petClearKey":
             guard body["provider"] as? String == "openai" else {
-                settingsCall("petKeysSaved", [
-                    "openAIConfigured": MimoSecret.openAI.isConfigured,
-                    "openAIKeySource": MimoSecret.openAI.source.rawValue,
-                    "error": voice("不支持这个密钥类型。", "This credential type is not supported."),
-                ])
+                var state = openAIKeyStatePayload()
+                state["error"] = voice("不支持这个密钥类型。", "This credential type is not supported.")
+                settingsCall("petKeysSaved", state)
                 return
             }
             let cleared = MimoSecret.openAI.write("")
-            var keyState: [String: Any] = [
-                "openAIConfigured": MimoSecret.openAI.isConfigured,
-                "openAIKeySource": MimoSecret.openAI.source.rawValue,
-                "cleared": "OpenAI",
-            ]
+            var keyState = openAIKeyStatePayload()
+            keyState["cleared"] = "OpenAI"
             if !cleared { keyState["error"] = voice("无法清除 OpenAI", "Could not clear OpenAI") }
             settingsCall("petKeysSaved", keyState)
             reflectionBrowser.providerConfigurationDidChange()

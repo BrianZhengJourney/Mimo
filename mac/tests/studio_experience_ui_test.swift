@@ -42,6 +42,25 @@ struct StudioExperienceUITests {
                && product.contains("startStarterActionPack(characterID: characterID, quality: .medium)"),
                "post-adoption expressions and starter actions should remain a durable background pipeline")
 
+        expect(html.contains("S.openAIStored=!!state.openAIStored")
+               && html.contains("keychain-needs-authorization")
+               && html.contains("已保存 · 需要重新授权")
+               && html.contains("Saved · authorization needed")
+               && html.contains("type:'petAuthorizeKey'")
+               && html.contains("重新授权并继续")
+               && html.contains("Authorize & continue"),
+               "a stored-but-unreadable Keychain key should have one honest recovery path")
+        expect(product.contains("case \"petAuthorizeKey\"")
+               && product.contains("petKeyAuthorizationStarted")
+               && product.contains("MimoSecret.openAI.read() != nil")
+               && product.contains("openAIKeyStatePayload("),
+               "native Settings should authorize the existing key without asking users to re-enter it")
+        expect(generation.contains("case keychainNeedsAuthorization = \"keychain-needs-authorization\"")
+               && generation.contains("var isReady: Bool")
+               && generation.contains("var isStored: Bool")
+               && generation.contains("interactionNotAllowed = true"),
+               "credential readiness must be based on a non-interactive value read, not item existence")
+
         print("studio experience UI tests passed")
     }
 }
