@@ -36,6 +36,7 @@ APP_SOURCES=(
   diy_style_preset.swift
   openai_health.swift
   reflection_core.swift
+  activity_watch.swift
   journey_graph.swift
   reflection_model.swift
   reflection_browser.swift

@@ -42,6 +42,11 @@ struct ReflectionCoreTests {
                "communication apps map to communication")
         expect(result.events[3].bundleIdentifier == "com.tencent.xinWeChat",
                "native bundle identity survives the local activity parser")
+        let legacyEventJSON = #"{"id":"legacy","startedAtMS":1,"endedAtMS":2,"app":"Cursor","category":"code","order":0,"isRevisit":false,"isContextSwitch":false}"#
+        let legacyEvent = try JSONDecoder().decode(
+            ActivityEvent.self, from: Data(legacyEventJSON.utf8))
+        expect(legacyEvent.source == "mimo",
+               "pre-adapter activity archives migrate to explicit Mimo provenance")
 
         let blocks = ActivityBlockBuilder.build(result.events)
         expect(blocks.count == 4,
@@ -74,10 +79,31 @@ struct ReflectionCoreTests {
         expect(returnEdge?.source == blocks.first?.id
                && returnEdge?.target == blocks.last?.id,
                "a non-adjacent return to the same place becomes an explicit return edge")
-        expect(graph.clusters.count == 4
-               && graph.clusters.flatMap(\.nodeKeys) == blocks.map(\.id)
+        expect(graph.clusters.count == 3
+               && graph.clusters.flatMap(\.nodeKeys).sorted() == blocks.map(\.id).sorted()
+               && Set(graph.clusters.flatMap(\.nodeKeys)).count == blocks.count
                && graph.jsonObject()?["nodes"] != nil,
-               "cluster membership is lossless and exports in Graphology-compatible shape")
+               "semantic topic membership is lossless and exports in Graphology-compatible shape")
+
+        let topicEvents = [
+            ActivityEvent(id: "topic-1", startedAtMS: 0, endedAtMS: 60_000,
+                          app: "Cursor", title: "Mimo graph renderer",
+                          category: "code", order: 0),
+            ActivityEvent(id: "topic-2", startedAtMS: 180_000, endedAtMS: 240_000,
+                          app: "Arc", title: "Attention research paper",
+                          fullURL: "https://arxiv.org/abs/attention",
+                          domain: "arxiv.org", category: "paper", order: 1),
+            ActivityEvent(id: "topic-3", startedAtMS: 360_000, endedAtMS: 420_000,
+                          app: "Figma", title: "Mimo graph interface",
+                          category: "design", order: 2),
+        ]
+        let topicSnapshot = DailyActivitySnapshot.build(range: range, events: topicEvents)
+        let topicGraph = JourneyGraphBuilder.build(snapshot: topicSnapshot)
+        expect(topicGraph.clusters.count == 2
+               && topicGraph.clusters.contains { $0.nodeKeys == [
+                    topicSnapshot.blocks[0].id, topicSnapshot.blocks[2].id] }
+               && topicGraph.edges.contains { $0.attributes.kind == "topic-return" },
+               "a subject resumed in another tool becomes one topic and an explicit return")
         let graphRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
             "mimo-journey-graph-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: graphRoot) }
@@ -88,6 +114,20 @@ struct ReflectionCoreTests {
         expect(graphFiles.count == 1
                && graphFiles[0].lastPathComponent.hasPrefix(JourneyGraphStore.filePrefix),
                "journey graph snapshots persist locally with a bounded, date-addressed filename")
+        var nextDay = graph
+        let dayMS = 24.0 * 60 * 60 * 1_000
+        nextDay.attributes.rangeStartMS += dayMS
+        nextDay.attributes.rangeEndMS += dayMS
+        nextDay.clusters = nextDay.clusters.map { cluster in
+            var shifted = cluster
+            shifted.startedAtMS += dayMS
+            shifted.endedAtMS += dayMS
+            return shifted
+        }
+        let enriched = graphStore.enrichingWithHistory(nextDay)
+        expect(enriched.clusters.allSatisfy {
+            $0.priorDayCount == 1 && $0.lastSeenAtMS != nil
+        }, "today's topic nodes can show honest cross-day recurrence metadata")
         let graphPurged = graphStore.purgeAll()
         let remainingGraphFiles = try FileManager.default.contentsOfDirectory(
             at: graphRoot, includingPropertiesForKeys: nil)

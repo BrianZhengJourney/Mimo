@@ -17,6 +17,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
     private let browserRoot: URL
     private let stateURL: URL
     private let journeyGraphStore: JourneyGraphStore
+    private let activityWatchClient = ActivityWatchClient()
     private let fixtureName: String?
     private var state: DailyTrailPersistedState
     private var reflectionModel: ReflectionModel?
@@ -28,6 +29,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
     private var activityStatus = "idle"
     private var activityMessage: String?
     private var activityError: String?
+    private var activityWatchStatus = "disabled"
+    private var activityWatchMessage: String?
     private var analysisStatus = "local"
     private var analysisMessage: String?
     private var analysisError: String?
@@ -50,6 +53,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         stateURL = browserRoot.appendingPathComponent("daily-trail-state.json", isDirectory: false)
         journeyGraphStore = JourneyGraphStore(root: browserRoot)
         state = Self.loadState(from: stateURL) ?? DailyTrailPersistedState()
+        activityWatchStatus = state.activityWatchEnabled ? "idle" : "disabled"
         let initialRange = ReflectionDateRange.today()
         snapshot = .build(range: initialRange, events: [])
         journeyGraph = JourneyGraphBuilder.build(snapshot: snapshot)
@@ -264,6 +268,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         state.ignoredDomains = cleanList(body["ignoredDomains"]).map {
             $0.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
         }.filter { !$0.isEmpty }
+        state.activityWatchEnabled = body["activityWatchEnabled"] as? Bool ?? false
         invalidateAnalysis()
         persistState()
         refreshActivities()
@@ -283,6 +288,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         activityStatus = "loading"
         activityMessage = "Reading local activity…"
         activityError = nil
+        activityWatchStatus = state.activityWatchEnabled ? "checking" : "disabled"
+        activityWatchMessage = nil
         pushState()
         let range = currentRange
         let urls = activityLogURLs()
@@ -290,55 +297,124 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             $0.folding(options: [.caseInsensitive], locale: .current)
         })
         let ignoredDomains = state.ignoredDomains
+        let activityWatchEnabled = state.activityWatchEnabled
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = ActivityJSONLParser.read(urls: urls, range: range)
-            let visible = result.events.filter { event in
-                let app = event.app.folding(options: [.caseInsensitive], locale: .current)
-                guard !ignoredApps.contains(app) else { return false }
-                guard let domain = event.domain?.lowercased() else { return true }
-                return !ignoredDomains.contains { domain == $0 || domain.hasSuffix("." + $0) }
-            }
-            let snapshot = DailyActivitySnapshot.build(range: range, events: visible)
-            let journeyGraph = JourneyGraphBuilder.build(snapshot: snapshot)
-            let local = LocalActivityReflector.build(snapshot: snapshot)
-            DispatchQueue.main.async {
-                guard let self, self.activityGeneration == generation else { return }
-                self.snapshot = snapshot
-                self.journeyGraph = journeyGraph
-                self.reflection = local
-                self.analysisStatus = "local"
-                self.analysisMessage = nil
-                self.analysisError = nil
-                let malformed = result.malformedLineNumbers.count
-                let unreadable = result.unreadableSourceIDs.count
-                if !urls.isEmpty && unreadable == urls.count {
-                    self.activityStatus = "error"
-                    self.activityMessage = nil
-                    self.activityError = "Mimo could not read the local activity archive."
-                } else if malformed > 0 || unreadable > 0 {
-                    self.activityStatus = "warning"
-                    self.activityMessage = "Loaded available activity; skipped \(malformed) malformed line(s) and \(unreadable) unreadable file(s)."
-                    self.activityError = nil
-                } else {
-                    self.activityStatus = "ready"
-                    self.activityMessage = nil
-                    self.activityError = nil
-                }
-                do {
-                    try self.journeyGraphStore.save(journeyGraph)
-                } catch {
-                    if self.activityStatus != "error" {
-                        self.activityStatus = "warning"
-                        let graphWarning = self.preferredLanguage.hasPrefix("zh")
-                            ? "本地图快照没有保存成功。"
-                            : "The local graph snapshot was not saved."
-                        self.activityMessage = [self.activityMessage, graphWarning]
-                            .compactMap { $0 }.joined(separator: " ")
+            guard let self else { return }
+            let finish: (ActivityWatchFetchResult?, Bool) -> Void = {
+                activityWatch, activityWatchFailed in
+                let merged = activityWatch.map {
+                    ActivitySourceMerger.merge(
+                        primary: result.events, supplemental: $0.events)
+                } ?? result.events
+                let visible = merged.filter { event in
+                    let app = event.app.folding(options: [.caseInsensitive], locale: .current)
+                    guard !ignoredApps.contains(app) else { return false }
+                    guard let domain = event.domain?.lowercased() else { return true }
+                    return !ignoredDomains.contains {
+                        domain == $0 || domain.hasSuffix("." + $0)
                     }
                 }
-                self.pushState()
+                let snapshot = DailyActivitySnapshot.build(range: range, events: visible)
+                let builtGraph = JourneyGraphBuilder.build(snapshot: snapshot)
+                let journeyGraph = self.journeyGraphStore.enrichingWithHistory(builtGraph)
+                let local = LocalActivityReflector.build(snapshot: snapshot)
+                DispatchQueue.main.async {
+                    self.finishActivityRefresh(
+                        generation: generation, urls: urls, parseResult: result,
+                        snapshot: snapshot, journeyGraph: journeyGraph,
+                        reflection: local, activityWatch: activityWatch,
+                        activityWatchFailed: activityWatchFailed)
+                }
+            }
+            guard activityWatchEnabled else { return finish(nil, false) }
+            self.activityWatchClient.fetch(range: range) { outcome in
+                switch outcome {
+                case .success(let value): finish(value, false)
+                case .failure: finish(nil, true)
+                }
             }
         }
+    }
+
+    private func finishActivityRefresh(
+        generation: UUID, urls: [URL], parseResult result: ActivityParseResult,
+        snapshot: DailyActivitySnapshot, journeyGraph: JourneyGraphArchive,
+        reflection local: DailyReflection, activityWatch: ActivityWatchFetchResult?,
+        activityWatchFailed: Bool
+    ) {
+        guard activityGeneration == generation else { return }
+        self.snapshot = snapshot
+        self.journeyGraph = journeyGraph
+        reflection = local
+        analysisStatus = "local"
+        analysisMessage = nil
+        analysisError = nil
+        let malformed = result.malformedLineNumbers.count
+        let unreadable = result.unreadableSourceIDs.count
+        var warnings: [String] = []
+        let hasFallbackEvidence = !snapshot.events.isEmpty
+        if !urls.isEmpty && unreadable == urls.count && !hasFallbackEvidence {
+            activityStatus = "error"
+            activityMessage = nil
+            activityError = preferredLanguage.hasPrefix("zh")
+                ? "Mimo 无法读取本地活动档案。"
+                : "Mimo could not read the local activity archive."
+        } else {
+            activityStatus = "ready"
+            activityError = nil
+            if malformed > 0 || unreadable > 0 {
+                warnings.append(preferredLanguage.hasPrefix("zh")
+                    ? "已跳过 \(malformed) 条异常记录和 \(unreadable) 个无法读取的文件。"
+                    : "Skipped \(malformed) malformed record(s) and \(unreadable) unreadable file(s).")
+            }
+        }
+        if state.activityWatchEnabled {
+            if activityWatchFailed {
+                activityWatchStatus = "unavailable"
+                activityWatchMessage = preferredLanguage.hasPrefix("zh")
+                    ? "没有连接到本机 ActivityWatch；仍使用 Mimo 记录。"
+                    : "Local ActivityWatch was unavailable; Mimo activity is still in use."
+                warnings.append(activityWatchMessage!)
+            } else if let activityWatch, activityWatch.events.isEmpty {
+                activityWatchStatus = "no-data"
+                activityWatchMessage = preferredLanguage.hasPrefix("zh")
+                    ? "ActivityWatch 已连接，这段时间没有窗口活动。"
+                    : "ActivityWatch is connected; no window activity was found in this range."
+            } else if let activityWatch {
+                activityWatchStatus = "connected"
+                activityWatchMessage = preferredLanguage.hasPrefix("zh")
+                    ? "ActivityWatch 已补充 \(activityWatch.events.count) 段本机活动。"
+                    : "ActivityWatch added \(activityWatch.events.count) local event(s)."
+                if !activityWatch.failedBucketIDs.isEmpty {
+                    warnings.append(preferredLanguage.hasPrefix("zh")
+                        ? "有 \(activityWatch.failedBucketIDs.count) 个 ActivityWatch bucket 未能读取。"
+                        : "\(activityWatch.failedBucketIDs.count) ActivityWatch bucket(s) could not be read.")
+                }
+            }
+        } else {
+            activityWatchStatus = "disabled"
+            activityWatchMessage = nil
+        }
+        if activityStatus != "error", !warnings.isEmpty {
+            activityStatus = "warning"
+            activityMessage = warnings.joined(separator: " ")
+        } else if activityStatus != "error" {
+            activityMessage = nil
+        }
+        do {
+            try journeyGraphStore.save(journeyGraph)
+        } catch {
+            if activityStatus != "error" {
+                activityStatus = "warning"
+                let graphWarning = preferredLanguage.hasPrefix("zh")
+                    ? "本地图快照没有保存成功。"
+                    : "The local graph snapshot was not saved."
+                activityMessage = [activityMessage, graphWarning]
+                    .compactMap { $0 }.joined(separator: " ")
+            }
+        }
+        pushState()
     }
 
     private func activityLogURLs() -> [URL] {
@@ -503,6 +579,9 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 "fixture": false,
                 "ignoredApps": state.ignoredApps,
                 "ignoredDomains": state.ignoredDomains,
+                "activityWatchEnabled": state.activityWatchEnabled,
+                "activityWatchStatus": activityWatchStatus,
+                "activityWatchMessage": activityWatchMessage ?? "",
             ],
             "range": [
                 "mode": state.rangeMode,
@@ -515,6 +594,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 "contextSwitches": snapshot.contextSwitchCount,
                 "blockCount": snapshot.blocks.count,
                 "materialCount": snapshot.materials.count,
+                "topicCount": journeyGraph.clusters.count,
             ],
             "categories": snapshot.categories.map { summary in
                 ["id": summary.category.rawValue,
@@ -542,6 +622,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             "activeSeconds": block.activeDurationMS / 1_000,
             "elapsedSeconds": block.elapsedDurationMS / 1_000,
             "apps": block.apps, "domains": block.domains,
+            "sources": Array(Set(block.eventIDs.compactMap { eventByID[$0]?.source })).sorted(),
             "revisits": block.revisitCount, "contextSwitches": block.contextSwitchCount,
             "eventIDs": block.eventIDs,
             "events": block.eventIDs.compactMap { eventByID[$0] }.map(Self.eventObject),
@@ -557,6 +638,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             "app": event.app, "title": event.displayTitle,
             "category": ActivityCategory.classify(event).rawValue,
             "rawCategory": event.category,
+            "source": event.source,
             "revisit": event.isRevisit, "contextSwitch": event.isContextSwitch,
         ]
         if let domain = event.domain { output["domain"] = domain }
@@ -828,19 +910,22 @@ private struct DailyTrailPersistedState: Codable {
     var customEnd: Date?
     var ignoredApps: [String]
     var ignoredDomains: [String]
+    var activityWatchEnabled: Bool
 
     init(rangeMode: String = "today", customStart: Date? = nil,
          customEnd: Date? = nil, ignoredApps: [String] = [],
-         ignoredDomains: [String] = []) {
+         ignoredDomains: [String] = [], activityWatchEnabled: Bool = false) {
         self.rangeMode = rangeMode
         self.customStart = customStart
         self.customEnd = customEnd
         self.ignoredApps = ignoredApps
         self.ignoredDomains = ignoredDomains
+        self.activityWatchEnabled = activityWatchEnabled
     }
 
     private enum CodingKeys: String, CodingKey {
-        case rangeMode, customStart, customEnd, ignoredApps, ignoredDomains
+        case rangeMode, customStart, customEnd, ignoredApps, ignoredDomains,
+             activityWatchEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -850,5 +935,7 @@ private struct DailyTrailPersistedState: Codable {
         customEnd = try values.decodeIfPresent(Date.self, forKey: .customEnd)
         ignoredApps = try values.decodeIfPresent([String].self, forKey: .ignoredApps) ?? []
         ignoredDomains = try values.decodeIfPresent([String].self, forKey: .ignoredDomains) ?? []
+        activityWatchEnabled = try values.decodeIfPresent(
+            Bool.self, forKey: .activityWatchEnabled) ?? false
     }
 }

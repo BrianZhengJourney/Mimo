@@ -43,10 +43,13 @@ struct ReflectionBrowserUITests {
                "the day journey presents activity on strict half-hour chapters with evidence texture")
         expect(html.contains("journey-graph") && html.contains("buildJourneyGraph")
                && html.contains(".journey-link.return")
+               && html.contains(".journey-link.topic-return")
                && html.contains("kind:'return'")
                && html.contains("setJourneyGraphHover")
-               && html.contains("journey-cluster"),
-               "the main journey is a clustered chronological graph with explicit return paths")
+               && html.contains("journey-cluster")
+               && html.contains("data-graph-layout=\"topic\"")
+               && html.contains("journeyClusterRuns"),
+               "the journey switches between time and semantic topic clusters with explicit returns")
         expect(html.contains("state.journeyGraph")
                && controller.contains("JourneyGraphStore")
                && controller.contains("journeyGraph.jsonObject")
@@ -96,8 +99,10 @@ struct ReflectionBrowserUITests {
                && html.contains("data-evidence") && html.contains("locateEvidence"),
                "raw evidence stays expandable and reflection claims locate their source")
         expect(html.contains("ignoredApps") && html.contains("ignoredDomains")
-               && html.contains("过滤只影响今日手记，不删除原始日志"),
-               "privacy exclusions remain visible and non-destructive")
+               && html.contains("过滤只影响今日手记，不删除原始日志")
+               && html.contains("activityWatchEnabled")
+               && html.contains("127.0.0.1"),
+               "privacy exclusions and the opt-in localhost source remain visible and non-destructive")
         expect(html.contains("reflectionFixture") && html.contains("nokey")
                && html.contains("empty") && html.contains("error"),
                "stable populated, empty, error, and no-key fixtures remain available")
@@ -167,7 +172,7 @@ struct ReflectionBrowserUITests {
                && !product.contains("removeNotionCache"),
                "erase and provider-setting changes immediately refresh the local derived view")
 
-        for source in ["reflection_core.swift", "journey_graph.swift", "reflection_model.swift",
+        for source in ["reflection_core.swift", "activity_watch.swift", "journey_graph.swift", "reflection_model.swift",
                        "reflection_browser.swift"] {
             expect(common.contains(source), "release compilation includes \(source)")
         }

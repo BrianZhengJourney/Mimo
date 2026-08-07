@@ -21,8 +21,9 @@ The repository has moved beyond the original browser concept:
 - Local app/browser activity classification, 25/50-minute Focus timers,
   a bilingual Quick Look, Week view, and a full-page HTML archive.
 - Today Journal turns raw local events into a proportional day journey,
-  categorized activity blocks, hover context, learning-material summaries,
-  and evidence-linked reflection.
+  interpretable topic clusters, time/topic graph views, hover context,
+  learning-material summaries, and evidence-linked reflection. An opt-in
+  localhost ActivityWatch adapter can supplement window/tab/AFK evidence.
   Optional AI enrichment never blocks the fully local dashboard.
 - Mimo Studio reference preprocessing, canonical character generation,
   expression assets, provider abstraction, generation ledger, and recovery.

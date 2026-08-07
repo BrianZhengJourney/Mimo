@@ -87,6 +87,10 @@ struct ReflectionBrowserDOMTests {
         expect((object?["donut"] as? String)?.contains("conic-gradient") == true,
                "category distribution renders as a visual donut")
 
+        expect((evaluate("(()=>{const first=document.querySelector('.journey-node');const before=first?.style.left;document.querySelector('[data-graph-layout=topic]').click();const after=document.querySelector('.journey-node')?.style.left;const ok=document.querySelector('[data-graph-layout=topic]').classList.contains('active')&&document.querySelectorAll('.journey-cluster').length>0&&before!==after;document.querySelector('[data-graph-layout=time]').click();return ok})()",
+                         in: webView) as? Bool) == true,
+               "the same local graph can be read as chronological flow or spatial topic clusters")
+
         expect((evaluate("const chapter=document.querySelector('.half-hour-chapter:not(.quiet)');chapter.focus();document.getElementById('journeyPreview').dataset.chapter===chapter.dataset.halfHour",
                          in: webView) as? Bool) == true,
                "keyboard focus updates the same half-hour preview as hover")
@@ -119,6 +123,9 @@ struct ReflectionBrowserDOMTests {
         expect((evaluate("document.getElementById('privacyBtn').click();document.getElementById('privacyModal').classList.contains('open')",
                          in: webView) as? Bool) == true,
                "privacy exclusions are reachable from the dashboard")
+        expect((evaluate("document.getElementById('activityWatchEnabled').type==='checkbox'&&document.getElementById('activityWatchDescription').textContent.includes('127.0.0.1')",
+                         in: webView) as? Bool) == true,
+               "ActivityWatch is an explicit localhost-only choice, never an invisible source")
 
         _ = evaluate("window.reflectionFixture('nokey')", in: webView)
         expect((evaluate("document.getElementById('synthesizeBtn').disabled",

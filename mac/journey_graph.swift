@@ -7,7 +7,7 @@
 import Foundation
 
 struct JourneyGraphArchive: Codable, Equatable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
 
     var schemaVersion = Self.schemaVersion
     var options = JourneyGraphOptions()
@@ -76,6 +76,170 @@ struct JourneyGraphCluster: Codable, Equatable {
     var nodeKeys: [String]
     var startedAtMS: Double
     var endedAtMS: Double
+    var topicKey: String?
+    var keywords: [String]?
+    var priorDayCount: Int?
+    var lastSeenAtMS: Double?
+}
+
+private struct ActivityTopicCluster {
+    var id: String
+    var category: ActivityCategory
+    var label: String
+    var blockIDs: [String]
+    var startedAtMS: Double
+    var endedAtMS: Double
+    var topicKey: String
+    var keywords: [String]
+}
+
+private enum ActivityTopicClusterer {
+    private struct Profile {
+        var tokens: Set<String>
+        var tokenWeights: [String: Double]
+        var apps: Set<String>
+        var domains: Set<String>
+    }
+
+    private struct WorkingCluster {
+        var category: ActivityCategory
+        var blockIDs: [String]
+        var titles: [(String, Double)]
+        var tokenWeights: [String: Double]
+        var apps: Set<String>
+        var domains: Set<String>
+        var startedAtMS: Double
+        var endedAtMS: Double
+    }
+
+    static func build(snapshot: DailyActivitySnapshot,
+                      blocks: [ActivityBlock]) -> [ActivityTopicCluster] {
+        let events = Dictionary(uniqueKeysWithValues: snapshot.events.map { ($0.id, $0) })
+        var working: [WorkingCluster] = []
+        for block in blocks {
+            let profile = profile(for: block, events: events)
+            let best = working.indices.map { index in
+                (index, score(profile: profile, block: block, cluster: working[index]))
+            }.max { $0.1 < $1.1 }
+            let target = best.flatMap { $0.1 >= 0.48 ? $0.0 : nil }
+            if let index = target {
+                working[index].blockIDs.append(block.id)
+                working[index].titles.append((block.title, block.activeDurationMS))
+                for (token, weight) in profile.tokenWeights {
+                    working[index].tokenWeights[token, default: 0] += weight
+                }
+                working[index].apps.formUnion(profile.apps)
+                working[index].domains.formUnion(profile.domains)
+                working[index].startedAtMS = min(
+                    working[index].startedAtMS, block.startedAtMS)
+                working[index].endedAtMS = max(
+                    working[index].endedAtMS, block.endedAtMS)
+            } else {
+                working.append(.init(
+                    category: block.category, blockIDs: [block.id],
+                    titles: [(block.title, block.activeDurationMS)],
+                    tokenWeights: profile.tokenWeights,
+                    apps: profile.apps, domains: profile.domains,
+                    startedAtMS: block.startedAtMS, endedAtMS: block.endedAtMS))
+            }
+        }
+        return working.map { cluster in
+            let keywords = cluster.tokenWeights.sorted {
+                $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value
+            }.prefix(5).map(\.key)
+            let label = cluster.titles.max {
+                $0.1 == $1.1 ? $0.0 > $1.0 : $0.1 < $1.1
+            }?.0 ?? keywords.first ?? cluster.category.rawValue
+            let identityFallback = cluster.domains.sorted().first
+                ?? cluster.apps.sorted().first ?? label.lowercased()
+            let keyParts = keywords.prefix(3)
+            let keySource = keyParts.isEmpty ? identityFallback
+                : keyParts.joined(separator: "|")
+            let topicKey = "\(cluster.category.rawValue)|\(keySource)"
+            return ActivityTopicCluster(
+                id: stableGraphID(prefix: "topic", value: topicKey),
+                category: cluster.category, label: String(label.prefix(64)),
+                blockIDs: cluster.blockIDs,
+                startedAtMS: cluster.startedAtMS, endedAtMS: cluster.endedAtMS,
+                topicKey: topicKey, keywords: Array(keywords))
+        }.sorted { $0.startedAtMS < $1.startedAtMS }
+    }
+
+    private static func profile(for block: ActivityBlock,
+                                events: [String: ActivityEvent]) -> Profile {
+        var weights: [String: Double] = [:]
+        let evidence = block.eventIDs.compactMap { events[$0] }
+        let titles = evidence.map(\.displayTitle) + [block.title]
+        for title in titles {
+            for token in tokens(title) { weights[token, default: 0] += 1 }
+        }
+        if weights.isEmpty {
+            for app in block.apps {
+                for token in tokens(app) { weights[token, default: 0] += 0.7 }
+            }
+        }
+        return Profile(
+            tokens: Set(weights.keys), tokenWeights: weights,
+            apps: Set(block.apps.map(normalizeIdentity)),
+            domains: Set(block.domains.map(normalizeIdentity)))
+    }
+
+    private static func score(profile: Profile, block: ActivityBlock,
+                              cluster: WorkingCluster) -> Double {
+        let known = Set(cluster.tokenWeights.keys)
+        let shared = profile.tokens.intersection(known)
+        let denominator = max(1, min(profile.tokens.count, known.count))
+        var value = 0.62 * Double(shared.count) / Double(denominator)
+        if shared.contains(where: highSignal) { value += 0.34 }
+        if !profile.domains.isDisjoint(with: cluster.domains) { value += 0.22 }
+        if !profile.apps.isDisjoint(with: cluster.apps) { value += 0.12 }
+        if block.category == cluster.category { value += 0.07 }
+        if block.startedAtMS - cluster.endedAtMS <= 90 * 60_000 { value += 0.05 }
+        return value
+    }
+
+    private static func tokens(_ value: String) -> Set<String> {
+        let normalized = value.lowercased().folding(
+            options: [.diacriticInsensitive, .widthInsensitive], locale: .current)
+        let pieces = normalized.components(separatedBy:
+            CharacterSet.alphanumerics.union(.letters).inverted)
+        var output = Set(pieces.filter { token in
+            token.count >= 2 && !stopWords.contains(token)
+        })
+        let cjkRuns = normalized.unicodeScalars.split { scalar in
+            !(0x3400...0x9fff).contains(Int(scalar.value))
+        }
+        for run in cjkRuns {
+            let values = Array(run)
+            if values.count <= 4, values.count >= 2 {
+                output.insert(String(String.UnicodeScalarView(values)))
+            }
+            if values.count >= 2 {
+                for index in 0..<(values.count - 1) {
+                    output.insert(String(String.UnicodeScalarView(values[index...index + 1])))
+                }
+            }
+        }
+        return output
+    }
+
+    private static func normalizeIdentity(_ value: String) -> String {
+        value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "www.", with: "")
+    }
+
+    private static func highSignal(_ token: String) -> Bool {
+        token.count >= 4 && !genericWords.contains(token)
+    }
+
+    private static let stopWords: Set<String> = [
+        "the", "and", "for", "with", "from", "into", "your", "this", "that",
+        "google", "search", "chrome", "safari", "browser", "window", "home",
+        "page", "new", "tab", "www", "com", "today", "untitled", "document",
+    ]
+    private static let genericWords: Set<String> = stopWords.union([
+        "project", "design", "notes", "work", "activity", "discussion",
+    ])
 }
 
 enum JourneyGraphBuilder {
@@ -103,27 +267,21 @@ enum JourneyGraphBuilder {
                                occurrence: occurrence)
         }
 
-        var clusters: [JourneyGraphCluster] = []
+        let topics = ActivityTopicClusterer.build(snapshot: snapshot, blocks: blocks)
+        var topicByBlock: [String: String] = [:]
+        for topic in topics {
+            for blockID in topic.blockIDs { topicByBlock[blockID] = topic.id }
+        }
         for index in working.indices {
-            let node = working[index]
-            let prior = index > 0 ? working[index - 1] : nil
-            let gap = prior.map { max(0, node.block.startedAtMS - $0.block.endedAtMS) }
-                ?? .infinity
-            let continues = prior?.block.category == node.block.category
-                && gap <= 12 * 60_000
-            if !continues {
-                clusters.append(JourneyGraphCluster(
-                    id: "cluster-\(clusters.count + 1)",
-                    category: node.block.category.rawValue,
-                    label: node.identityLabel,
-                    nodeKeys: [], startedAtMS: node.block.startedAtMS,
-                    endedAtMS: node.block.endedAtMS))
-            }
-            let clusterIndex = clusters.index(before: clusters.endIndex)
-            working[index].clusterID = clusters[clusterIndex].id
-            clusters[clusterIndex].nodeKeys.append(node.block.id)
-            clusters[clusterIndex].endedAtMS = max(
-                clusters[clusterIndex].endedAtMS, node.block.endedAtMS)
+            working[index].clusterID = topicByBlock[working[index].block.id] ?? ""
+        }
+        let clusters = topics.map { topic in
+            JourneyGraphCluster(
+                id: topic.id, category: topic.category.rawValue,
+                label: topic.label, nodeKeys: topic.blockIDs,
+                startedAtMS: topic.startedAtMS, endedAtMS: topic.endedAtMS,
+                topicKey: topic.topicKey, keywords: topic.keywords,
+                priorDayCount: nil, lastSeenAtMS: nil)
         }
 
         let nodes = working.map { node in
@@ -147,6 +305,7 @@ enum JourneyGraphBuilder {
                                   gapMS: max(0, current.startedAtMS - prior.endedAtMS))))
         }
         var lastIdentityIndex: [String: Int] = [:]
+        var returnPairs = Set<String>()
         for index in working.indices {
             let current = working[index]
             if let priorIndex = lastIdentityIndex[current.identityKey],
@@ -158,8 +317,24 @@ enum JourneyGraphBuilder {
                     attributes: .init(
                         kind: "return",
                         gapMS: max(0, current.block.startedAtMS - prior.endedAtMS))))
+                returnPairs.insert("\(priorIndex):\(index)")
             }
             lastIdentityIndex[current.identityKey] = index
+        }
+        let indexByBlock = Dictionary(uniqueKeysWithValues: working.enumerated().map {
+            ($0.element.block.id, $0.offset)
+        })
+        for topic in topics {
+            let indices = topic.blockIDs.compactMap { indexByBlock[$0] }.sorted()
+            for pair in zip(indices, indices.dropFirst()) where pair.1 != pair.0 + 1 {
+                guard !returnPairs.contains("\(pair.0):\(pair.1)") else { continue }
+                let prior = working[pair.0].block, current = working[pair.1].block
+                edges.append(.init(
+                    key: "topic-return-\(pair.0)-\(pair.1)", source: prior.id,
+                    target: current.id, attributes: .init(
+                        kind: "topic-return",
+                        gapMS: max(0, current.startedAtMS - prior.endedAtMS))))
+            }
         }
 
         return JourneyGraphArchive(
@@ -181,6 +356,12 @@ enum JourneyGraphBuilder {
         let title = block.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return ("title:\(title.lowercased())", title)
     }
+}
+
+private func stableGraphID(prefix: String, value: String) -> String {
+    var hash: UInt64 = 14_695_981_039_346_656_037
+    for byte in value.utf8 { hash ^= UInt64(byte); hash = hash &* 1_099_511_628_211 }
+    return "\(prefix)-\(String(hash, radix: 16))"
 }
 
 final class JourneyGraphStore {
@@ -206,6 +387,40 @@ final class JourneyGraphStore {
         try? fileManager.setAttributes(
             [.posixPermissions: 0o600], ofItemAtPath: fileURL(for: archive).path)
         pruneUnlocked(keeping: 35)
+    }
+
+    /// Adds honest cross-day recurrence metadata without copying historical
+    /// raw events into today's payload. The graph stays small while still
+    /// answering “have I been here before?”.
+    func enrichingWithHistory(_ input: JourneyGraphArchive) -> JourneyGraphArchive {
+        lock.lock(); defer { lock.unlock() }
+        let history = graphURLsUnlocked().compactMap(loadUnlocked).filter {
+            $0.attributes.rangeEndMS <= input.attributes.rangeStartMS
+        }
+        guard !history.isEmpty else { return input }
+        var output = input
+        for index in output.clusters.indices {
+            let current = output.clusters[index]
+            var days = Set<String>(), lastSeen: Double?
+            for archive in history {
+                guard archive.clusters.contains(where: {
+                    Self.sameTopic(current, $0)
+                }) else { continue }
+                days.insert(Self.dayString(archive.attributes.rangeStartMS))
+                let candidate = archive.clusters.filter {
+                    Self.sameTopic(current, $0)
+                }.map(\.endedAtMS).max() ?? archive.attributes.rangeEndMS
+                lastSeen = max(lastSeen ?? candidate, candidate)
+            }
+            output.clusters[index].priorDayCount = days.count
+            output.clusters[index].lastSeenAtMS = lastSeen
+        }
+        return output
+    }
+
+    func recentArchives(limit: Int = 35) -> [JourneyGraphArchive] {
+        lock.lock(); defer { lock.unlock() }
+        return graphURLsUnlocked().suffix(max(0, limit)).compactMap(loadUnlocked)
     }
 
     @discardableResult
@@ -238,6 +453,14 @@ final class JourneyGraphStore {
             }.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
+    private func loadUnlocked(_ url: URL) -> JourneyGraphArchive? {
+        guard let data = try? Data(contentsOf: url),
+              let archive = try? JSONDecoder().decode(JourneyGraphArchive.self, from: data),
+              (1...JourneyGraphArchive.schemaVersion).contains(archive.schemaVersion)
+        else { return nil }
+        return archive
+    }
+
     private func pruneUnlocked(keeping limit: Int) {
         let urls = graphURLsUnlocked()
         guard urls.count > limit else { return }
@@ -251,5 +474,17 @@ final class JourneyGraphStore {
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: Date(timeIntervalSince1970: milliseconds / 1_000))
+    }
+
+    private static func sameTopic(_ lhs: JourneyGraphCluster,
+                                  _ rhs: JourneyGraphCluster) -> Bool {
+        guard lhs.category == rhs.category else { return false }
+        if let left = lhs.topicKey, let right = rhs.topicKey, left == right { return true }
+        let left = Set(lhs.keywords ?? []), right = Set(rhs.keywords ?? [])
+        guard !left.isEmpty, !right.isEmpty else {
+            return lhs.label.caseInsensitiveCompare(rhs.label) == .orderedSame
+        }
+        let shared = left.intersection(right).count
+        return Double(shared) / Double(max(1, min(left.count, right.count))) >= 0.6
     }
 }

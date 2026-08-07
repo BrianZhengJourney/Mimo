@@ -52,6 +52,9 @@ struct ActivityEvent: Codable, Equatable {
     var bundleIdentifier: String?
     var category: String
     var canonicalLabel: String?
+    /// Provenance stays local and visible in raw evidence. Mimo's own tracker
+    /// is the default; optional adapters must identify themselves explicitly.
+    var source: String
     var order: Int
     var isRevisit: Bool
     var isContextSwitch: Bool
@@ -59,7 +62,7 @@ struct ActivityEvent: Codable, Equatable {
     init(id: String, startedAtMS: Double, endedAtMS: Double, app: String,
          title: String? = nil, fullURL: String? = nil, domain: String? = nil,
          bundleIdentifier: String? = nil, category: String,
-         canonicalLabel: String? = nil, order: Int,
+         canonicalLabel: String? = nil, source: String = "mimo", order: Int,
          isRevisit: Bool = false, isContextSwitch: Bool = false) {
         self.id = id
         self.startedAtMS = startedAtMS
@@ -71,9 +74,38 @@ struct ActivityEvent: Codable, Equatable {
         self.bundleIdentifier = bundleIdentifier
         self.category = category
         self.canonicalLabel = canonicalLabel
+        self.source = source
         self.order = order
         self.isRevisit = isRevisit
         self.isContextSwitch = isContextSwitch
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, startedAtMS, endedAtMS, app, title, fullURL, domain,
+             bundleIdentifier, category, canonicalLabel, source, order,
+             isRevisit, isContextSwitch
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try values.decode(String.self, forKey: .id),
+            startedAtMS: try values.decode(Double.self, forKey: .startedAtMS),
+            endedAtMS: try values.decode(Double.self, forKey: .endedAtMS),
+            app: try values.decode(String.self, forKey: .app),
+            title: try values.decodeIfPresent(String.self, forKey: .title),
+            fullURL: try values.decodeIfPresent(String.self, forKey: .fullURL),
+            domain: try values.decodeIfPresent(String.self, forKey: .domain),
+            bundleIdentifier: try values.decodeIfPresent(
+                String.self, forKey: .bundleIdentifier),
+            category: try values.decode(String.self, forKey: .category),
+            canonicalLabel: try values.decodeIfPresent(
+                String.self, forKey: .canonicalLabel),
+            source: try values.decodeIfPresent(String.self, forKey: .source) ?? "mimo",
+            order: try values.decode(Int.self, forKey: .order),
+            isRevisit: try values.decodeIfPresent(Bool.self, forKey: .isRevisit) ?? false,
+            isContextSwitch: try values.decodeIfPresent(
+                Bool.self, forKey: .isContextSwitch) ?? false)
     }
 
     var durationMS: Double { max(0, endedAtMS - startedAtMS) }
@@ -150,7 +182,7 @@ enum ActivityJSONLParser {
                 parsed.append(event)
             }
         }
-        sequence(&parsed, startingOrder: startingOrder)
+        ActivityEventSequencer.sequence(&parsed, startingOrder: startingOrder)
         return .init(events: parsed, malformedLineNumbers: malformed)
     }
 
@@ -168,12 +200,22 @@ enum ActivityJSONLParser {
             events.append(contentsOf: result.events)
             malformed.append(contentsOf: result.malformedLineNumbers)
         }
-        sequence(&events, startingOrder: 0)
+        ActivityEventSequencer.sequence(&events, startingOrder: 0)
         return .init(events: events, malformedLineNumbers: malformed,
                      unreadableSourceIDs: unreadable)
     }
 
-    private static func sequence(_ events: inout [ActivityEvent], startingOrder: Int) {
+    private static func number(_ value: Any?) -> Double? {
+        if let value = value as? NSNumber { return value.doubleValue }
+        if let value = value as? String { return Double(value) }
+        return nil
+    }
+
+    private static func string(_ value: Any?) -> String? { value as? String }
+}
+
+enum ActivityEventSequencer {
+    static func sequence(_ events: inout [ActivityEvent], startingOrder: Int = 0) {
         events.sort {
             $0.startedAtMS == $1.startedAtMS ? $0.order < $1.order : $0.startedAtMS < $1.startedAtMS
         }
@@ -189,13 +231,6 @@ enum ActivityJSONLParser {
         }
     }
 
-    private static func number(_ value: Any?) -> Double? {
-        if let value = value as? NSNumber { return value.doubleValue }
-        if let value = value as? String { return Double(value) }
-        return nil
-    }
-
-    private static func string(_ value: Any?) -> String? { value as? String }
 }
 
 // MARK: - Meaningful activity blocks
@@ -227,6 +262,25 @@ enum ActivityCategory: String, Codable, Equatable, CaseIterable {
         let planningApps = ["calendar", "reminders", "things", "linear", "asana", "notes",
                             "notion", "obsidian"]
         if planningApps.contains(where: app.contains) { return .planning }
+        let buildingDomains = ["github.com", "gitlab.com", "stackoverflow.com",
+                               "developer.apple.com", "docs.swift.org", "localhost"]
+        if buildingDomains.contains(where: { domain == $0 || domain.hasSuffix("." + $0) }) {
+            return .building
+        }
+        let learningDomains = ["arxiv.org", "openreview.net", "acm.org", "ieee.org",
+                               "wikipedia.org", "medium.com", "substack.com"]
+        if learningDomains.contains(where: { domain == $0 || domain.hasSuffix("." + $0) }) {
+            return .learning
+        }
+        let communicationDomains = ["mail.google.com", "outlook.office.com", "slack.com",
+                                    "discord.com", "teams.microsoft.com"]
+        if communicationDomains.contains(where: { domain == $0 || domain.hasSuffix("." + $0) }) {
+            return .communication
+        }
+        let planningDomains = ["notion.so", "linear.app", "asana.com", "trello.com"]
+        if planningDomains.contains(where: { domain == $0 || domain.hasSuffix("." + $0) }) {
+            return .planning
+        }
         let entertainmentDomains = ["youtube.com", "bilibili.com", "netflix.com", "reddit.com",
                                     "x.com", "twitter.com", "douyin.com", "weibo.com"]
         if entertainmentDomains.contains(where: { domain == $0 || domain.hasSuffix("." + $0) }) {
