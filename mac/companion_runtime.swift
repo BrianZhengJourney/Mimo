@@ -224,6 +224,8 @@ final class CompanionRuntime {
     /// gate on these, which is what lets the companion go quiet during deep
     /// work without a global if — Shimeji has no equivalent input.
     private(set) var mood: String = "idle"
+    private var activityMood: String = "idle"
+    private(set) var reflectionActive = false
     private(set) var focusMinutes: Double = 0
     private(set) var streakMinutes: Double = 0
 
@@ -838,11 +840,25 @@ final class CompanionRuntime {
     func setSemanticState(mood nextMood: String,
                           focusMinutes nextFocusMinutes: Double,
                           streakMinutes nextStreakMinutes: Double) {
-        let changed = mood != nextMood
-        mood = nextMood
+        activityMood = nextMood
         focusMinutes = nextFocusMinutes.isFinite ? max(0, nextFocusMinutes) : 0
         streakMinutes = nextStreakMinutes.isFinite ? max(0, nextStreakMinutes) : 0
-        guard changed else { return }
+        applyEffectiveMood()
+    }
+
+    /// Today Journal is a real semantic episode, not a one-shot animation.
+    /// While its window is visible it overrides app-derived mood; closing or
+    /// minimizing restores the latest underlying Focus/activity state.
+    func setReflectionActive(_ active: Bool) {
+        guard reflectionActive != active else { return }
+        reflectionActive = active
+        applyEffectiveMood()
+    }
+
+    private func applyEffectiveMood() {
+        let nextMood = reflectionActive ? "reflecting" : activityMood
+        guard mood != nextMood else { return }
+        mood = nextMood
         for companion in companions {
             companion.previewActionName = nil
             companion.activeActionStripName = nil
@@ -867,8 +883,12 @@ final class CompanionRuntime {
         guard let companion = companions.first,
               let director = companion.director else { return false }
         let world = worldSurfaces().set
-        guard director.trigger(reactionTo: event,
-                               snapshot: snapshot(for: companion, world: world)) else {
+        let semanticSnapshot = snapshot(for: companion, world: world)
+        let triggered = director.trigger(reactionTo: event, snapshot: semanticSnapshot)
+            || (event == "focusComplete"
+                && director.trigger(reactionTo: "focusCompleteFallback",
+                                    snapshot: semanticSnapshot))
+        guard triggered else {
             return false
         }
         companion.previewActionName = nil

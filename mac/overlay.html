@@ -997,8 +997,10 @@ const Mascot = (() => {
              /* Mimo's semantic layer. Behavior packs gate on these, so the
                 companion goes quiet during deep work by condition rather than
                 by a hardcoded rule in Swift. */
-             mood: (typeof Pomo !== 'undefined' && Pomo.timer)
-               ? 'focusSession' : (current || 'idle'),
+             mood: Fam.reflectionActive
+               ? 'reflecting'
+               : ((typeof Pomo !== 'undefined' && Pomo.timer)
+                  ? 'focusSession' : (current || 'idle')),
              focusMinutes: continuousFocus,
              /* Kept as a behavior-pack compatibility field; it is not a
                 user-facing streak or reward counter. */
@@ -1152,6 +1154,7 @@ const Mascot = (() => {
 /* Fam state → mascot state (design's interaction mapping) */
 function mascotStateFor(s){
   if (proudUntil > Date.now()) return 'proud';
+  if (Fam.reflectionActive) return 'reflecting';
   const m = { idle: 'idle', focused: 'focused', scholar: 'focused', dizzy: 'dizzy',
               poisoned: 'poisoned', ghost: 'ghost', sleep: 'sleeping' };
   let out = m[s] || 'idle';
@@ -1166,6 +1169,7 @@ function mascotStateFor(s){
 /* ═══ creature + state ═══ */
 const Fam = {
   char: 'wisp', state: 'idle',
+  reflectionActive: false,
   focusStartedAt: null,
   history: [],          // {app, bundleID, kind, t0, t1}
   cur: null,            // {app, bundleID, kind, t0}
@@ -1188,9 +1192,21 @@ const Fam = {
   setState(s){
     if (this.state === s) return;
     this.state = s;
-    document.body.dataset.state = s;
-    Mascot.setState(mascotStateFor(s));
-    const st = statusCopy(s);
+    this.refreshPresentation();
+  },
+
+  setReflectionActive(active){
+    const next = !!active;
+    if (this.reflectionActive === next) return;
+    this.reflectionActive = next;
+    this.refreshPresentation();
+  },
+
+  refreshPresentation(){
+    const visibleState = this.reflectionActive ? 'reflecting' : this.state;
+    document.body.dataset.state = visibleState;
+    Mascot.setState(mascotStateFor(this.state));
+    const st = statusCopy(visibleState);
     document.getElementById('statusBadge').className =
       'status-badge' + (st.cls ? ' ' + st.cls : '');
     document.getElementById('statusText').textContent = st.label;
@@ -1221,6 +1237,7 @@ function statusCopy(state){
     idle:     { cls: '',         label: tx('😐 发发呆', '😐 idle') },
     focused:  { cls: 'focus',    label: tx('🎯 正在专注', '🎯 focused') },
     scholar:  { cls: 'focus',    label: tx('📖 专注阅读', '📖 focused · reading') },
+    reflecting:{ cls: 'focus',   label: tx('◌ 一起回看', '◌ looking back together') },
     dizzy:    { cls: 'distract', label: tx('🌀 有点分心', '🌀 getting distracted') },
     poisoned: { cls: 'distract', label: tx('◌ 该缓一缓了', '◌ time to pause') },
     ghost:    { cls: 'distract', label: tx('☁ 注意力飘远了', '☁ attention wandered') },
@@ -1299,6 +1316,7 @@ function famSetApp(appName, kind, detail, url, canon, bundleID){
 }
 
 function famSetCharacter(id){ Fam.setCharacter(id); toast(MASCOTS[Fam.char].name); }
+function famSetReflectionActive(on){ Fam.setReflectionActive(on); }
 function famRegisterPrototypePet(spec, select = false){
   MASCOTS.prototype = prototypeMascotPack(spec);
   if (select) Fam.setCharacter('prototype', false);

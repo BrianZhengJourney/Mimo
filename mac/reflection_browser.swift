@@ -43,6 +43,10 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
 
     private(set) var window: NSWindow?
     private var webView: WKWebView?
+    /// Lets the companion share the whole looking-back session instead of
+    /// performing one eight-second reaction and forgetting why it happened.
+    var onVisibilityChanged: ((Bool) -> Void)?
+    private var reportedVisible = false
 
     var isFixtureMode: Bool { fixtureName != nil }
 
@@ -100,6 +104,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
+        reportVisibility(true)
     }
 
     @discardableResult
@@ -172,6 +177,34 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         }
         let html = resourceRoot.appendingPathComponent("reflection.html", isDirectory: false)
         webView.loadFileURL(html, allowingReadAccessTo: resourceRoot)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        reportVisibility(false)
+    }
+
+    func windowDidMiniaturize(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        reportVisibility(false)
+    }
+
+    func windowDidDeminiaturize(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        reportVisibility(true)
+    }
+
+    func windowDidChangeOcclusionState(_ notification: Notification) {
+        guard let changedWindow = notification.object as? NSWindow,
+              changedWindow === window else { return }
+        reportVisibility(changedWindow.isVisible && !changedWindow.isMiniaturized
+                         && changedWindow.occlusionState.contains(.visible))
+    }
+
+    private func reportVisibility(_ visible: Bool) {
+        guard reportedVisible != visible else { return }
+        reportedVisible = visible
+        onVisibilityChanged?(visible)
     }
 
     func webView(_ webView: WKWebView,

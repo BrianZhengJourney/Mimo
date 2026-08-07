@@ -513,10 +513,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var activeStudioCancellationToken: StudioCancellationToken?
     var lockTokens: [NSObjectProtocol] = []
     var isIdle = false
-    var continuousActivityStartedAt: Date?
-    var semanticSwitchTimes: [Date] = []
-    var lastDistractionSignalAt: Date?
-    var lastFatigueSignalAt: Date?
+    var companionContextPolicy = CompanionContextPolicy()
 
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -536,6 +533,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         restorePersistedStudioSession()
         buildPanel()
+        reflectionBrowser.onVisibilityChanged = { [weak self] active in
+            guard let self else { return }
+            self.companionRuntime.setReflectionActive(active)
+            self.js("famSetReflectionActive(\(active))")
+        }
         buildMainMenu()
         buildStatusItem()
         watchApps()
@@ -779,16 +781,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let idleLimit = UserDefaults.standard.object(forKey: "idleThreshold") as? Double ?? 150
             if !self.isIdle, idle > idleLimit {
                 self.isIdle = true
-                self.continuousActivityStartedAt = nil
-                self.semanticSwitchTimes.removeAll(keepingCapacity: true)
+                self.companionContextPolicy.suspend()
                 self.js("famIdle(true)")
             } else if self.isIdle, idle < 10 {
                 self.isIdle = false
-                self.continuousActivityStartedAt = Date()
+                self.companionContextPolicy.resume()
                 self.lastSent = ""
                 if let front = NSWorkspace.shared.frontmostApplication { self.send(app: front) }
             }
-            if !self.isIdle { self.checkContextFatigue() }
+            if !self.isIdle {
+                self.handleCompanionContextCue(self.companionContextPolicy.heartbeat())
+            }
             guard !self.isIdle,
                   let front = NSWorkspace.shared.frontmostApplication,
                   let bid = front.bundleIdentifier,
@@ -799,13 +802,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let dnc = DistributedNotificationCenter.default()
         lockTokens.append(dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             self?.isIdle = true
-            self?.continuousActivityStartedAt = nil
-            self?.semanticSwitchTimes.removeAll(keepingCapacity: true)
+            self?.companionContextPolicy.suspend()
             self?.js("famIdle(true)")
         })
         lockTokens.append(dnc.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
             self?.isIdle = false
-            self?.continuousActivityStartedAt = Date()
+            self?.companionContextPolicy.resume()
             self?.lastSent = ""
             if let front = NSWorkspace.shared.frontmostApplication { self?.send(app: front) }
         })
@@ -849,36 +851,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let key = "\(display)|\(kind)|\(detail)|\(canon)"
         guard key != lastSent else { return }
         lastSent = key
-        noteContextTransition()
+        let host = url.flatMap { URL(string: $0)?.host?.lowercased() } ?? ""
+        let semanticPlace = canon.isEmpty ? (host.isEmpty ? bid : host) : canon
+        handleCompanionContextCue(companionContextPolicy.observeTransition(
+            to: kind, contextID: "\(bid)|\(semanticPlace)"))
         js("famSetApp(\(jsonStr(display)), \(jsonStr(kind)), \(jsonStr(String(detail))), \(jsonStr(url ?? "")), \(jsonStr(canon)), \(jsonStr(bid)))")
     }
 
-    private func noteContextTransition(now: Date = Date()) {
-        if continuousActivityStartedAt == nil { continuousActivityStartedAt = now }
-        semanticSwitchTimes = semanticSwitchTimes.filter {
-            now.timeIntervalSince($0) < 3 * 60
-        }
-        semanticSwitchTimes.append(now)
-        guard semanticSwitchTimes.count >= 8,
-              lastDistractionSignalAt.map({ now.timeIntervalSince($0) >= 20 * 60 }) ?? true
-        else { return }
-        lastDistractionSignalAt = now
-        semanticSwitchTimes = [now]
-        _ = companionRuntime.trigger(event: "distractionLoop")
-        js("famNotice('gentle', \(jsonStr(voice("切换有点密；先停一口气？", "A lot of switching — pause for one breath?"))))")
-    }
-
-    private func checkContextFatigue(now: Date = Date()) {
-        guard let startedAt = continuousActivityStartedAt,
-              now.timeIntervalSince(startedAt) >= 90 * 60,
-              lastFatigueSignalAt.map({ now.timeIntervalSince($0) >= 90 * 60 }) ?? true
-        else { return }
-        lastFatigueSignalAt = now
-        _ = companionRuntime.trigger(event: "fatigue")
-        js("famNotice('gentle', \(jsonStr(voice("已经连续很久了；起来走一小圈？", "You've been going a while — take a short walk?"))))")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
-            guard self?.companionRuntime.previewActionName == "rest" else { return }
-            _ = self?.companionRuntime.previewAction(named: nil)
+    private func handleCompanionContextCue(_ cue: CompanionContextCue?) {
+        guard let cue else { return }
+        switch cue {
+        case .frequentDistraction:
+            _ = companionRuntime.trigger(event: "distractionLoop")
+            js("famNotice('gentle', \(jsonStr(voice("刚才几次走进分心内容了；要不要回来？", "A few distraction detours just happened — want to come back?"))))")
+        case .rapidSwitching:
+            _ = companionRuntime.trigger(event: "distractionLoop")
+            js("famNotice('gentle', \(jsonStr(voice("切换有点密；先停一口气？", "A lot of switching — pause for one breath?"))))")
+        case .fatigue:
+            _ = companionRuntime.trigger(event: "fatigue")
+            js("famNotice('gentle', \(jsonStr(voice("已经连续很久了；起来走一小圈？", "You've been going a while — take a short walk?"))))")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
+                guard self?.companionRuntime.previewActionName == "rest" else { return }
+                _ = self?.companionRuntime.previewAction(named: nil)
+            }
         }
     }
 
@@ -907,8 +902,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     @objc func toggleContextMenu() { showJournal() }
     @objc func openJournal() { showJournal() }
     @objc func openReflectionBrowser() {
-        _ = companionRuntime.trigger(event: "journalOpened")
         reflectionBrowser.present()
+        _ = companionRuntime.trigger(event: "journalOpened")
     }
 
     private func positionJournal(near screenPoint: CGPoint?) {
@@ -1380,9 +1375,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     @objc func togglePause(_ sender: NSMenuItem) {
         paused.toggle()
         js("famPause(\(paused))")
-        if !paused {
+        if paused {
+            companionContextPolicy.suspend()
+        } else {
             // Pausing closes the open segment. Seed a fresh one immediately on
             // resume instead of waiting for another app-activation event.
+            companionContextPolicy.resume()
             lastSent = ""
             if let front = NSWorkspace.shared.frontmostApplication { send(app: front) }
         }
@@ -1595,6 +1593,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         js("famSetLogGeneration(\(activityLogWriteFence.generation))")
         js("famLoadHistory(\(readTodayLog()))")
         js("famLoadWeek(\(readWeekLog()))")
+        let reflecting = reflectionBrowser.window?.isVisible == true
+            && reflectionBrowser.window?.isMiniaturized == false
+            && reflectionBrowser.window?.occlusionState.contains(.visible) == true
+        js("famSetReflectionActive(\(reflecting))")
         if let front = NSWorkspace.shared.frontmostApplication { send(app: front) }
     }
 }

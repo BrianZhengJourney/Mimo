@@ -138,6 +138,14 @@ struct ReflectionBrowserUITests {
                && main.contains("今日手记…")
                && !main.contains("refreshFromNotionIfConfigured"),
                "the local dashboard is integrated without launch-time remote sync")
+        expect(controller.contains("var onVisibilityChanged: ((Bool) -> Void)?")
+               && controller.contains("windowWillClose")
+               && controller.contains("windowDidMiniaturize")
+               && controller.contains("windowDidDeminiaturize")
+               && controller.contains("windowDidChangeOcclusionState")
+               && controller.contains("reportVisibility(true)")
+               && controller.contains("reportVisibility(false)"),
+               "the companion can accompany the full visible looking-back session")
         let fixtureGuard = main.range(of: "if reflectionBrowser.isFixtureMode")
         let productionPanelStart = main.range(of: "buildPanel()")
         expect(fixtureGuard != nil && productionPanelStart != nil

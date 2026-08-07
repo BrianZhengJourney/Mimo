@@ -103,6 +103,28 @@ struct CompanionActionMenuTests {
         expect(localRuntime.mood == "focusSession"
                && localRuntime.previewActionName == nil,
                "starting Focus immediately returns a manual loop to quiet automatic behavior")
+        localRuntime.setReflectionActive(true)
+        expect(localRuntime.mood == "reflecting" && localRuntime.reflectionActive,
+               "an open Today Journal should become the companion's active context")
+        localRuntime.setSemanticState(
+            mood: "deepWork", focusMinutes: 31, streakMinutes: 31)
+        expect(localRuntime.mood == "reflecting",
+               "background app updates must not interrupt looking back together")
+        localRuntime.setReflectionActive(false)
+        expect(localRuntime.mood == "deepWork" && !localRuntime.reflectionActive,
+               "closing Today Journal restores the latest underlying activity context")
+        let behaviorData = try Data(contentsOf: URL(
+            fileURLWithPath: "mac/assets/behavior/default.json"))
+        let behaviorPack = try CompanionBehaviorPack.load(data: behaviorData)
+        let fallbackDirector = CompanionDirector(
+            pack: behaviorPack, availableStrips: [], random: { 0.5 })
+        var groundedSnapshot = CompanionSnapshot()
+        groundedSnapshot.state = "grounded"
+        expect(!fallbackDirector.trigger(
+            reactionTo: "focusComplete", snapshot: groundedSnapshot)
+               && fallbackDirector.trigger(
+                reactionTo: "focusCompleteFallback", snapshot: groundedSnapshot),
+               "a body without tennis art has one legal anatomy-neutral celebration")
         expect(localRuntime.playInstalledAction(named: "gaze") &&
                localRuntime.previewActionName == nil,
                "choosing gaze should resume automatic cursor-following")
@@ -116,13 +138,16 @@ struct CompanionActionMenuTests {
                "web and native familiars should share the same native menu")
         expect(overlay.contains("? 'focusSession' : (current || 'idle')")
                && overlay.contains("type:'companionEvent',event:'focusComplete'")
+               && overlay.contains("function famSetReflectionActive(on)")
                && main.contains("case \"companionEvent\":")
+               && main.contains("reflectionBrowser.onVisibilityChanged")
                && main.contains("journalOpened")
-               && main.contains("distractionLoop")
-               && main.contains("checkContextFatigue")
+               && main.contains("CompanionContextPolicy")
                && runtime.contains("func setSemanticState")
+               && runtime.contains("func setReflectionActive")
+               && runtime.contains("focusCompleteFallback")
                && runtime.contains("func trigger(event: String)"),
-               "Focus starts a quiet semantic mode and completion can trigger one local celebration")
+               "real activity, Focus, and Today Journal drive sparse local companion semantics")
 
         print("companion action menu tests passed")
     }

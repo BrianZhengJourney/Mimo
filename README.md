@@ -31,6 +31,10 @@ The repository has moved beyond the original browser concept:
   installed atomically and retained for at most 24 hours.
 - Mimo Studio includes four default Starter Actions after adoption: cursor
   gaze, sleep, tennis, and wall stand/sit. One click runs them in sequence.
+- Companion recurrence is context-driven rather than random roaming: deep work
+  stays quiet, repeated distraction gets one cooled-down nudge, Focus completion
+  celebrates once, long active intervals suggest rest, and Today Journal keeps
+  the companion in a shared looking-back state until the window leaves view.
 - Each card discloses calls and estimated cost, checkpoints every completed
   three-frame batch, survives restart, and resumes only after an explicit click.
 - Generated strips pass through local shared-scale/baseline processing, desktop

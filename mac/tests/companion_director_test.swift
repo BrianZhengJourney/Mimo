@@ -346,6 +346,29 @@ struct CompanionDirectorTests {
         expect(idle.currentBehaviorName == "Walk", "roaming returns when idle")
     }
 
+    static func testShippedPackKeepsLookingBackUntilTheContextEnds() throws {
+        let data = try Data(contentsOf: URL(
+            fileURLWithPath: "mac/assets/behavior/default.json"))
+        let pack = try CompanionBehaviorPack.load(data: data)
+        let director = CompanionDirector(pack: pack, random: { 0.5 })
+        var snapshot = grounded(500, mood: "reflecting")
+        _ = director.update(dt: 0.016, snapshot: snapshot)
+        expect(director.currentBehaviorName == "Reflecting",
+               "the visible Today Journal should select only the quiet looking-back loop")
+        expect(director.trigger(reactionTo: "journalOpened", snapshot: snapshot),
+               "opening Today Journal should begin with one explicit shared glance")
+        expect(director.currentBehaviorName == "ReflectTogether", "the reaction takes over once")
+        _ = director.update(dt: 8.1, snapshot: snapshot)
+        _ = director.update(dt: 0.016, snapshot: snapshot)
+        expect(director.currentBehaviorName == "Reflecting",
+               "after the opening beat, the companion must keep accompanying the session")
+        snapshot.mood = "deepWork"
+        director.reset()
+        _ = director.update(dt: 0.016, snapshot: snapshot)
+        expect(director.currentBehaviorName == "QuietBreathe",
+               "closing the journal can restore the underlying deep-work behavior")
+    }
+
     // MARK: - Degenerate packs
 
     /// Nothing drawable leaves the companion idle. Shimeji teleports the mascot
@@ -374,7 +397,7 @@ struct CompanionDirectorTests {
         expect(director.currentBehaviorName == nil, "reset clears the current behavior")
     }
 
-    static func main() {
+    static func main() throws {
         testPicksABehaviorAndRunsIt()
         testStayEndsAfterItsDuration()
         testMoveWalksTowardTheTargetNotThePoseDirection()
@@ -394,6 +417,7 @@ struct CompanionDirectorTests {
         testReactionIllegalInThisStateReportsFalse()
         testRandomisedDurationIsFrozenAtStart()
         testDeepWorkGatesRoamingOut()
+        try testShippedPackKeepsLookingBackUntilTheContextEnds()
         testNoDrawableBehaviorLeavesItIdleNotFalling()
         testResetForcesReselection()
         print("companion director: all assertions passed")

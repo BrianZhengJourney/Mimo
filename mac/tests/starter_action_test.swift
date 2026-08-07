@@ -229,9 +229,15 @@ struct StarterActionTests {
                && quietCondition.contains("deepWork")
                && quietCondition.contains("focused"),
                "Focus and inferred deep work share the quiet in-place behavior")
+        let reflectingCondition = behaviors["Reflecting"]?["when"] as? String ?? ""
+        expect(behaviors["Reflecting"]?["action"] as? String == "ReflectTogether"
+               && reflectingCondition.contains("mimo.mood == 'reflecting'"),
+               "Today Journal owns a persistent, anatomy-neutral looking-back behavior")
         let reactions = root["reactions"] as? [String: String] ?? [:]
         expect(reactions["focusComplete"] == "PlayTennis",
                "a completed Focus can celebrate with one installed tennis action")
+        expect(reactions["focusCompleteFallback"] == "CelebrateSmall",
+               "a body without tennis art still gets one short anatomy-neutral celebration")
         expect(reactions["distractionLoop"] == "SoftNudge"
                && reactions["journalOpened"] == "ReflectTogether"
                && reactions["fatigue"] == "FatiguePause",

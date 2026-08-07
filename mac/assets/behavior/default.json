@@ -112,6 +112,18 @@
       ]
     },
     {
+      "name": "CelebrateSmall",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": 2.4,
+      "animations": [
+        { "poses": [
+          { "frame": 1, "hold": 0.8, "velocity": [0, 0] },
+          { "frame": 0, "hold": 1.6, "velocity": [0, 0] }
+        ] }
+      ]
+    },
+    {
       "name": "SoftNudge",
       "type": "stay",
       "requires": "grounded",
@@ -234,6 +246,7 @@
   "reactions": {
     "click": "Poked",
     "focusComplete": "PlayTennis",
+    "focusCompleteFallback": "CelebrateSmall",
     "distractionLoop": "SoftNudge",
     "journalOpened": "ReflectTogether",
     "fatigue": "FatiguePause"
@@ -339,12 +352,28 @@
     },
 
     {
+      "name": "Reflecting",
+      "action": "ReflectTogether",
+      "frequency": 300,
+      "when": "#{self.state == 'grounded' && mimo.mood == 'reflecting'}",
+      "next": { "additive": false, "refs": [
+        { "name": "Reflecting", "frequency": 100 }
+      ] }
+    },
+
+    {
       "name": "Slump",
       "frequency": 200,
       "when": "#{self.state == 'grounded' && (mimo.mood == 'poisoned' || mimo.mood == 'dizzy' || mimo.mood == 'ghost')}",
       "next": { "additive": true, "refs": [
         { "name": "Slump", "frequency": 100 }
       ] }
+    },
+    {
+      "name": "CelebrateSmall",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": true, "refs": [] }
     },
     {
       "name": "SoftNudge",
