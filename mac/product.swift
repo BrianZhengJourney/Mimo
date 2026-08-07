@@ -396,6 +396,7 @@ extension AppDelegate {
         "petRetryLocalProcessing",
         "petInstallRaster",
         "petRegenerateExpressions",
+        "petStudioCheckpoint",
     ]
 
     private var studioPrivacyGenerationToken: String {
@@ -404,11 +405,49 @@ extension AppDelegate {
 
     private func openAIKeyStatePayload() -> [String: Any] {
         let source = MimoSecret.openAI.source
-        return [
+        var payload: [String: Any] = [
             "openAIConfigured": source.isReady,
             "openAIStored": source.isStored,
             "openAIKeySource": source.rawValue,
+            "openAIHealth": source.isReady ? openAIHealthSnapshot.status.rawValue
+                : (source.isStored ? "authorization" : "unchecked"),
         ]
+        if let checkedAt = openAIHealthSnapshot.checkedAt {
+            payload["openAIHealthCheckedAt"] = checkedAt.timeIntervalSince1970 * 1_000
+        }
+        if let status = openAIHealthSnapshot.httpStatus {
+            payload["openAIHealthHTTPStatus"] = status
+        }
+        return payload
+    }
+
+    func restorePersistedStudioSession() {
+        if let (id, candidate) = studioSessionStore.restoredCandidate() {
+            pendingCandidateBoards[id] = candidate
+            visibleCandidateDraftID = id
+        }
+        if let (id, evolution) = studioSessionStore.restoredEvolution() {
+            pendingEvolutionSheets[id] = evolution
+            visibleEvolutionDraftID = id
+        }
+    }
+
+    private func checkOpenAIHealth(force: Bool = false) {
+        guard !openAIHealthCheckInFlight, MimoSecret.openAI.source.isReady else { return }
+        if !force, let checkedAt = openAIHealthSnapshot.checkedAt,
+           Date().timeIntervalSince(checkedAt) < 10 * 60 { return }
+        guard let key = MimoSecret.openAI.read() else { return }
+        openAIHealthCheckInFlight = true
+        openAIHealthSnapshot = .init(status: .checking, checkedAt: nil, httpStatus: nil)
+        pushSettingsState()
+        openAIHealthProbe.check(apiKey: key) { [weak self] snapshot in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.openAIHealthCheckInFlight = false
+                self.openAIHealthSnapshot = snapshot
+                self.pushSettingsState()
+            }
+        }
     }
 
     private func acceptsStudioPrivacyGeneration(_ body: [String: Any]) -> Bool {
@@ -805,6 +844,7 @@ extension AppDelegate {
         if let w = settingsWin {
             pushSettingsState()
             presentSettingsWindow(w)
+            checkOpenAIHealth()
             return
         }
         let cfg = WKWebViewConfiguration()
@@ -829,6 +869,7 @@ extension AppDelegate {
         settingsWeb = web
         settingsWin = win
         presentSettingsWindow(win)
+        checkOpenAIHealth()
     }
 
     private func presentSettingsWindow(_ window: NSWindow) {
@@ -917,7 +958,13 @@ extension AppDelegate {
             "generationRecoveryCount": generationDraftStore.recoverableDraftCount(),
             "studioPrivacyGeneration": studioPrivacyGenerationToken,
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
+            "buildCommit": Bundle.main.infoDictionary?["MimoBuildCommit"] as? String ?? "unknown",
+            "buildDirty": Bundle.main.infoDictionary?["MimoBuildDirty"] as? Bool ?? false,
+            "buildSignature": Bundle.main.infoDictionary?["MimoBuildSignature"] as? String ?? "temporary",
         ]
+        if let session = studioSessionStore.runtimePayload() {
+            state["studioSession"] = session
+        }
         state.merge(openAIKeyStatePayload()) { _, new in new }
         state["settingsFontFamily"] = typography.family.rawValue
         state["settingsFontWeight"] = typography.weight.rawValue
@@ -1091,6 +1138,9 @@ extension AppDelegate {
             return nil
         }
         var pinnedEvolutionIDs = Set(activeStageParents.values).union(recoveryParentIDs)
+        if let persisted = studioSessionStore.persistedEvolutionID {
+            pinnedEvolutionIDs.insert(persisted)
+        }
         if settingsWin?.isVisible == true, let visibleEvolutionDraftID {
             pinnedEvolutionIDs.insert(visibleEvolutionDraftID)
         }
@@ -1101,10 +1151,13 @@ extension AppDelegate {
             if case .evolution(let value) = recovery { return value.candidateDraftID }
             return nil
         }
-        let pinnedCandidateIDs = Set(pendingEvolutionSheets.values.flatMap(\.relatedRequestIDs))
+        var pinnedCandidateIDs = Set(pendingEvolutionSheets.values.flatMap(\.relatedRequestIDs))
             .union(recoveryCandidateIDs)
             .union(settingsWin?.isVisible == true
                    ? visibleCandidateDraftID.map { Set([$0]) } ?? [] : [])
+        if let persisted = studioSessionStore.persistedCandidateID {
+            pinnedCandidateIDs.insert(persisted)
+        }
         pendingCandidateBoards = retainingStudioDrafts(
             pendingCandidateBoards, newerThan: sessionCutoff,
             pinnedIDs: pinnedCandidateIDs, lastTouchedAt: { $0.lastTouchedAt })
@@ -1209,6 +1262,7 @@ extension AppDelegate {
 
         do {
             try generationDraftStore.purgeAll()
+            try studioSessionStore.purgeAll()
             return true
         } catch {
             return false
@@ -1706,6 +1760,17 @@ extension AppDelegate {
                         likeness: recovery.likeness,
                         styleProfile: recovery.styleProfile,
                         lastTouchedAt: Date())
+                    if let stored = self.pendingCandidateBoards[requestID] {
+                        do {
+                            try self.studioSessionStore.saveCandidate(
+                                id: requestID, value: stored)
+                        } catch {
+                            warnings.append([
+                                "zh": "草稿已生成，但跨重启恢复点没有保存成功；关闭 Mimo 前请先采用或重试。",
+                                "en": "Drafts were created, but the restart checkpoint failed. Adopt or retry before closing Mimo.",
+                            ])
+                        }
+                    }
                     self.visibleCandidateDraftID = requestID
                     self.pendingLocalRecoveries.removeValue(forKey: requestID)
                     self.settingsCall("petCandidateResult", [
@@ -2759,6 +2824,17 @@ extension AppDelegate {
                         stageQualities: Array(repeating: recovery.quality, count: 3),
                         lastTouchedAt: Date(),
                         relatedRequestIDs: [recovery.candidateDraftID, requestID])
+                    if let stored = self.pendingEvolutionSheets[requestID] {
+                        do {
+                            try self.studioSessionStore.saveEvolution(
+                                id: requestID, value: stored)
+                        } catch {
+                            warnings.append([
+                                "zh": "定稿已生成，但跨重启恢复点没有保存成功；关闭 Mimo 前请先采用或重试。",
+                                "en": "The final was created, but the restart checkpoint failed. Adopt or retry before closing Mimo.",
+                            ])
+                        }
+                    }
                     self.visibleEvolutionDraftID = requestID
                     self.pendingLocalRecoveries.removeValue(forKey: requestID)
                     self.settingsCall("petEvolutionResult", [
@@ -2917,10 +2993,19 @@ extension AppDelegate {
                         updated.relatedRequestIDs.append(requestID)
                     }
                     self.pendingEvolutionSheets[recovery.parentDraftID] = updated
+                    var warnings: [[String: String]] = []
+                    do {
+                        try self.studioSessionStore.saveEvolution(
+                            id: recovery.parentDraftID, value: updated)
+                    } catch {
+                        warnings.append([
+                            "zh": "形态已替换，但跨重启恢复点没有保存成功；关闭 Mimo 前请先采用或重试。",
+                            "en": "The form was replaced, but the restart checkpoint failed. Adopt or retry before closing Mimo.",
+                        ])
+                    }
                     self.visibleEvolutionDraftID = recovery.parentDraftID
                     self.activeStageParents.removeValue(forKey: requestID)
                     self.pendingLocalRecoveries.removeValue(forKey: requestID)
-                    var warnings: [[String: String]] = []
                     if recoveredNearEdge {
                         warnings.append([
                             "zh": "这个形态很靠近画布，但仍有完整边距；已用安全恢复模式提取。",
@@ -3249,6 +3334,20 @@ extension AppDelegate {
                     selected,
                     skippedDueToLimit: panel.urls.count - selected.count)
             }
+        case "petStudioCheckpoint":
+            guard let session = body["session"] as? [String: Any] else { return }
+            if session["status"] as? String == "adopted" {
+                try? studioSessionStore.purgeAll()
+                return
+            }
+            do {
+                try studioSessionStore.updateUI(session)
+            } catch {
+                settingsCall("petStudioCheckpointFailed", [
+                    "messageZh": "这次工作区恢复点没有保存成功；请保留当前窗口并重试。",
+                    "messageEn": "This Studio checkpoint was not saved. Keep this window open and try again.",
+                ])
+            }
         case "petWebReference":
             guard petReferenceImportQueue == nil,
                   petRemoteReferenceDownloader == nil else { return }
@@ -3481,8 +3580,12 @@ extension AppDelegate {
             settingsCall("petKeysSaved", keyState)
             reflectionBrowser.providerConfigurationDidChange()
             if MimoSecret.openAI.isConfigured {
+                openAIHealthSnapshot = OpenAIHealthSnapshot()
+                checkOpenAIHealth(force: true)
                 resumePostInstallStarterActions()
             }
+        case "petTestOpenAI":
+            checkOpenAIHealth(force: true)
         case "petAuthorizeKey":
             guard !keyAuthorizationInFlight else { return }
             keyAuthorizationInFlight = true
@@ -3504,6 +3607,8 @@ extension AppDelegate {
                     self.settingsCall("petKeysSaved", keyState)
                     self.reflectionBrowser.providerConfigurationDidChange()
                     if keyState["openAIConfigured"] as? Bool == true {
+                        self.openAIHealthSnapshot = OpenAIHealthSnapshot()
+                        self.checkOpenAIHealth(force: true)
                         self.resumePostInstallStarterActions()
                     }
                 }
@@ -3516,6 +3621,7 @@ extension AppDelegate {
                 return
             }
             let cleared = MimoSecret.openAI.write("")
+            openAIHealthSnapshot = OpenAIHealthSnapshot()
             var keyState = openAIKeyStatePayload()
             keyState["cleared"] = "OpenAI"
             if !cleared { keyState["error"] = voice("无法清除 OpenAI", "Could not clear OpenAI") }
@@ -3758,6 +3864,7 @@ extension AppDelegate {
                 js("famSetCustomPet(\(json))")
                 refreshNativeCompanion()
                 settingsCall("customPetAdopted", ["spec": spec])
+                try? studioSessionStore.purgeAll()
                 pushSettingsState()
                 revealOverlay()
                 // One durable post-install pipeline: mature-form expressions

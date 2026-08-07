@@ -25,18 +25,44 @@ cp -R assets/style-reference "$APP/Contents/Resources/style-reference"
 cp -R assets/motion-reference "$APP/Contents/Resources/motion-reference"
 cp -R assets/behavior "$APP/Contents/Resources/behavior"
 
+# Stamp the exact source state into the bundle. This is intentionally generated
+# at build time (never checked in), so the running app can make stale builds
+# obvious without shelling out or assuming the repository is still present.
+BUILD_COMMIT="$(git rev-parse --short=8 HEAD 2>/dev/null || echo unknown)"
+if git diff --quiet --ignore-submodules HEAD -- 2>/dev/null; then
+  BUILD_DIRTY=false
+else
+  BUILD_DIRTY=true
+fi
+BUILD_MARKER=""
+if [ "$BUILD_DIRTY" = true ]; then BUILD_MARKER="*"; fi
+
+# Prefer an explicitly scoped identity, then a previously-created local Mimo
+# identity. Creating that certificate is a one-time user-authorized setup; the
+# build never mutates Keychain on its own.
+SIGN_IDENTITY="${MIMO_SIGN_IDENTITY:-}"
+if [ -z "$SIGN_IDENTITY" ] && security find-identity -v -p codesigning 2>/dev/null \
+     | grep -Fq '"Mimo Local Development"'; then
+  SIGN_IDENTITY="Mimo Local Development"
+fi
+SIGN_MODE=temporary
+if [ -n "$SIGN_IDENTITY" ]; then SIGN_MODE=stable; fi
+/usr/libexec/PlistBuddy -c "Add :MimoBuildCommit string $BUILD_COMMIT" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :MimoBuildDirty bool $BUILD_DIRTY" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :MimoBuildSignature string $SIGN_MODE" "$APP/Contents/Info.plist"
+
 frameworks=()
 for framework in "${APP_FRAMEWORKS[@]}"; do frameworks+=(-framework "$framework"); done
 
 swiftc -module-cache-path "$MODULE_CACHE" -O "${APP_SOURCES[@]}" \
   -o "$APP/Contents/MacOS/$APP_NAME" "${frameworks[@]}"
 
-codesign --force -s "${MIMO_SIGN_IDENTITY:--}" "$APP"
-if [ -z "${MIMO_SIGN_IDENTITY:-}" ]; then
+codesign --force -s "${SIGN_IDENTITY:--}" "$APP"
+if [ -z "$SIGN_IDENTITY" ]; then
   echo "note: ad-hoc signed. Set MIMO_SIGN_IDENTITY to a stable self-signed" \
        "identity to keep Automation and Keychain grants across rebuilds."
 fi
-echo "built: $PWD/$APP"
+echo "built: $PWD/$APP · $BUILD_COMMIT$BUILD_MARKER · $SIGN_MODE signature"
 
 # mirror the preview assets for the sandboxed preview server (TCC can't read
 # ~/Desktop). Only the HTML the preview actually loads — mirroring the whole

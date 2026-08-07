@@ -459,6 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var companionSpriteCache: [String: CompanionSprite] = [:]
     var activeCompanionSpec: [String: Any]?
     let generationDraftStore = FamiliarGenerationDraftStore(root: logDir)
+    let studioSessionStore = FamiliarStudioSessionStore(root: logDir)
     var studioGenerationLedger = StudioGenerationLedger()
     var studioCleanupTimer: Timer?
     var starterActionWatchdogs: [String: DispatchWorkItem] = [:]
@@ -495,6 +496,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var petRemoteReferenceDownloader: PetRemoteReferenceDownloader?
     /// Prevents repeated clicks from opening overlapping Keychain prompts.
     var keyAuthorizationInFlight = false
+    let openAIHealthProbe = OpenAIHealthProbe()
+    var openAIHealthSnapshot = OpenAIHealthSnapshot()
+    var openAIHealthCheckInFlight = false
     /// Character currently receiving post-adoption expression sheets (one
     /// sequential run at a time; nil when idle).
     var expressionRunCharacterID: String?
@@ -509,6 +513,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var activeStudioCancellationToken: StudioCancellationToken?
     var lockTokens: [NSObjectProtocol] = []
     var isIdle = false
+    var continuousActivityStartedAt: Date?
+    var semanticSwitchTimes: [Date] = []
+    var lastDistractionSignalAt: Date?
+    var lastFatigueSignalAt: Date?
 
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -526,6 +534,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
             return
         }
+        restorePersistedStudioSession()
         buildPanel()
         buildMainMenu()
         buildStatusItem()
@@ -770,12 +779,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let idleLimit = UserDefaults.standard.object(forKey: "idleThreshold") as? Double ?? 150
             if !self.isIdle, idle > idleLimit {
                 self.isIdle = true
+                self.continuousActivityStartedAt = nil
+                self.semanticSwitchTimes.removeAll(keepingCapacity: true)
                 self.js("famIdle(true)")
             } else if self.isIdle, idle < 10 {
                 self.isIdle = false
+                self.continuousActivityStartedAt = Date()
                 self.lastSent = ""
                 if let front = NSWorkspace.shared.frontmostApplication { self.send(app: front) }
             }
+            if !self.isIdle { self.checkContextFatigue() }
             guard !self.isIdle,
                   let front = NSWorkspace.shared.frontmostApplication,
                   let bid = front.bundleIdentifier,
@@ -786,10 +799,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let dnc = DistributedNotificationCenter.default()
         lockTokens.append(dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             self?.isIdle = true
+            self?.continuousActivityStartedAt = nil
+            self?.semanticSwitchTimes.removeAll(keepingCapacity: true)
             self?.js("famIdle(true)")
         })
         lockTokens.append(dnc.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
             self?.isIdle = false
+            self?.continuousActivityStartedAt = Date()
             self?.lastSent = ""
             if let front = NSWorkspace.shared.frontmostApplication { self?.send(app: front) }
         })
@@ -833,7 +849,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let key = "\(display)|\(kind)|\(detail)|\(canon)"
         guard key != lastSent else { return }
         lastSent = key
+        noteContextTransition()
         js("famSetApp(\(jsonStr(display)), \(jsonStr(kind)), \(jsonStr(String(detail))), \(jsonStr(url ?? "")), \(jsonStr(canon)), \(jsonStr(bid)))")
+    }
+
+    private func noteContextTransition(now: Date = Date()) {
+        if continuousActivityStartedAt == nil { continuousActivityStartedAt = now }
+        semanticSwitchTimes = semanticSwitchTimes.filter {
+            now.timeIntervalSince($0) < 3 * 60
+        }
+        semanticSwitchTimes.append(now)
+        guard semanticSwitchTimes.count >= 8,
+              lastDistractionSignalAt.map({ now.timeIntervalSince($0) >= 20 * 60 }) ?? true
+        else { return }
+        lastDistractionSignalAt = now
+        semanticSwitchTimes = [now]
+        _ = companionRuntime.trigger(event: "distractionLoop")
+        js("famNotice('gentle', \(jsonStr(voice("切换有点密；先停一口气？", "A lot of switching — pause for one breath?"))))")
+    }
+
+    private func checkContextFatigue(now: Date = Date()) {
+        guard let startedAt = continuousActivityStartedAt,
+              now.timeIntervalSince(startedAt) >= 90 * 60,
+              lastFatigueSignalAt.map({ now.timeIntervalSince($0) >= 90 * 60 }) ?? true
+        else { return }
+        lastFatigueSignalAt = now
+        _ = companionRuntime.trigger(event: "fatigue")
+        js("famNotice('gentle', \(jsonStr(voice("已经连续很久了；起来走一小圈？", "You've been going a while — take a short walk?"))))")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
+            guard self?.companionRuntime.previewActionName == "rest" else { return }
+            _ = self?.companionRuntime.previewAction(named: nil)
+        }
     }
 
     // — hotkey (⌥Space) via Carbon: works without accessibility permission —
@@ -860,7 +906,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
     @objc func toggleContextMenu() { showJournal() }
     @objc func openJournal() { showJournal() }
-    @objc func openReflectionBrowser() { reflectionBrowser.present() }
+    @objc func openReflectionBrowser() {
+        _ = companionRuntime.trigger(event: "journalOpened")
+        reflectionBrowser.present()
+    }
 
     private func positionJournal(near screenPoint: CGPoint?) {
         guard let screenPoint else { return }
@@ -880,6 +929,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         setContextPanelOpen(true)
         panel.ignoresMouseEvents = false
         js("famShowJournal()")
+        _ = companionRuntime.trigger(event: "journalOpened")
     }
 
     func showContext() {

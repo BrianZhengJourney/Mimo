@@ -14,6 +14,8 @@ struct StudioExperienceUITests {
         let html = try String(contentsOfFile: "mac/settings.html", encoding: .utf8)
         let product = try String(contentsOfFile: "mac/product.swift", encoding: .utf8)
         let generation = try String(contentsOfFile: "mac/pet_generation.swift", encoding: .utf8)
+        let session = try String(contentsOfFile: "mac/studio_session.swift", encoding: .utf8)
+        let health = try String(contentsOfFile: "mac/openai_health.swift", encoding: .utf8)
 
         expect(html.contains("页面会留在这里")
                && html.contains("This page stays open")
@@ -60,6 +62,19 @@ struct StudioExperienceUITests {
                && generation.contains("var isStored: Bool")
                && generation.contains("interactionNotAllowed = true"),
                "credential readiness must be based on a non-interactive value read, not item existence")
+        expect(html.contains("petTestOpenAI") && html.contains("openAIHealth")
+               && product.contains("checkOpenAIHealth")
+               && health.contains("https://api.openai.com/v1/models")
+               && health.contains("case quota") && health.contains("case network"),
+               "API readiness should distinguish a stored key from a tested usable connection")
+        expect(html.contains("checkpointStudioSession")
+               && html.contains("restoreStudioSession")
+               && product.contains("restorePersistedStudioSession")
+               && product.contains("studioSessionStore.saveCandidate")
+               && product.contains("studioSessionStore.saveEvolution")
+               && session.contains("interrupted")
+               && session.contains("never silently replayed"),
+               "references, choices, and successful paid outputs should survive restart without replaying work")
 
         print("studio experience UI tests passed")
     }

@@ -40,7 +40,7 @@ private func evaluate(_ script: String, in webView: WKWebView) -> Any? {
         finished = true
     }
     expect(spin(until: { finished }), "JavaScript evaluation timed out")
-    expect(failure == nil, "JavaScript evaluation failed: \(failure?.localizedDescription ?? "unknown")")
+    expect(failure == nil, "JavaScript evaluation failed near \(String(script.prefix(140))): \(String(describing: failure))")
     return value
 }
 
@@ -60,7 +60,7 @@ struct ReflectionBrowserDOMTests {
         expect(waiter.finished && !waiter.failed, "fixture loads in a real WKWebView")
         _ = evaluate("window.reflectionFixture('1')", in: webView)
 
-        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
+        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,identityFallbacks:document.querySelectorAll('.identity-fallback').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
                                in: webView) as? String
         let object = try JSONSerialization.jsonObject(
             with: Data((initial ?? "{}").utf8)) as? [String: Any]
@@ -70,16 +70,17 @@ struct ReflectionBrowserDOMTests {
                && object?["raw"] as? Int == 6,
                "populated fixture renders blocks, learning cards, reflection, and raw evidence")
         expect(object?["journey"] as? Int == 14
-               && object?["chapterSegments"] as? Int == 8
+               && object?["chapterSegments"] as? Int == 9
                && (object?["quiet"] as? Int ?? 0) >= 1
                && (object?["phases"] as? Int ?? 0) >= 2
                && object?["activityHovers"] as? Int == 5
                && object?["materialOverlays"] as? Int == 3,
-               "strict half-hours retain every event slice, including visible quiet gaps")
-        expect((object?["identityImages"] as? Int ?? 0) >= 4
+               "strict half-hours retain every event slice, including visible quiet gaps: \(initial ?? "{}")")
+        expect((object?["identityImages"] as? Int ?? 0)
+                 + (object?["identityFallbacks"] as? Int ?? 0) >= 4
                && (object?["appIdentities"] as? Int ?? 0) >= 1
                && (object?["siteIdentities"] as? Int ?? 0) >= 1,
-               "app activities and websites render representative identity artwork")
+               "app activities and websites render representative artwork or a clear fallback")
         expect((evaluate("(()=>{const base=new Date();base.setHours(8,0,0,0);const categories=['building','communication','admin','learning'];const blocks=Array.from({length:80},(_,index)=>{const event={id:`dense-event-${index}`,start:new Date(base.getTime()+index*60000).toISOString(),end:new Date(base.getTime()+(index+1)*60000).toISOString(),durationSeconds:60,app:`App ${index%6}`,title:`App ${index%6}`,category:categories[index%4]};return{id:`dense-${index}`,title:event.title,category:event.category,start:event.start,end:event.end,activeSeconds:60,apps:[event.app],domains:[],contextSwitches:1,eventIDs:[event.id],events:[event]}});const chapters=buildHalfHourChapters(blocks);return chapters.length===3&&chapters.every(chapter=>new Date(chapter.start).getMinutes()%30===0&&new Date(chapter.end)-new Date(chapter.start)===1800000)&&chapters.reduce((sum,chapter)=>sum+chapter.activeSeconds,0)===4800&&chapters.flatMap(chapter=>chapter.segments).length===80})()",
                          in: webView) as? Bool) == true,
                "dense days align to exact half-hour boundaries without dropping active time")
@@ -95,7 +96,7 @@ struct ReflectionBrowserDOMTests {
         expect((evaluate("const card=document.querySelector('.activity-card');card.focus();const panel=document.querySelector('.trail-panel').getBoundingClientRect();const hover=card.querySelector('.activity-hover').getBoundingClientRect();hover.height>0&&hover.left>=panel.left&&hover.right<=panel.right",
                          in: webView) as? Bool) == true,
                "activity hover context remains inside the trail panel")
-        expect((evaluate("[...document.querySelectorAll('[data-half-hour]')].find(item=>item.dataset.chapterBlocks.split(',').includes('b4')).click();document.querySelector('[data-block=b4]').classList.contains('located')",
+        expect((evaluate("[...document.querySelectorAll('.half-hour-chapter')].find(item=>item.dataset.chapterBlocks.split(',').includes('b4')).click();document.querySelector('.activity-card[data-block=b4]').classList.contains('located')",
                          in: webView) as? Bool) == true,
                "selecting a half-hour locates its representative detailed activity")
         expect((evaluate("document.querySelector('.half-hour-chapter:not(.quiet)').click();document.getElementById('journeyAsk').click();document.getElementById('prompt').value.includes('半小时')",
@@ -123,7 +124,7 @@ struct ReflectionBrowserDOMTests {
         expect((evaluate("document.getElementById('synthesizeBtn').disabled",
                          in: webView) as? Bool) == true,
                "missing optional AI configuration never blocks the local dashboard")
-        expect((evaluate("document.getElementById('reflectionBadge').textContent",
+        expect((evaluate("document.getElementById('reflectionBadge').textContent.trim()",
                          in: webView) as? String) == "只在本机",
                "no-key fixture labels the deterministic local reflection in human language")
 

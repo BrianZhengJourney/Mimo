@@ -130,11 +130,11 @@ struct StarterActionTests {
 
     static func testGazeWaitsForASettledCursorAndFocusDisablesIt() {
         var follow = CompanionGazeFollowProcedure()
-        for _ in 0..<8 {
+        for _ in 0..<18 {
             let frame = follow.update(
                 dt: 0.02, dx: 180, dy: 0, cursorSpeed: 12,
                 frameCount: 8, enabled: true)
-            expect(frame == nil, "a passing cursor must not immediately snap the gaze")
+            expect(frame == nil, "a nearby cursor must linger before the familiar glances")
         }
         let settled = follow.update(
             dt: 0.20, dx: 180, dy: 0, cursorSpeed: 12,
@@ -232,6 +232,10 @@ struct StarterActionTests {
         let reactions = root["reactions"] as? [String: String] ?? [:]
         expect(reactions["focusComplete"] == "PlayTennis",
                "a completed Focus can celebrate with one installed tennis action")
+        expect(reactions["distractionLoop"] == "SoftNudge"
+               && reactions["journalOpened"] == "ReflectTogether"
+               && reactions["fatigue"] == "FatiguePause",
+               "context signals use three quiet anatomy-neutral fallback reactions")
         let sleepNextBlock = behaviors["RestSleep"]?["next"] as? [String: Any]
         let sleepNext = sleepNextBlock?["refs"] as? [[String: Any]] ?? []
         expect(sleepNext.count == 1

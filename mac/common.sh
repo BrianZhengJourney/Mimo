@@ -27,13 +27,16 @@ APP_SOURCES=(
   action_sheet.swift
   action_sheet_run.swift
   generation_draft.swift
+  studio_session.swift
   generation_ledger.swift
   pet_reference_import.swift
   style_reference.swift
   reference_preprocessor.swift
   settings_typography.swift
   diy_style_preset.swift
+  openai_health.swift
   reflection_core.swift
+  journey_graph.swift
   reflection_model.swift
   reflection_browser.swift
   main.swift

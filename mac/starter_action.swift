@@ -360,10 +360,12 @@ enum StarterGazeMapper {
 /// when changing one is calm enough to show. Fast motion freezes the last pose
 /// instead of making the familiar's face chase every pointer pixel.
 struct CompanionGazeFollowProcedure {
-    static let engageDistance = 270.0
-    static let releaseDistance = 350.0
-    static let settledSpeed = 95.0
-    static let dwellSeconds = 0.30
+    // A glance is a response to someone lingering nearby, not a pointer
+    // tracker. Keep the invitation close, slow, and deliberate.
+    static let engageDistance = 210.0
+    static let releaseDistance = 280.0
+    static let settledSpeed = 70.0
+    static let dwellSeconds = 0.55
 
     private var engaged = false
     private var displayed: StarterGazeSelection?

@@ -616,7 +616,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
         <button type="button" data-pet-upload onclick="requestPetReference()" data-zh="添加参考图…" data-en="Add references…">添加参考图…</button>
         <input class="pet-name" id="petName" value="我的小伴灵" maxlength="28"
           data-aria-zh="伴灵名字" data-aria-en="Familiar name"
-          oninput="petLab.name=this.value || tx('我的小伴灵','My little familiar'); renderPetLab()">
+          oninput="petLab.name=this.value || tx('我的小伴灵','My little familiar'); renderPetLab(); checkpointStudioSession()">
       </div>
     </div>
   </div>
@@ -661,7 +661,8 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
     <div class="api-grid">
       <div class="api-field"><label><span>OpenAI</span><b id="openAIKeyState">未设置</b></label><input id="openAIKey" type="password" autocomplete="off" placeholder="OpenAI API key"></div>
     </div>
-    <div class="api-actions"><button type="button" id="petAuthorizeKey" hidden onclick="authorizePetKey()" data-zh="重新授权并继续" data-en="Authorize &amp; continue">重新授权并继续</button><button type="button" onclick="savePetKeys()" data-zh="安全保存" data-en="Save securely">安全保存</button><button type="button" onclick="clearPetKey('openai')" data-zh="清除 OpenAI" data-en="Clear OpenAI">清除 OpenAI</button></div>
+    <div class="api-actions"><button type="button" id="petAuthorizeKey" hidden onclick="authorizePetKey()" data-zh="重新授权并继续" data-en="Authorize &amp; continue">重新授权并继续</button><button type="button" onclick="savePetKeys()" data-zh="安全保存" data-en="Save securely">安全保存</button><button type="button" id="petTestOpenAI" onclick="send({type:'petTestOpenAI'})" data-zh="测试连接" data-en="Test connection">测试连接</button><button type="button" onclick="clearPetKey('openai')" data-zh="清除 OpenAI" data-en="Clear OpenAI">清除 OpenAI</button></div>
+    <div class="note" id="petOpenAIHealth" hidden></div>
     <div class="note" id="petKeyAuthorizationHint" hidden data-zh="Key 还在。请在 macOS 弹窗中选择“始终允许”，不用重新填写。" data-en="Your key is still saved. Choose Always Allow in the macOS prompt; no need to enter it again.">Key 还在。请在 macOS 弹窗中选择“始终允许”，不用重新填写。</div>
     <div class="note" data-zh="GPT Image 2 · Low 草稿 → Medium 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。" data-en="GPT Image 2 · Low drafts → Medium final. Most waiting is image generation at OpenAI; local matte removal is normally brief.">GPT Image 2 · Low 草稿 → Medium 定稿。等待时间主要来自 OpenAI 生成；本机去背景通常只占很短一段。</div>
   </details>
@@ -973,6 +974,7 @@ const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],pri
   startedAt:null,finishedElapsed:null,cancelArmedUntil:0,adoptedCharacterID:null,adoptedName:'',referenceNoticeZh:'',referenceNoticeEn:'',
   importing:0,
   expr:null};
+let studioSessionApplied=false,studioCheckpointTimer=null;
 
 // Every Studio start is bound to the native privacy epoch that produced this
 // settings state. A message posted before Delete Everything may reach native
@@ -986,6 +988,33 @@ function adoptStudioPrivacyGeneration(value){
 }
 const isCurrentStudioPrivacyEvent=event=>String(event?.studioPrivacyGeneration??'')===studioPrivacyGeneration;
 function sendStudio(message){send({...message,studioPrivacyGeneration})}
+function studioCheckpointPayload(){
+  syncPrimaryReference();return{name:petLab.name,primaryReferenceID:petLab.primaryReferenceID,
+    references:petLab.references.map(ref=>({id:ref.id,name:ref.name||'',source:ref.source,width:ref.width,height:ref.height})),
+    temperamentID:petLab.temperamentID,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),
+    styleTuningCustomized:!!petLab.styleTuningCustomized,candidateIndex:petLab.candidateIndex,
+    candidateFeedback:petLab.candidateFeedback||{},status:petLab.status,operation:petLab.operation,requestID:petLab.requestID};
+}
+function checkpointStudioSession(immediate=false){
+  clearTimeout(studioCheckpointTimer);const save=()=>{studioCheckpointTimer=null;sendStudio({type:'petStudioCheckpoint',session:studioCheckpointPayload()})};
+  if(immediate)save();else studioCheckpointTimer=setTimeout(save,240);
+}
+function restoreStudioSession(session){
+  if(!session||typeof session!=='object')return;
+  const refs=Array.isArray(session.references)?session.references.filter(ref=>ref&&ref.id&&ref.source).slice(0,MAX_PET_REFERENCES):[];
+  Object.assign(petLab,{name:session.name||petLab.name,references:refs,primaryReferenceID:session.primaryReferenceID||refs[0]?.id||null,
+    temperamentID:session.temperamentID||petLab.temperamentID,stylePresetID:session.stylePresetID||petLab.stylePresetID,
+    styleTuningNote:session.styleTuningNote||petLab.styleTuningNote,styleTuningCustomized:!!session.styleTuningCustomized,
+    candidateDraftID:session.candidateDraftID||null,candidates:Array.isArray(session.candidates)?session.candidates:[],
+    candidateIndex:Number.isInteger(session.candidateIndex)?session.candidateIndex:null,candidateFeedback:session.candidateFeedback||{},
+    draftID:session.draftID||null,sheet:session.sheet||null,sheetQuality:session.sheetQuality||null,
+    stageQualities:Array.isArray(session.stageQualities)?session.stageQualities:[null,null,null],
+    status:session.sheet||session.candidates?.length?'ready':session.interrupted?'error':'idle',operation:session.operation||null,
+    error:session.interrupted?tx('上次生成在 Mimo 关闭时中断；没有自动重发，也不会重复产生费用。','The last generation was interrupted when Mimo closed. It was not replayed and no duplicate charge was created.'):'',
+    errorKind:session.interrupted?'setup':'',errorCode:session.interrupted?'interrupted':'',requestID:null,startedAt:null});
+  syncPrimaryReference();const name=document.getElementById('petName');if(name)name.value=petLab.name;
+}
+function petStudioCheckpointFailed(event){petLab.referenceNoticeZh=event?.messageZh||'工作区恢复点没有保存成功。';petLab.referenceNoticeEn=event?.messageEn||'The Studio checkpoint was not saved.';renderReferenceSet()}
 
 const studioBusy=()=>petLab.status==='busy'||petLab.status==='installing';
 let referenceBatchDepth=0;
@@ -1075,7 +1104,7 @@ function referenceSetChanged(){
   petLab.references.forEach(ref=>{ref.analysis={status:'pending'}});
   petLab.referenceNoticeZh=petLab.references.length?`已在本机准备 ${petLab.references.length} 张参考图；全部就绪后自动生成草稿。`:'参考集已清空；请添加至少一张图片。';
   petLab.referenceNoticeEn=petLab.references.length?`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; drafts start when all are ready.`:'Reference set cleared; add at least one image.';
-  invalidatePetDraft();scheduleCandidateAutoGeneration();
+  invalidatePetDraft();checkpointStudioSession();scheduleCandidateAutoGeneration();
 }
 function setPrimaryReference(id){
   if(studioBusy()||referencesImporting()||id===petLab.primaryReferenceID||!petLab.references.some(ref=>ref.id===id))return;
@@ -1157,13 +1186,13 @@ function selectDIYStylePreset(id){
   if(studioBusy()||referencesImporting())return;
   const preset=stylePresetByID(id);if(!preset)return;
   petLab.stylePresetID=id;petLab.styleTuningNote=localizedStylePresetNote(preset);
-  petLab.styleTuningCustomized=true;renderStyleTuning();
+  petLab.styleTuningCustomized=true;renderStyleTuning();checkpointStudioSession();
   requestAnimationFrame(()=>document.getElementById('petStyleTuning')?.focus());
 }
 function updateStyleTuning(value,customized=true){
   if(studioBusy()||referencesImporting())return;
   const next=String(value??'').slice(0,MAX_STYLE_TUNING);if(next===petLab.styleTuningNote){renderStyleTuning();return}
-  petLab.styleTuningNote=next;if(customized)petLab.styleTuningCustomized=true;renderStyleTuning();
+  petLab.styleTuningNote=next;if(customized)petLab.styleTuningCustomized=true;renderStyleTuning();checkpointStudioSession();
 }
 function invalidatePetDraft(){
   if(studioBusy())return;
@@ -1183,6 +1212,7 @@ function invalidatePetDraft(){
 function petPrivacyReset(event){
   if(!adoptStudioPrivacyGeneration(event?.studioPrivacyGeneration))return;
   clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;
+  clearTimeout(studioCheckpointTimer);studioCheckpointTimer=null;
   candidateAutoGenerateSignature='';referenceBatchDepth=0;
   // Detach every pre-erase decode/import continuation. Each continuation also
   // captures the old token and therefore cannot refill petLab when it settles.
@@ -1201,7 +1231,7 @@ function petPrivacyReset(event){
   });
   closeCandidateLightbox();renderPetLab();
 }
-function selectTemperament(id){if(!studioBusy()&&!referencesImporting()&&TEMPERAMENTS.some(t=>t.id===id)&&id!==petLab.temperamentID){invalidatePetDraft();petLab.temperamentID=id;renderPetLab()}}
+function selectTemperament(id){if(!studioBusy()&&!referencesImporting()&&TEMPERAMENTS.some(t=>t.id===id)&&id!==petLab.temperamentID){invalidatePetDraft();petLab.temperamentID=id;renderPetLab();checkpointStudioSession()}}
 function renderKeyState(){
   const openai=document.getElementById('openAIKeyState');if(!openai)return;
   /* The environment wins over the Keychain, so "clear key" can leave the app
@@ -1217,6 +1247,10 @@ function renderKeyState(){
   const authorize=document.getElementById('petAuthorizeKey'),hint=document.getElementById('petKeyAuthorizationHint');
   if(authorize){authorize.hidden=!needsAuthorization&&!pending;authorize.disabled=pending}
   if(hint)hint.hidden=!needsAuthorization&&!pending;
+  const health=document.getElementById('petOpenAIHealth'),test=document.getElementById('petTestOpenAI'),status=S.openAIHealth||'unchecked';
+  const healthCopy={checking:tx('正在验证 Key、网络和 OpenAI 服务…','Checking the key, network, and OpenAI service…'),usable:tx('✓ API 实测可用 · 不会产生图片费用','✓ API verified · no image charge'),authorization:tx('需要重新授权，或 Key 没有访问权限。','Authorization is needed, or this key lacks access.'),quota:tx('OpenAI 返回额度或频率限制；Key 本身已被识别。','OpenAI reported a quota or rate limit; the key was recognized.'),network:tx('当前网络无法连接 OpenAI；你的 Key 仍安全保留。','The network cannot reach OpenAI; your key remains safely stored.'),service:tx('OpenAI 服务返回异常；稍后可以再次测试。','OpenAI returned a service error; test again later.')};
+  if(health){health.hidden=!S.openAIConfigured&&status==='unchecked';health.textContent=healthCopy[status]||tx('Key 已保存，但还没有实际测试连接。','The key is stored, but the connection has not been tested yet.');health.dataset.health=status}
+  if(test){test.disabled=!S.openAIConfigured||status==='checking';test.textContent=status==='checking'?tx('测试中…','Testing…'):tx('测试连接','Test connection')}
 }
 function candidateImage(candidate){return typeof candidate==='string'?candidate:(candidate?.image||candidate?.url||candidate?.preview||candidate?.dataURI||'')}
 function diagnosticsHTML(){
@@ -1264,7 +1298,7 @@ function draftFeedbackForBridge(index){
 }
 function updateCandidateFeedback(index,value){
   if(!Number.isInteger(index)||index<0||index>=petLab.candidates.length)return;
-  petLab.candidateFeedback[index]=String(value??'').slice(0,160);
+  petLab.candidateFeedback[index]=String(value??'').slice(0,160);checkpointStudioSession();
 }
 function candidateGridHTML(){
   return `<div class="candidate-grid" role="radiogroup" aria-label="${tx('选择一个草稿','Choose one draft')}">${petLab.candidates.map((candidate,i)=>{const selected=petLab.candidateIndex===i,image=candidateImage(candidate),feedback=petLab.candidateFeedback?.[i]||'';return `<article class="candidate ${selected?'sel':''}"><button type="button" class="candidate-select" role="radio" aria-checked="${selected}" onclick="selectCandidate(${i})"><img src="${esc(image)}" alt="${esc(tx(`草稿 ${i+1}`,`Draft ${i+1}`))}"><span>${selected?tx(`已选 · 草稿 ${i+1}`,`selected · draft ${i+1}`):tx(`选择草稿 ${i+1}`,`choose draft ${i+1}`)}</span></button><div class="candidate-tools"><button type="button" class="candidate-zoom" onclick="openCandidateLightbox(${i})">${tx('放大','Zoom')}</button></div><label class="candidate-feedback-label"><span>${tx('这张想怎么改？','What should change?')}</span><textarea class="candidate-feedback" maxlength="160" placeholder="${esc(tx('可选：例如头小一点、表情更萌','Optional: e.g. smaller head, cuter expression'))}" oninput="updateCandidateFeedback(${i},this.value)">${esc(feedback)}</textarea></label></article>`}).join('')}</div>`;
@@ -1414,7 +1448,7 @@ function beginStudioOperation(operation,stageIndex=null){
     usage:null,providerDetail:null,cancelArmedUntil:0,adoptedCharacterID:null,adoptedName:'',referencePreview:null,referenceMode:null,
     referenceEvidenceCount:0,referenceUsedCount:0,referenceAmbiguous:false,
     referenceReviewMessageZh:'',referenceReviewMessageEn:''});
-  renderPetLab();return petLab.requestID;
+  renderPetLab();checkpointStudioSession(true);return petLab.requestID;
 }
 function recordStudioTelemetry(event){
   if(event.providerSeconds!==undefined)petLab.providerSeconds=+event.providerSeconds;
@@ -1452,7 +1486,7 @@ function selectCandidate(index){
   petLab.candidateIndex=index;
   if(petLab.sheet)petLab.preservedResult=true;
   petLab.status='ready';petLab.error='';petLab.errorKind='';petLab.errorCode='';
-  renderPetLab();
+  renderPetLab();checkpointStudioSession();
 }
 function generateEvolution(){
   if(!canGenerate())return;const index=petLab.candidateIndex;
@@ -1495,11 +1529,11 @@ function cancelStudioOperation(){
     stageBusyIndex:null,localRetry:false,providerCompleted:false,rawPreview:null,recoveryDraftID:null,
     recoveryRequestID:null,recoveryUntil:null,canRetryLocally:false,resetTo:null,cancelArmedUntil:0,finishedElapsed:elapsedSeconds(),
     referencePreview:null,referenceMode:null,referenceEvidenceCount:0,referenceUsedCount:0,referenceAmbiguous:false});
-  renderPetLab();send({type:'petCancel',requestID:cancelledRequestID});
+  renderPetLab();checkpointStudioSession(true);send({type:'petCancel',requestID:cancelledRequestID});
 }
 function petGenerationCancelled(event){
   if(event.generationRecoveryCount!==undefined)S.generationRecoveryCount=Math.max(0,+event.generationRecoveryCount||0);
-  renderRecoveryArchive();
+  renderRecoveryArchive();checkpointStudioSession();
 }
 function petDraftExpired(event){
   if(event.kind==='candidate'&&event.draftID===petLab.candidateDraftID){
@@ -1511,7 +1545,7 @@ function petDraftExpired(event){
       error:tx('这张本机预览已经过期；不会自动产生新费用。','This local preview expired; no new cost was incurred automatically.'),
       draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
   }
-  renderPetLab();
+  renderPetLab();checkpointStudioSession();
 }
 function retryLocalProcessing(){
   if(studioBusy()||!petLab.providerCompleted||!petLab.canRetryLocally||!petLab.recoveryRequestID)return;
@@ -1536,7 +1570,7 @@ function petCandidateResult(event){
   if(!keepPrevious)Object.assign(petLab,{draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null]});
   // Low is a deliberate stopping point. Do not select a draft or start a
   // Medium/High request until the user chooses and confirms explicitly.
-  renderPetLab();
+  renderPetLab();checkpointStudioSession(true);
 }
 function petEvolutionResult(event){
   if(event.requestID!==petLab.requestID)return;
@@ -1545,7 +1579,7 @@ function petEvolutionResult(event){
   Object.assign(petLab,{requestID:null,status:'ready',operation:'evolution',sheet:event.sheet,draftID:event.draftID||event.requestID,
     sheetQuality:finalQuality,stageQualities:[finalQuality,finalQuality,finalQuality],preservedResult:false,
     stageImages:[null,null,null],stageBusyIndex:null,error:'',errorKind:'',errorCode:''});
-  renderPetLab();
+  renderPetLab();checkpointStudioSession(true);
 }
 function petStageResult(event){
   if(event.requestID!==petLab.requestID)return;const stageIndex=Number.isInteger(event.stageIndex)?event.stageIndex:petLab.stageBusyIndex;
@@ -1556,7 +1590,7 @@ function petStageResult(event){
   if(event.draftID)petLab.draftID=event.draftID;
   if(IMAGE_QUALITIES.some(q=>q.id===event.quality)&&stageIndex!==null&&stageIndex>=0&&stageIndex<3)petLab.stageQualities[stageIndex]=event.quality;
   const used=[...new Set(petLab.stageQualities.filter(Boolean))];petLab.sheetQuality=used.length===1?used[0]:'mixed';
-  Object.assign(petLab,{requestID:null,status:'ready',operation:'stage',preservedResult:false,stageBusyIndex:null,error:'',errorKind:'',errorCode:''});renderPetLab();
+  Object.assign(petLab,{requestID:null,status:'ready',operation:'stage',preservedResult:false,stageBusyIndex:null,error:'',errorKind:'',errorCode:''});renderPetLab();checkpointStudioSession(true);
 }
 /* The user cancelled. Every request now terminates through its completion
    handler so the ledger unwinds, but there is nothing to report here — drop
@@ -1566,7 +1600,7 @@ function petStudioCancelled(event){
   finishStudioOperation(event);
   Object.assign(petLab,{status:petLab.sheet?'ready':'idle',error:null,errorCode:'',
     errorKind:null,recoveryRequestID:null,requestID:null,startedAt:null});
-  renderPetLab();
+  renderPetLab();checkpointStudioSession();
 }
 function petStudioError(event){
   if(event.requestID&&event.requestID!==petLab.requestID)return;const marker=`${event.kind||''} ${event.scope||''} ${event.phase||''} ${event.code||''} ${event.message||''} ${event.messageEn||''}`.toLowerCase();
@@ -1581,7 +1615,7 @@ function petStudioError(event){
   if(event.resetTo==='candidates'&&event.code==='candidate_expired')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},preservedResult:!!petLab.sheet});
   else if(event.resetTo==='candidates')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
   if(event.resetTo==='upload')Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
-  if(event.draftID&&!petLab.draftID)petLab.draftID=event.draftID;renderPetLab();
+  if(event.draftID&&!petLab.draftID)petLab.draftID=event.draftID;renderPetLab();checkpointStudioSession();
 }
 function installCharacterSheet(){
   if(!petLab.draftID||!petLab.sheet||studioBusy())return;petLab.status='installing';renderPetLab();
@@ -1591,11 +1625,12 @@ function petInstallError(event){
   const expired=event.code==='preview_expired';Object.assign(petLab,{status:'error',operation:'install',errorKind:expired?'setup':'local',errorCode:event.code||'install_failed',resetTo:expired?'candidates':null,
     error:(LANG==='zh'?(event.messageZh||event.message):(event.messageEn||event.message))||tx('无法保存这套伴灵。','Could not save this familiar.')});
   if(expired)Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
-  renderPetLab();
+  renderPetLab();checkpointStudioSession();
 }
 function customPetAdopted(event){
   const spec=event.spec;if(!spec)return;S.customPets=(S.customPets||[]).filter(p=>p.characterID!==spec.characterID).concat([spec]);S.character=spec.characterID;
-  petLab.status='adopted';petLab.requestID=null;petLab.draftID=null;petLab.preservedResult=false;petLab.adoptedCharacterID=spec.characterID;petLab.adoptedName=spec.name||tx('新伴灵','New familiar');petLab.sheet=spec.assetURL||petLab.sheet;petLab.startedAt=null;renderCards();renderPetLab();
+  clearTimeout(studioCheckpointTimer);studioCheckpointTimer=null;
+  petLab.status='adopted';petLab.requestID=null;petLab.draftID=null;petLab.preservedResult=false;petLab.adoptedCharacterID=spec.characterID;petLab.adoptedName=spec.name||tx('新伴灵','New familiar');petLab.sheet=spec.assetURL||petLab.sheet;petLab.startedAt=null;studioSessionApplied=true;renderCards();renderPetLab();
 }
 /* Expression sheets: post-adoption blink/joy/rest frames, one run per pet. */
 function petExpressionProgress(event){
@@ -2237,6 +2272,7 @@ function initSettings(state){
   LANG = state.language === 'en' ? 'en' : 'zh';
   applySettingsTypography(state.settingsFontFamily,state.settingsFontWeight);
   installDIYStylePresets(state.diyStylePresets);
+  if(!studioSessionApplied&&state.studioSession){restoreStudioSession(state.studioSession);studioSessionApplied=true}
   petLab.quality='medium';
   applyLanguage();
   renderCards();
@@ -2257,7 +2293,7 @@ function initSettings(state){
   document.getElementById('stats').textContent = state.stats || '';
   document.getElementById('projBtn').textContent = (state.projects || tx('选择','choose')) + '…';
   const beta = document.getElementById('betaBadge');
-  if(beta && state.appVersion) beta.textContent = `Beta v${state.appVersion}`;
+  if(beta){const commit=String(state.buildCommit||'unknown').slice(0,8),dirty=state.buildDirty?'*':'',signature=state.buildSignature==='stable'?tx('稳定签名','stable sign'):tx('临时签名','temporary sign');beta.textContent=`Beta v${state.appVersion||'—'} · ${commit}${dirty} · ${signature}`;beta.title=state.buildSignature==='stable'?tx('重建后会保留 Keychain 与自动化授权','Keychain and Automation grants survive rebuilds'):tx('当前 build 可能在重建后再次请求 Keychain 或自动化授权','This build may ask for Keychain or Automation permission again after rebuilding')}
   setSettingsTab(activeSettingsTab);
 }
 applySettingsTypography('pingfang','regular');

@@ -1222,8 +1222,8 @@ function statusCopy(state){
     focused:  { cls: 'focus',    label: tx('🎯 正在专注', '🎯 focused') },
     scholar:  { cls: 'focus',    label: tx('📖 专注阅读', '📖 focused · reading') },
     dizzy:    { cls: 'distract', label: tx('🌀 有点分心', '🌀 getting distracted') },
-    poisoned: { cls: 'distract', label: tx('☠️ 掉进分心坑', '☠️ distracted') },
-    ghost:    { cls: 'distract', label: tx('👻 飘得很远', '👻 very distracted') },
+    poisoned: { cls: 'distract', label: tx('◌ 该缓一缓了', '◌ time to pause') },
+    ghost:    { cls: 'distract', label: tx('☁ 注意力飘远了', '☁ attention wandered') },
   })[state] || { cls:'', label:tx('😐 发发呆','😐 idle') };
 }
 
@@ -1249,16 +1249,16 @@ setInterval(() => {
     if (Fam.deepSec === 6) Fam.setState(kind === 'paper' ? 'scholar' : 'focused');
   } else if (kind === 'distraction') {
     Fam.distractSec++; Fam.deepSec = 0; Fam.focusStartedAt = null;
-    if (Fam.distractSec === 8)  Fam.setState('dizzy');
-    if (Fam.distractSec === 45) { Fam.setState('poisoned'); toast(tx('☠️ 被信息流毒到了','☠️ poisoned by the feed')); sound('poison'); }
-    if (Fam.distractSec === 120) Fam.setState('ghost');
+    if (Fam.distractSec === 45)  Fam.setState('dizzy');
+    if (Fam.distractSec === 180) Fam.setState('poisoned');
+    if (Fam.distractSec === 600) Fam.setState('ghost');
   } else {
     // neutral: corruption wears off, then settle to idle
     Fam.deepSec = 0;
     Fam.focusStartedAt = null;
     if (Fam.distractSec > 0) {
       Fam.distractSec--;
-      if (Fam.distractSec <= 30 && ['poisoned','ghost'].includes(Fam.state)) Fam.setState('dizzy');
+      if (Fam.distractSec <= 120 && ['poisoned','ghost'].includes(Fam.state)) Fam.setState('dizzy');
       if (Fam.distractSec === 0) Fam.setState('idle');
     } else if (Fam.state !== 'idle') {
       Fam.setState('idle');
@@ -1292,10 +1292,10 @@ function famSetApp(appName, kind, detail, url, canon, bundleID){
     if (Fam.cur.t1 - Fam.cur.t0 >= 5000) bridge({ type: 'log', entry: Fam.cur, generation: Fam.logGeneration });  // persist to disk
   }
   Fam.cur = { app: appName, bundleID: bundleID || '', kind, detail: detail || '', url: url || '', canon: canon || '', t0: now };
-  // frantic switching → ghost
-  Fam.switches = Fam.switches.filter(t => now - t < 8000);
+  // Keep the raw switch window for the local journal. Native context policy
+  // decides if one quiet nudge is useful; switching is never punished here.
+  Fam.switches = Fam.switches.filter(t => now - t < 180000);
   Fam.switches.push(now);
-  if (Fam.switches.length >= 5) { Fam.setState('ghost'); Fam.distractSec = Math.max(Fam.distractSec, 46); }
 }
 
 function famSetCharacter(id){ Fam.setCharacter(id); toast(MASCOTS[Fam.char].name); }

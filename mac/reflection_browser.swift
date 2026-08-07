@@ -16,12 +16,14 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
     private let root: URL
     private let browserRoot: URL
     private let stateURL: URL
+    private let journeyGraphStore: JourneyGraphStore
     private let fixtureName: String?
     private var state: DailyTrailPersistedState
     private var reflectionModel: ReflectionModel?
     private var modelWasExplicitlySet = false
 
     private var snapshot: DailyActivitySnapshot
+    private var journeyGraph: JourneyGraphArchive
     private var reflection: DailyReflection
     private var activityStatus = "idle"
     private var activityMessage: String?
@@ -46,9 +48,11 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         fixtureName = Self.fixtureFromProcess()
         browserRoot = root.appendingPathComponent("ReflectionBrowser", isDirectory: true)
         stateURL = browserRoot.appendingPathComponent("daily-trail-state.json", isDirectory: false)
+        journeyGraphStore = JourneyGraphStore(root: browserRoot)
         state = Self.loadState(from: stateURL) ?? DailyTrailPersistedState()
         let initialRange = ReflectionDateRange.today()
         snapshot = .build(range: initialRange, events: [])
+        journeyGraph = JourneyGraphBuilder.build(snapshot: snapshot)
         reflection = LocalActivityReflector.build(snapshot: snapshot)
         reflectionModel = fixtureName == nil && MimoSecret.openAI.isConfigured
             ? OpenAIReflectionModel(keyReader: { MimoSecret.openAI.read() }) : nil
@@ -111,6 +115,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 do { try FileManager.default.removeItem(at: url) }
                 catch { cleared = false }
             }
+            if !journeyGraphStore.purgeAll() { cleared = false }
         }
         refreshActivities()
         return persistState() && cleared
@@ -294,10 +299,12 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 return !ignoredDomains.contains { domain == $0 || domain.hasSuffix("." + $0) }
             }
             let snapshot = DailyActivitySnapshot.build(range: range, events: visible)
+            let journeyGraph = JourneyGraphBuilder.build(snapshot: snapshot)
             let local = LocalActivityReflector.build(snapshot: snapshot)
             DispatchQueue.main.async {
                 guard let self, self.activityGeneration == generation else { return }
                 self.snapshot = snapshot
+                self.journeyGraph = journeyGraph
                 self.reflection = local
                 self.analysisStatus = "local"
                 self.analysisMessage = nil
@@ -316,6 +323,18 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                     self.activityStatus = "ready"
                     self.activityMessage = nil
                     self.activityError = nil
+                }
+                do {
+                    try self.journeyGraphStore.save(journeyGraph)
+                } catch {
+                    if self.activityStatus != "error" {
+                        self.activityStatus = "warning"
+                        let graphWarning = self.preferredLanguage.hasPrefix("zh")
+                            ? "本地图快照没有保存成功。"
+                            : "The local graph snapshot was not saved."
+                        self.activityMessage = [self.activityMessage, graphWarning]
+                            .compactMap { $0 }.joined(separator: " ")
+                    }
                 }
                 self.pushState()
             }
@@ -504,6 +523,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                  "share": summary.share] as [String: Any]
             },
             "appIcons": appIconsObject(),
+            "journeyGraph": journeyGraph.jsonObject() ?? [:],
             "activityBlocks": snapshot.blocks.map(blockObject),
             "learningMaterials": snapshot.materials.map { material in
                 materialObject(material, summary: summaries[material.id])

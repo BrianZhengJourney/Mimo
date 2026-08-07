@@ -858,6 +858,12 @@ final class CompanionRuntime {
     /// generation/provider path.
     @discardableResult
     func trigger(event: String) -> Bool {
+        // A body with an authored rest family can genuinely lie down. Abstract
+        // or non-human bodies fall through to FatiguePause, an in-place breath
+        // that requires no anatomy-specific strip.
+        if event == "fatigue", actionSprites["rest"] != nil {
+            return playInstalledAction(named: "rest")
+        }
         guard let companion = companions.first,
               let director = companion.director else { return false }
         let world = worldSurfaces().set

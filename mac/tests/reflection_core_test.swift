@@ -1,4 +1,4 @@
-// sources: reflection_core.swift
+// sources: reflection_core.swift journey_graph.swift
 import Foundation
 
 private func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -64,6 +64,35 @@ struct ReflectionCoreTests {
                "revisited learning material becomes one card with both evidence items")
         expect(abs(snapshot.categories.reduce(0) { $0 + $1.share } - 1) < 0.0001,
                "category shares cover all active duration")
+
+        let graph = JourneyGraphBuilder.build(
+            snapshot: snapshot, generatedAt: Date(timeIntervalSince1970: 1_500))
+        expect(graph.nodes.map(\.key) == blocks.map(\.id)
+               && graph.edges.filter { $0.attributes.kind == "sequence" }.count == 3,
+               "the local graph preserves every meaningful block and chronological transition")
+        let returnEdge = graph.edges.first { $0.attributes.kind == "return" }
+        expect(returnEdge?.source == blocks.first?.id
+               && returnEdge?.target == blocks.last?.id,
+               "a non-adjacent return to the same place becomes an explicit return edge")
+        expect(graph.clusters.count == 4
+               && graph.clusters.flatMap(\.nodeKeys) == blocks.map(\.id)
+               && graph.jsonObject()?["nodes"] != nil,
+               "cluster membership is lossless and exports in Graphology-compatible shape")
+        let graphRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "mimo-journey-graph-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: graphRoot) }
+        let graphStore = JourneyGraphStore(root: graphRoot)
+        try graphStore.save(graph)
+        let graphFiles = try FileManager.default.contentsOfDirectory(
+            at: graphRoot, includingPropertiesForKeys: nil)
+        expect(graphFiles.count == 1
+               && graphFiles[0].lastPathComponent.hasPrefix(JourneyGraphStore.filePrefix),
+               "journey graph snapshots persist locally with a bounded, date-addressed filename")
+        let graphPurged = graphStore.purgeAll()
+        let remainingGraphFiles = try FileManager.default.contentsOfDirectory(
+            at: graphRoot, includingPropertiesForKeys: nil)
+        expect(graphPurged && remainingGraphFiles.isEmpty,
+               "privacy reset removes every derived graph snapshot")
 
         let reflection = LocalActivityReflector.build(snapshot: snapshot)
         expect(reflection.sections.map(\.kind) == DailyReflectionSectionKind.allCases,

@@ -117,6 +117,9 @@ struct CompanionActionMenuTests {
         expect(overlay.contains("? 'focusSession' : (current || 'idle')")
                && overlay.contains("type:'companionEvent',event:'focusComplete'")
                && main.contains("case \"companionEvent\":")
+               && main.contains("journalOpened")
+               && main.contains("distractionLoop")
+               && main.contains("checkContextFatigue")
                && runtime.contains("func setSemanticState")
                && runtime.contains("func trigger(event: String)"),
                "Focus starts a quiet semantic mode and completion can trigger one local celebration")

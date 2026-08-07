@@ -21,6 +21,8 @@ struct ReleaseSurfaceTests {
             contentsOfFile: "mac/product.swift", encoding: .utf8)
         let petGeneration = try String(
             contentsOfFile: "mac/pet_generation.swift", encoding: .utf8)
+        let signing = try String(
+            contentsOfFile: "mac/setup-local-signing.sh", encoding: .utf8)
 
         expect(!main.contains("makeCompanionPreviewRoot") &&
                !main.contains("验收动作") &&
@@ -35,6 +37,14 @@ struct ReleaseSurfaceTests {
         expect(!product.lowercased().contains("pixellab") &&
                !petGeneration.lowercased().contains("pixellab"),
                "release credential state should expose only the active OpenAI provider")
+        expect(build.contains("MimoBuildCommit")
+               && build.contains("MimoBuildSignature")
+               && build.contains("Mimo Local Development")
+               && signing.contains("-p codeSign")
+               && signing.contains("-T /usr/bin/codesign")
+               && signing.contains(" -x ")
+               && !signing.contains(" -A "),
+               "local builds expose their identity and the optional stable key stays non-exportable and codesign-scoped")
 
         print("release surface tests passed")
     }

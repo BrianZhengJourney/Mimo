@@ -17,6 +17,7 @@ struct ReflectionBrowserUITests {
         let controller = try String(
             contentsOfFile: "mac/reflection_browser.swift", encoding: .utf8)
         let core = try String(contentsOfFile: "mac/reflection_core.swift", encoding: .utf8)
+        let graph = try String(contentsOfFile: "mac/journey_graph.swift", encoding: .utf8)
         let model = try String(contentsOfFile: "mac/reflection_model.swift", encoding: .utf8)
         let common = try String(contentsOfFile: "mac/common.sh", encoding: .utf8)
         let build = try String(contentsOfFile: "mac/build.sh", encoding: .utf8)
@@ -40,6 +41,23 @@ struct ReflectionBrowserUITests {
                && html.contains("journey-preview") && html.contains("journey-phase")
                && html.contains("activity-hover") && html.contains("material-insight-overlay"),
                "the day journey presents activity on strict half-hour chapters with evidence texture")
+        expect(html.contains("journey-graph") && html.contains("buildJourneyGraph")
+               && html.contains(".journey-link.return")
+               && html.contains("kind:'return'")
+               && html.contains("setJourneyGraphHover")
+               && html.contains("journey-cluster"),
+               "the main journey is a clustered chronological graph with explicit return paths")
+        expect(html.contains("state.journeyGraph")
+               && controller.contains("JourneyGraphStore")
+               && controller.contains("journeyGraph.jsonObject")
+               && graph.contains("Graphology-compatible")
+               && graph.contains("kind: \"return\"")
+               && graph.contains("pruneUnlocked(keeping: 35)"),
+               "the graph is a bounded local snapshot, not an ephemeral visual-only layout")
+        expect(html.contains("今日一句") && html.contains("时间去哪了？")
+               && html.contains("真正推进了什么？") && html.contains("带什么到明天？")
+               && html.contains("reflection-three"),
+               "Looking Back answers the three human questions before optional detail")
         expect(html.contains("rangeDropZone") && html.contains("draggable=\"true\"")
                && html.contains("dragstart") && html.contains("drop")
                && html.contains("renderPinnedRange")
@@ -149,7 +167,7 @@ struct ReflectionBrowserUITests {
                && !product.contains("removeNotionCache"),
                "erase and provider-setting changes immediately refresh the local derived view")
 
-        for source in ["reflection_core.swift", "reflection_model.swift",
+        for source in ["reflection_core.swift", "journey_graph.swift", "reflection_model.swift",
                        "reflection_browser.swift"] {
             expect(common.contains(source), "release compilation includes \(source)")
         }

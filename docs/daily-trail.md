@@ -1,6 +1,6 @@
 # Mimo 今日手记 / Today Journal
 
-今日手记回答三个问题：今天实际做了什么、时间流向哪里、接触了哪些学习材料。
+今日手记回答三个问题：**时间去哪了、真正推进了什么、什么值得带到明天**。
 它不是远程笔记同步器；唯一必需的数据源是 Mimo 已有的本机 activity JSONL。
 
 `⌥ Space` 打开的轻量入口称为 **快览 / Quick Look**，用于快速找回刚才的上下文；
@@ -12,8 +12,10 @@
 raw local events
     ↓ lossless sessionization
 meaningful activity blocks
-    ├── proportional journey ribbon
-    ├── morning/afternoon/evening chapters
+    ↓ local graph snapshot
+chronological nodes + return edges + semantic clusters
+    ├── clustered journey graph
+    ├── strict 30-minute chapters
     ├── category/time visualization
     ├── hover context overlays
     ├── expandable raw evidence
@@ -21,18 +23,49 @@ meaningful activity blocks
     └── grounded daily reflection
 ```
 
-- **今日旅程**：相同主题可在 15 分钟内续接；相同大类的快速工具切换
-  会合并为一个 activity block。每个 block 始终保留全部 raw event ID。
-- **Journey ribbon**：每段宽度对应真实投入，按活动类别着色；悬停显示时间、工具和
-  上下文，点击会定位到详细活动。
-- **日间章节与 overlay**：活动按上午、下午、晚上分章；activity 与 learning material
-  卡片在 hover/focus 时展开上下文或核心观点，键盘也能访问。
+- **今日旅程**：相同主题可在 15 分钟内续接；相同大类的快速工具切换会合并为一个
+  activity block。每个 block 始终保留全部 raw event ID。
+- **Clustered graph**：横向位置严格对应时间；节点是具体活动，实线是下一步，虚线
+  `return` 是离开后再次回到同一 App/网站。半透明 cluster 只负责帮助人眼分段，不扭曲时间。
+- **半小时轴与 overlay**：图下方保留严格 30 分钟格；可拖到下方形成清晰起止边界。
+  activity 与 learning material 在 hover/focus 时展开上下文，键盘也能访问。
 - **时间可视化**：Building、Learning、Communication、Planning、Admin、
   Entertainment 六类时间占比、有效时间、专注时间和 context switches。
 - **Learning materials**：从 paper、website、video、document 记录中去重，展示来源、
   阅读投入、访问次数和摘要。无 AI 时只陈述标题/来源/投入等可验证元数据，不编造内容。
-- **Daily reflection**：本地确定性版本始终可用，所有陈述都引用 raw event ID；可选的
-  OpenAI enrichment 生成更自然的活动与材料摘要。
+- **Daily reflection**：先显示一句话与三个问题的本地确定性答案，所有陈述都引用 raw
+  event ID；可选 OpenAI enrichment 只做更自然的整理，不是使用门槛。
+
+## 图数据与演进边界
+
+Mimo 现在把每个日期范围保存为 Graphology-compatible JSON：`nodes`、`edges`、
+`attributes`，外加可直接绘制的 `clusters`。最多保留 35 个本地图快照，隐私清除会一起
+删除。页面使用相同快照绘制，因此图不是临时动画；未来替换渲染器也不会改变数据语义。
+
+```text
+Mimo JSONL / future ActivityWatch adapter
+  → normalize + merge heartbeats/short events
+  → meaningful blocks (lossless raw IDs)
+  → local topic/identity clusters
+  → sequence + return graph
+  → Today Journal SVG/DOM renderer
+  → Sigma.js only when node count needs WebGL scale
+```
+
+- ActivityWatch 已经把活动建模为 bucket + timestamped events，并建议 watcher 用
+  heartbeat 合并相邻活动；未来接入时应先转换为 Mimo canonical event，不能让 UI
+  直接依赖 watcher 私有字段（[Buckets and events](https://docs.activitywatch.net/en/latest/buckets-and-events.html)、
+  [Working with data](https://docs.activitywatch.net/en/latest/examples/working-with-data.html)）。
+- 本机 ActivityWatch 数据可以通过 localhost REST API 读取，因此它应当是可选 adapter，
+  不是云端依赖（[ActivityWatch REST API](https://docs.activitywatch.net/en/latest/api/rest.html)）。
+- Graphology 的 export/import 形状使本地快照可以在不丢边语义的情况下交给其他 renderer
+  （[Graphology serialization](https://graphology.github.io/serialization.html)）。
+- Sigma.js 支持在 WebGL 图层上下叠加 SVG/HTML 层；当单日图超过约 300–500 个节点时，
+  可换成 Sigma renderer，同时保留 HTML tooltip 与 30 分钟轴
+  （[Sigma custom layers](https://www.sigmajs.org/docs/advanced/layers/)）。
+
+当前 cluster 是完全本地、可解释的 category + 时间邻近分段。下一步主题聚类应增加本地
+关键词/embedding 层，并保留手动合并、拆分和改名；在此之前不伪装成“AI 理解了项目”。
 
 ## 隐私边界
 
@@ -64,7 +97,8 @@ MIMO_RUN_GUI_TESTS=1 ./mac/test.sh reflection_browser_dom
 
 ## MVP 之后
 
-1. 用户校正 activity title/category，形成可学习的本地规则；
-2. 支持 activity block 合并/拆分；
-3. 在明确授权下获取网页正文，提升材料摘要质量；
-4. 将导出作为可选 destination，而非核心体验依赖。
+1. 用户校正 activity title/category/cluster，形成可学习的本地规则；
+2. 支持 activity block 与 graph cluster 合并、拆分、改名；
+3. 增加 ActivityWatch canonical adapter 和跨日项目关系；
+4. 在明确授权下获取网页正文，提升材料摘要质量；
+5. 将导出作为可选 destination，而非核心体验依赖。

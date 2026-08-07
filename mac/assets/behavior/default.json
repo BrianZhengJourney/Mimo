@@ -111,6 +111,36 @@
         { "poses": [ { "frame": 2, "hold": 2.2, "velocity": [0, 0] } ] }
       ]
     },
+    {
+      "name": "SoftNudge",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": 1.8,
+      "animations": [
+        { "poses": [
+          { "frame": 0, "hold": 0.9, "velocity": [0, 0] },
+          { "frame": 1, "hold": 0.9, "velocity": [0, 0] }
+        ] }
+      ]
+    },
+    {
+      "name": "ReflectTogether",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": 8,
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 4, "velocity": [0, 0] } ] }
+      ]
+    },
+    {
+      "name": "FatiguePause",
+      "type": "stay",
+      "requires": "grounded",
+      "duration": 10,
+      "animations": [
+        { "poses": [ { "frame": 0, "hold": 5, "velocity": [0, 0] } ] }
+      ]
+    },
 
     {
       "name": "Poked",
@@ -203,7 +233,10 @@
   ],
   "reactions": {
     "click": "Poked",
-    "focusComplete": "PlayTennis"
+    "focusComplete": "PlayTennis",
+    "distractionLoop": "SoftNudge",
+    "journalOpened": "ReflectTogether",
+    "fatigue": "FatiguePause"
   },
 
   "behaviors": [
@@ -312,6 +345,24 @@
       "next": { "additive": true, "refs": [
         { "name": "Slump", "frequency": 100 }
       ] }
+    },
+    {
+      "name": "SoftNudge",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": true, "refs": [] }
+    },
+    {
+      "name": "ReflectTogether",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": true, "refs": [] }
+    },
+    {
+      "name": "FatiguePause",
+      "frequency": 0,
+      "when": "#{self.state == 'grounded'}",
+      "next": { "additive": true, "refs": [] }
     },
 
     {
