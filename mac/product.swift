@@ -440,10 +440,33 @@ extension AppDelegate {
             }
             metadata[characterID] = row
         }
+        var customNamesByID: [String: String] = [:]
+        for pet in customPets {
+            guard let characterID = pet["characterID"] as? String,
+                  let storedName = pet["name"] as? String else { continue }
+            customNamesByID[characterID] = library.metadata(for: characterID)?.displayName
+                ?? storedName
+        }
+        let activeIDs = library.libraryCharacterIDs(
+            validIDs: validIDs, archive: .active, expanded: true)
+        let selectedID = UserDefaults.standard.string(forKey: "character")
+        let visibleActiveIDs = PetLibraryVariationDisplay.collapsedCharacterIDs(
+            activeIDs,
+            selectedID: selectedID,
+            customNamesByID: customNamesByID)
+        let variationGroupByID = Dictionary(uniqueKeysWithValues: customNamesByID.compactMap {
+            characterID, _ in
+            PetLibraryVariationDisplay.groupKey(
+                characterID: characterID, customNamesByID: customNamesByID)
+                .map { (characterID, $0) }
+        })
         return [
             "recentIDs": library.recentCharacterIDs(validIDs: validIDs),
-            "activeIDs": library.libraryCharacterIDs(
-                validIDs: validIDs, archive: .active, expanded: true),
+            "activeIDs": activeIDs,
+            "visibleRecentIDs": PetLibraryVariationDisplay.primaryCharacterIDs(
+                visibleActiveIDs, selectedID: selectedID),
+            "visibleActiveIDs": visibleActiveIDs,
+            "variationGroupByID": variationGroupByID,
             "archivedIDs": library.libraryCharacterIDs(
                 validIDs: validIDs, archive: .archived, expanded: true),
             "deletedIDs": library.recoverableDeletedCharacterIDs(
@@ -894,6 +917,8 @@ extension AppDelegate {
             state["customPets"] = [[String: Any]]()
             state["petLibrary"] = [
                 "recentIDs": [String](), "activeIDs": [String](),
+                "visibleRecentIDs": [String](), "visibleActiveIDs": [String](),
+                "variationGroupByID": [String: String](),
                 "archivedIDs": [String](), "deletedIDs": [String](),
                 "categories": [String](), "metadata": [String: Any](),
                 "error": error.localizedDescription,

@@ -61,17 +61,33 @@ struct PetLibraryUITests {
                settings.contains("tx('展开','Expand')"),
                "Your Familiar should have one clear Collapse/Expand toggle")
         expect(settings.contains("const petLibraryUI={expanded:false") &&
-               settings.contains("library.recentIDs.slice(0,3)"),
-               "the collapsed default should render native's three recent IDs")
+               settings.contains("Array.isArray(library.visibleRecentIDs)") &&
+               settings.contains("return recent.slice(0,3)") &&
+               settings.contains("library.visibleActiveIDs"),
+               "Your Familiar should render native's variation-collapsed IDs")
+        expect(product.contains("\"visibleRecentIDs\"") &&
+               product.contains("\"visibleActiveIDs\"") &&
+               product.contains("PetLibraryVariationDisplay.collapsedCharacterIDs") &&
+               product.contains("PetLibraryVariationDisplay.primaryCharacterIDs"),
+               "native state should expose one current companion and collapse same-name DIY variations")
 
         let libraryRendering = section(
             settings, from: "function petLibraryItem(", to: "const filters =")
-        expect(libraryRendering.contains("library.activeIDs") &&
+        expect(libraryRendering.contains("library.visibleActiveIDs") &&
+               libraryRendering.contains("S.petLibrary?.activeIDs") &&
                libraryRendering.contains("library.archivedIDs") &&
                libraryRendering.contains("library.deletedIDs") &&
                libraryRendering.contains("library.metadata") &&
                !libraryRendering.contains(".sort("),
-               "JS should filter native canonical IDs without inventing order")
+               "JS should display collapsed IDs while preserving native's full reorder list")
+        expect(libraryRendering.contains("function petLibraryVariationGroup(") &&
+               libraryRendering.contains("function collapsePetLibraryVariations(") &&
+               libraryRendering.contains("function primaryPetLibraryIDs(") &&
+               libraryRendering.contains("visibleGroups.has(petLibraryVariationGroup(id))") &&
+               libraryRendering.contains("collapsePetLibraryVariations(library.activeIDs||[])") &&
+               settings.contains("collapsePetLibraryVariations(pending.activeIDs)") &&
+               settings.contains("visibleRecentIDs=primaryPetLibraryIDs("),
+               "dragging one visible familiar should move its hidden variation group atomically")
         expect(libraryRendering.contains("pet-library-filter") &&
                libraryRendering.contains("setPetLibraryCategory") &&
                libraryRendering.contains("setPetLibraryView('archived')") &&

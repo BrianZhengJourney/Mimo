@@ -56,6 +56,58 @@ enum PetLibraryDeletionPolicy {
     }
 }
 
+/// Presentation-only grouping for repeated DIY installs of the same named
+/// familiar. Generation variations remain safely stored; Your Familiar shows
+/// one representative so dragging the library never exposes three copies of
+/// what reads as the same companion.
+enum PetLibraryVariationDisplay {
+    static func groupKey(characterID: String,
+                         customNamesByID: [String: String]) -> String? {
+        guard characterID.hasPrefix("custom:"),
+              let rawName = customNamesByID[characterID] else { return nil }
+        let name = rawName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .precomposedStringWithCanonicalMapping
+            .lowercased()
+        return name.isEmpty ? nil : "custom-name:\(name)"
+    }
+
+    static func collapsedCharacterIDs(_ characterIDs: [String],
+                                      selectedID: String?,
+                                      customNamesByID: [String: String]) -> [String] {
+        var representativeByGroup: [String: String] = [:]
+        for characterID in characterIDs {
+            guard let key = groupKey(
+                characterID: characterID, customNamesByID: customNamesByID) else { continue }
+            if representativeByGroup[key] == nil || characterID == selectedID {
+                representativeByGroup[key] = characterID
+            }
+        }
+
+        var emittedGroups: Set<String> = []
+        var output: [String] = []
+        for characterID in characterIDs {
+            guard let key = groupKey(
+                characterID: characterID, customNamesByID: customNamesByID) else {
+                output.append(characterID)
+                continue
+            }
+            guard emittedGroups.insert(key).inserted,
+                  let representative = representativeByGroup[key] else { continue }
+            output.append(representative)
+        }
+        return output
+    }
+
+    static func primaryCharacterIDs(_ visibleCharacterIDs: [String],
+                                    selectedID: String?) -> [String] {
+        if let selectedID, visibleCharacterIDs.contains(selectedID) {
+            return [selectedID]
+        }
+        return visibleCharacterIDs.first.map { [$0] } ?? []
+    }
+}
+
 struct PetLibraryMetadata: Codable, Equatable, Sendable {
     var displayName: String? = nil
     var category: String?

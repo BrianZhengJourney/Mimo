@@ -1664,7 +1664,8 @@ function petLibraryReordered(event){
 }
 function petLibraryReorderFailed(event){
   const pending=petLibraryUI.pendingOrder;if(!pending||event?.requestID!==pending.requestID)return;
-  clearTimeout(pending.timeout);S.petLibrary=S.petLibrary||{};S.petLibrary.activeIDs=pending.activeIDs;S.petLibrary.recentIDs=pending.recentIDs;petLibraryUI.pendingOrder=null;renderCards();
+  clearTimeout(pending.timeout);S.petLibrary=S.petLibrary||{};S.petLibrary.activeIDs=pending.activeIDs;S.petLibrary.recentIDs=pending.recentIDs;
+  S.petLibrary.visibleActiveIDs=collapsePetLibraryVariations(pending.activeIDs);S.petLibrary.visibleRecentIDs=primaryPetLibraryIDs(S.petLibrary.visibleActiveIDs);petLibraryUI.pendingOrder=null;renderCards();
   const status=document.getElementById('petLibraryOrderStatus');if(status)status.textContent=(LANG==='zh'?event?.messageZh:event?.messageEn)||tx('顺序没有保存，已恢复。','Order was not saved and has been restored.');
   requestAnimationFrame(()=>document.querySelector(`[data-character-id="${CSS.escape(pending.movedID)}"]`)?.focus());
 }
@@ -1964,8 +1965,9 @@ function reconcilePetManagerState(){
 }
 function petLibraryIDs(){
   const library=S.petLibrary||{};
-  if(!petLibraryUI.expanded)return Array.isArray(library.recentIDs)?library.recentIDs.slice(0,3):[];
-  const source=petLibraryUI.view==='trash'?library.deletedIDs:petLibraryUI.view==='archived'?library.archivedIDs:library.activeIDs;
+  if(!petLibraryUI.expanded){const recent=Array.isArray(library.visibleRecentIDs)?library.visibleRecentIDs:collapsePetLibraryVariations(library.recentIDs||[]);return recent.slice(0,3)}
+  const visibleActive=Array.isArray(library.visibleActiveIDs)?library.visibleActiveIDs:collapsePetLibraryVariations(library.activeIDs||[]);
+  const source=petLibraryUI.view==='trash'?library.deletedIDs:petLibraryUI.view==='archived'?library.archivedIDs:visibleActive;
   const ordered=Array.isArray(source)?source:[];
   if(petLibraryUI.view!=='active'||!petLibraryUI.category)return ordered;
   return ordered.filter(id=>library.metadata?.[id]?.category===petLibraryUI.category);
@@ -2011,9 +2013,20 @@ function overPetLibraryCard(event,characterID){
   const card=event.currentTarget,rect=card.getBoundingClientRect(),after=event.clientX>=rect.left+rect.width/2;
   card.classList.add(after?'drop-after':'drop-before');petLibraryDrag.targetID=characterID;petLibraryDrag.after=after;
 }
+function petLibraryVariationGroup(characterID){return S.petLibrary?.variationGroupByID?.[characterID]||`id:${characterID}`}
+function collapsePetLibraryVariations(characterIDs){
+  const representatives=new Map();
+  characterIDs.forEach(id=>{const key=petLibraryVariationGroup(id);if(!representatives.has(key)||id===S.character)representatives.set(key,id)});
+  const emitted=new Set(),result=[];
+  characterIDs.forEach(id=>{const key=petLibraryVariationGroup(id);if(emitted.has(key))return;emitted.add(key);result.push(representatives.get(key)||id)});
+  return result;
+}
+function primaryPetLibraryIDs(characterIDs){return characterIDs.includes(S.character)?[S.character]:characterIDs.slice(0,1)}
 function mergeVisiblePetOrder(visibleOrder){
-  const full=Array.isArray(S.petLibrary?.activeIDs)?S.petLibrary.activeIDs.slice():[],visible=new Set(visibleOrder),queue=visibleOrder.slice();
-  return full.map(id=>visible.has(id)?queue.shift():id);
+  const full=Array.isArray(S.petLibrary?.activeIDs)?S.petLibrary.activeIDs.slice():[];
+  const visibleGroups=new Set(visibleOrder.map(petLibraryVariationGroup));
+  const reordered=visibleOrder.flatMap(representative=>{const key=petLibraryVariationGroup(representative);return full.filter(id=>petLibraryVariationGroup(id)===key)});
+  return full.map(id=>visibleGroups.has(petLibraryVariationGroup(id))?reordered.shift():id);
 }
 function commitPetLibraryOrder(visibleOrder,movedID){
   if(petLibraryUI.pendingOrder)return;
@@ -2021,6 +2034,8 @@ function commitPetLibraryOrder(visibleOrder,movedID){
   if(orderedCharacterIDs.join('\n')===previousActive.join('\n'))return;
   const requestID=newRequestID(),pending={requestID,activeIDs:previousActive,recentIDs:previousRecent,movedID,timeout:null};petLibraryUI.pendingOrder=pending;
   S.petLibrary.activeIDs=orderedCharacterIDs;S.petLibrary.recentIDs=orderedCharacterIDs.slice(0,3);
+  S.petLibrary.visibleActiveIDs=collapsePetLibraryVariations(orderedCharacterIDs);
+  S.petLibrary.visibleRecentIDs=primaryPetLibraryIDs(S.petLibrary.visibleActiveIDs);
   const status=document.getElementById('petLibraryOrderStatus'),name=S.petLibrary?.metadata?.[movedID]?.displayName||petLibraryItem(movedID)?.m?.name||tx('伴灵','Familiar');
   if(status)status.textContent=tx(`已移动「${name}」；正在保存顺序。`,`Moved “${name}”; saving order.`);
   renderCards();requestAnimationFrame(()=>document.querySelector(`[data-character-id="${CSS.escape(movedID)}"]`)?.focus());
