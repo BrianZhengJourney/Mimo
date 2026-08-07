@@ -3307,8 +3307,8 @@ extension AppDelegate {
         }
     }
 
-    private func importPetReferenceURLs(_ urls: [URL],
-                                        skippedDueToLimit: Int) {
+    func importPetReferenceURLs(_ urls: [URL],
+                                skippedDueToLimit: Int) {
         guard petReferenceImportQueue == nil, !urls.isEmpty else { return }
         let privacyEpoch = generationPurgeEpoch
         let privacyToken = StudioPrivacyGeneration.token(for: privacyEpoch)

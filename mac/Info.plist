@@ -19,5 +19,7 @@
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>Mimo reads the current browser tab's address locally, so it can tell growth from distraction. Nothing leaves your Mac.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Mimo can scan recent photos on this Mac to suggest portrait references for a familiar. Face detection and grouping stay on this Mac, and nothing generates until you choose a candidate.</string>
 </dict>
 </plist>

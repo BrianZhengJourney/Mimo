@@ -564,6 +564,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 self?.showSettings()
             }
         }
+        if ProcessInfo.processInfo.arguments.contains("--photos-people-prototype") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.showPhotosPeoplePrototype()
+            }
+        }
         // NOTE: initial send happens in webView(_:didFinish:) — calling
         // famSetApp before the page loads silently drops the event
     }
@@ -676,6 +681,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let settings = NSMenuItem(title: voice("设置…", "Settings…"), action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        let photosPrototype = NSMenuItem(
+            title: voice("实验：从照片找主角…", "Experiment: Find a subject in Photos…"),
+            action: #selector(showPhotosPeoplePrototype), keyEquivalent: "")
+        photosPrototype.target = self
+        appMenu.addItem(photosPrototype)
         let reflection = NSMenuItem(title: voice("今日手记…", "Open Today Journal…"),
                                     action: #selector(openReflectionBrowser), keyEquivalent: "r")
         reflection.target = self
@@ -731,6 +741,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(item(voice("设置…", "Settings…"), #selector(showSettings), ",", "gearshape"))
+        menu.addItem(item(voice("实验：从照片找主角…", "Experiment: Find a subject in Photos…"),
+                          #selector(showPhotosPeoplePrototype), "", "photo.on.rectangle.angled"))
         let hide = item(voice("藏起米墨", "Hide Mimo"), #selector(toggleOverlay(_:)), "h", "eye.slash")
         hide.identifier = .init("hideToggle")
         menu.addItem(hide)
