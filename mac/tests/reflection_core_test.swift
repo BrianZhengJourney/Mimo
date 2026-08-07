@@ -104,6 +104,36 @@ struct ReflectionCoreTests {
                     topicSnapshot.blocks[0].id, topicSnapshot.blocks[2].id] }
                && topicGraph.edges.contains { $0.attributes.kind == "topic-return" },
                "a subject resumed in another tool becomes one topic and an explicit return")
+        let sourceTopic = topicGraph.clusters.first {
+            $0.nodeKeys.count == 2
+        }!
+        let targetTopic = topicGraph.clusters.first {
+            $0.id != sourceTopic.id
+        }!
+        let corrections = JourneyGraphCorrections(
+            labels: [targetTopic.id: "Mimo research"],
+            merges: [sourceTopic.id: targetTopic.id])
+        let corrected = corrections.applying(to: topicGraph)
+        expect(corrected.clusters.count == 1
+               && corrected.clusters[0].id == targetTopic.id
+               && corrected.clusters[0].label == "Mimo research"
+               && corrected.clusters[0].nodeKeys.count == topicGraph.nodes.count
+               && corrected.nodes.allSatisfy {
+                    $0.attributes.clusterID == targetTopic.id
+               },
+               "a user merge remaps every node and keeps the chosen human label")
+        expect(!corrected.edges.contains { $0.attributes.kind == "topic-return" },
+               "merging formerly separated topics removes stale return edges")
+        let correctionData = try JSONEncoder().encode(corrections)
+        let decodedCorrections = try JSONDecoder().decode(
+            JourneyGraphCorrections.self, from: correctionData)
+        expect(decodedCorrections == corrections,
+               "topic corrections are restart-safe Codable state")
+        let cyclic = JourneyGraphCorrections(
+            merges: [sourceTopic.id: targetTopic.id, targetTopic.id: sourceTopic.id])
+            .applying(to: topicGraph)
+        expect(cyclic.clusters.count == topicGraph.clusters.count,
+               "a corrupt merge cycle fails closed without losing a topic")
         let graphRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
             "mimo-journey-graph-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: graphRoot) }

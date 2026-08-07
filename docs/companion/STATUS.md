@@ -24,7 +24,8 @@
   `127.0.0.1` 补充源。没有 Notion 连接、启动同步或写回路径。
 - 原始事件无损合并为 activity blocks，再保存为有 sequence / identity return /
   topic return / cross-day recurrence 的本地 graph 快照。主题视图默认展示可读
-  主线和空间 cluster；时间视图与严格 30 分钟轴保留精确顺序。
+  主线和空间 cluster；时间视图与严格 30 分钟轴保留精确顺序。主题可本机改名、
+  合并或恢复自动整理；校正在刷新/重启后保留，不改写 raw event。
 - 回看优先回答“时间去哪了 / 真正推进了什么 / 带什么到明天”；可选
   OpenAI 只在本机 scope confirm 后整理 URL-scrubbed metadata，无 Key 时完整本地功能
   仍可用。
@@ -88,6 +89,6 @@ open mac/build/Mimo.app
 
 1. 经用户明确授权后创建稳定的 `Mimo Local Development` 签名，验证重建后
    Keychain 与 Automation 授权不再重置。
-2. 让用户可以合并、拆分、改名今日手记 topic cluster，再评估本地 embedding。
+2. 让用户可以拆分 topic cluster，或把单个 activity 移入/移出主题，再评估本地 embedding。
 3. 在伴灵界面中解释“它为什么正在这样做”，而不增加更多随机动作。
 4. 跑 sleep rev-3 完整固定数据集并写入 `5% → 25% → 100%` rollout ledger。

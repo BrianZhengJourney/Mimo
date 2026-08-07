@@ -29,7 +29,8 @@ struct ReflectionBrowserUITests {
             expect(html.contains(contract), "Today Journal exposes \(contract)")
         }
         for bridge in ["type:'ready'", "type:'setRange'", "type:'savePrivacy'",
-                       "type:'synthesize'", "type:'openExternal'"] {
+                       "type:'synthesize'", "type:'openExternal'", "type:'editTopic'",
+                       "type:'resetTopicEdits'"] {
             expect(html.contains(bridge), "web UI exposes bridge action \(bridge)")
         }
         expect(html.contains("conic-gradient") && html.contains("class=\"donut\"")
@@ -61,6 +62,15 @@ struct ReflectionBrowserUITests {
                && graph.contains("kind: \"return\"")
                && graph.contains("pruneUnlocked(keeping: 35)"),
                "the graph is a bounded local snapshot, not an ephemeral visual-only layout")
+        expect(html.contains("data-edit-cluster")
+               && html.contains("topicModal")
+               && html.contains("只保存在本机；原始活动不会改变")
+               && controller.contains("JourneyGraphCorrections")
+               && controller.contains("journeyGraphCorrections")
+               && controller.contains("cleanTopicLabel")
+               && controller.contains("resetTopicEdits")
+               && graph.contains("Raw activity and automatic clustering remain untouched"),
+               "people can rename, merge, or reset local topics without mutating raw evidence")
         expect(html.contains("今日一句") && html.contains("时间去哪了？")
                && html.contains("真正推进了什么？") && html.contains("带什么到明天？")
                && html.contains("reflection-three"),

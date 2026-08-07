@@ -29,7 +29,8 @@ chronological nodes + return edges + semantic clusters
 - **Clustered graph**：默认先看「主题」。顶部把一天压成可读的主线，回到旧主题时明确显示
   `↩`；下方每个主题区同时显示投入时间、活动段数和跨日回访。点击或 hover 主线会高亮对应
   节点与关系；「时间」模式则严格表达发生顺序。实线是下一步，`return` 是回到同一地方，
-  `topic-return` 是离开后又接回同一主题。
+  `topic-return` 是离开后又接回同一主题。点击主题名可本机改名或合并，也可一键恢复
+  自动整理；这是覆盖层，不会改写 raw event。
 - **半小时轴与 overlay**：图下方保留严格 30 分钟格；可拖到下方形成清晰起止边界。
   activity 与 learning material 在 hover/focus 时展开上下文，键盘也能访问。
 - **时间可视化**：Building、Learning、Communication、Planning、Admin、
@@ -69,8 +70,9 @@ Mimo JSONL + optional localhost ActivityWatch
   （[Sigma custom layers](https://www.sigmajs.org/docs/advanced/layers/)）。
 
 当前 topic cluster 是完全本地、可解释的规则：标题关键词、domain、App、大类和时间邻近度共同
-决定归属。同一主题在过去日期出现时，今日图只保留「出现过几天 / 最近何时」，不把历史
-原始事件复制进当日 payload。下一步是用户手动合并、拆分、改名，再评估是否需要本地 embedding。
+决定归属。用户的改名与合并作为稀疏 correction 持久化，刷新或重启后重新覆盖到自动图上。
+同一主题在过去日期出现时，今日图只保留「出现过几天 / 最近何时」，不把历史原始事件复制进
+当日 payload。下一步是把单个 activity 移入/移出主题与拆分 cluster，再评估是否需要本地 embedding。
 
 ## 隐私边界
 
@@ -103,8 +105,8 @@ MIMO_RUN_GUI_TESTS=1 ./mac/test.sh reflection_browser_dom
 
 ## MVP 之后
 
-1. 用户校正 activity title/category/cluster，形成可学习的本地规则；
-2. 支持 activity block 与 graph cluster 合并、拆分、改名；
+1. 用户校正 activity title/category，并将单个 activity 移入/移出主题；
+2. 在已有主题合并/改名之上增加 cluster 拆分，形成可学习的本地规则；
 3. 将跨日主题关系升级为可编辑的本地 project map；
 4. 在明确授权下获取网页正文，提升材料摘要质量；
 5. 将导出作为可选 destination，而非核心体验依赖。

@@ -60,7 +60,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         activityWatchStatus = state.activityWatchEnabled ? "idle" : "disabled"
         let initialRange = ReflectionDateRange.today()
         snapshot = .build(range: initialRange, events: [])
-        journeyGraph = JourneyGraphBuilder.build(snapshot: snapshot)
+        journeyGraph = state.journeyGraphCorrections.applying(
+            to: JourneyGraphBuilder.build(snapshot: snapshot))
         reflection = LocalActivityReflector.build(snapshot: snapshot)
         reflectionModel = fixtureName == nil && MimoSecret.openAI.isConfigured
             ? OpenAIReflectionModel(keyReader: { MimoSecret.openAI.read() }) : nil
@@ -249,6 +250,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
             pushState()
         case "setRange": setRange(body)
         case "savePrivacy": savePrivacy(body)
+        case "editTopic": editTopic(body)
+        case "resetTopicEdits": resetTopicEdits()
         case "synthesize": beginSynthesis(body)
         case "openExternal":
             if let raw = body["url"] as? String { openExternal(raw) }
@@ -315,6 +318,83 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         }
     }
 
+    private func editTopic(_ body: [String: Any]) {
+        guard let sourceID = body["clusterID"] as? String,
+              journeyGraph.clusters.contains(where: { $0.id == sourceID }),
+              let rawLabel = body["label"] as? String,
+              let label = cleanTopicLabel(rawLabel) else { return }
+        let requestedTarget = (body["mergeInto"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let targetID: String?
+        if let candidate = requestedTarget, !candidate.isEmpty {
+            guard candidate != sourceID,
+                  journeyGraph.clusters.contains(where: { $0.id == candidate }) else {
+                return
+            }
+            targetID = candidate
+        } else {
+            targetID = nil
+        }
+        let oldState = state
+        let labelTarget = targetID ?? sourceID
+        state.journeyGraphCorrections.labels[labelTarget] = label
+        if let targetID {
+            state.journeyGraphCorrections.merges[sourceID] = targetID
+            state.journeyGraphCorrections.labels.removeValue(forKey: sourceID)
+        }
+        guard state.journeyGraphCorrections.labels.count <= 200,
+              state.journeyGraphCorrections.merges.count <= 200,
+              persistState() else {
+            state = oldState
+            activityStatus = "warning"
+            activityMessage = preferredLanguage.hasPrefix("zh")
+                ? "主题修改没有保存成功。" : "The topic edit could not be saved."
+            pushState()
+            return
+        }
+        rebuildCorrectedJourneyGraph()
+    }
+
+    private func resetTopicEdits() {
+        guard !state.journeyGraphCorrections.isEmpty else { return }
+        let oldState = state
+        state.journeyGraphCorrections = JourneyGraphCorrections()
+        guard persistState() else {
+            state = oldState
+            activityStatus = "warning"
+            activityMessage = preferredLanguage.hasPrefix("zh")
+                ? "无法恢复自动整理。" : "Automatic topics could not be restored."
+            pushState()
+            return
+        }
+        rebuildCorrectedJourneyGraph()
+    }
+
+    private func cleanTopicLabel(_ raw: String) -> String? {
+        let visibleScalars = raw.unicodeScalars.filter {
+            !CharacterSet.controlCharacters.contains($0)
+        }
+        let value = String(String.UnicodeScalarView(visibleScalars)).trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        return String(value.prefix(64))
+    }
+
+    private func rebuildCorrectedJourneyGraph() {
+        let automatic = JourneyGraphBuilder.build(snapshot: snapshot)
+        let enriched = journeyGraphStore.enrichingWithHistory(automatic)
+        journeyGraph = state.journeyGraphCorrections.applying(to: enriched)
+        do {
+            try journeyGraphStore.save(journeyGraph)
+        } catch {
+            activityStatus = "warning"
+            activityMessage = preferredLanguage.hasPrefix("zh")
+                ? "主题已修改，但本地图快照没有保存成功。"
+                : "The topic changed, but the local graph snapshot was not saved."
+        }
+        pushState()
+    }
+
     private func refreshActivities() {
         let generation = UUID()
         activityGeneration = generation
@@ -331,6 +411,7 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
         })
         let ignoredDomains = state.ignoredDomains
         let activityWatchEnabled = state.activityWatchEnabled
+        let graphCorrections = state.journeyGraphCorrections
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = ActivityJSONLParser.read(urls: urls, range: range)
             guard let self else { return }
@@ -350,7 +431,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 }
                 let snapshot = DailyActivitySnapshot.build(range: range, events: visible)
                 let builtGraph = JourneyGraphBuilder.build(snapshot: snapshot)
-                let journeyGraph = self.journeyGraphStore.enrichingWithHistory(builtGraph)
+                let enrichedGraph = self.journeyGraphStore.enrichingWithHistory(builtGraph)
+                let journeyGraph = graphCorrections.applying(to: enrichedGraph)
                 let local = LocalActivityReflector.build(snapshot: snapshot)
                 DispatchQueue.main.async {
                     self.finishActivityRefresh(
@@ -615,6 +697,8 @@ final class ReflectionBrowserController: NSObject, NSWindowDelegate,
                 "activityWatchEnabled": state.activityWatchEnabled,
                 "activityWatchStatus": activityWatchStatus,
                 "activityWatchMessage": activityWatchMessage ?? "",
+                "topicEditCount": state.journeyGraphCorrections.labels.count
+                    + state.journeyGraphCorrections.merges.count,
             ],
             "range": [
                 "mode": state.rangeMode,
@@ -944,21 +1028,24 @@ private struct DailyTrailPersistedState: Codable {
     var ignoredApps: [String]
     var ignoredDomains: [String]
     var activityWatchEnabled: Bool
+    var journeyGraphCorrections: JourneyGraphCorrections
 
     init(rangeMode: String = "today", customStart: Date? = nil,
          customEnd: Date? = nil, ignoredApps: [String] = [],
-         ignoredDomains: [String] = [], activityWatchEnabled: Bool = false) {
+         ignoredDomains: [String] = [], activityWatchEnabled: Bool = false,
+         journeyGraphCorrections: JourneyGraphCorrections = .init()) {
         self.rangeMode = rangeMode
         self.customStart = customStart
         self.customEnd = customEnd
         self.ignoredApps = ignoredApps
         self.ignoredDomains = ignoredDomains
         self.activityWatchEnabled = activityWatchEnabled
+        self.journeyGraphCorrections = journeyGraphCorrections
     }
 
     private enum CodingKeys: String, CodingKey {
         case rangeMode, customStart, customEnd, ignoredApps, ignoredDomains,
-             activityWatchEnabled
+             activityWatchEnabled, journeyGraphCorrections
     }
 
     init(from decoder: Decoder) throws {
@@ -970,5 +1057,7 @@ private struct DailyTrailPersistedState: Codable {
         ignoredDomains = try values.decodeIfPresent([String].self, forKey: .ignoredDomains) ?? []
         activityWatchEnabled = try values.decodeIfPresent(
             Bool.self, forKey: .activityWatchEnabled) ?? false
+        journeyGraphCorrections = try values.decodeIfPresent(
+            JourneyGraphCorrections.self, forKey: .journeyGraphCorrections) ?? .init()
     }
 }

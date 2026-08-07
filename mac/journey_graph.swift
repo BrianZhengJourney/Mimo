@@ -82,6 +82,97 @@ struct JourneyGraphCluster: Codable, Equatable {
     var lastSeenAtMS: Double?
 }
 
+/// Sparse user corrections layered over the rebuildable automatic graph.
+/// Raw activity and automatic clustering remain untouched, so edits can be
+/// reset instantly and survive graph refreshes without copying event data.
+struct JourneyGraphCorrections: Codable, Equatable {
+    var labels: [String: String] = [:]
+    var merges: [String: String] = [:]
+
+    var isEmpty: Bool { labels.isEmpty && merges.isEmpty }
+
+    func applying(to input: JourneyGraphArchive) -> JourneyGraphArchive {
+        guard !isEmpty, !input.clusters.isEmpty else { return input }
+        let knownIDs = Set(input.clusters.map(\.id))
+
+        func resolvedTarget(for source: String) -> String {
+            var current = source
+            var visited = Set<String>()
+            while let next = merges[current], knownIDs.contains(next), next != current {
+                guard !visited.contains(next) else { return source }
+                visited.insert(current)
+                current = next
+            }
+            return current
+        }
+
+        var groupOrder: [String] = []
+        var groups: [String: [JourneyGraphCluster]] = [:]
+        for cluster in input.clusters {
+            let target = resolvedTarget(for: cluster.id)
+            if groups[target] == nil { groupOrder.append(target) }
+            groups[target, default: []].append(cluster)
+        }
+
+        let nodeOrder = Dictionary(uniqueKeysWithValues: input.nodes.enumerated().map {
+            ($0.element.key, $0.offset)
+        })
+        let clusters = groupOrder.compactMap { target -> JourneyGraphCluster? in
+            guard let members = groups[target], !members.isEmpty else { return nil }
+            let base = members.first(where: { $0.id == target }) ?? members[0]
+            let nodeKeys = Array(Set(members.flatMap(\.nodeKeys))).sorted {
+                (nodeOrder[$0] ?? .max) < (nodeOrder[$1] ?? .max)
+            }
+            let keywords = Array(Set(members.flatMap { $0.keywords ?? [] })).sorted()
+            return JourneyGraphCluster(
+                id: target, category: base.category,
+                label: labels[target] ?? base.label,
+                nodeKeys: nodeKeys,
+                startedAtMS: members.map(\.startedAtMS).min() ?? base.startedAtMS,
+                endedAtMS: members.map(\.endedAtMS).max() ?? base.endedAtMS,
+                topicKey: base.topicKey, keywords: Array(keywords.prefix(8)),
+                priorDayCount: members.compactMap(\.priorDayCount).max(),
+                lastSeenAtMS: members.compactMap(\.lastSeenAtMS).max())
+        }
+
+        var output = input
+        output.clusters = clusters
+        let membership = Dictionary(uniqueKeysWithValues: clusters.flatMap { cluster in
+            cluster.nodeKeys.map { ($0, cluster.id) }
+        })
+        for index in output.nodes.indices {
+            if let clusterID = membership[output.nodes[index].key] {
+                output.nodes[index].attributes.clusterID = clusterID
+            }
+        }
+
+        // Topic-return edges are a projection of cluster membership. Rebuild
+        // them after merges instead of leaving visually plausible but false
+        // edges from the previous automatic layout.
+        output.edges.removeAll { $0.attributes.kind == "topic-return" }
+        let explicitReturns = Set(output.edges.filter {
+            $0.attributes.kind == "return"
+        }.map { "\($0.source)\u{1f}\($0.target)" })
+        for cluster in clusters {
+            let indices = cluster.nodeKeys.compactMap { nodeOrder[$0] }.sorted()
+            for pair in zip(indices, indices.dropFirst()) where pair.1 != pair.0 + 1 {
+                let source = output.nodes[pair.0], target = output.nodes[pair.1]
+                guard !explicitReturns.contains("\(source.key)\u{1f}\(target.key)") else {
+                    continue
+                }
+                output.edges.append(.init(
+                    key: "topic-return-corrected-\(cluster.id)-\(pair.0)-\(pair.1)",
+                    source: source.key, target: target.key,
+                    attributes: .init(
+                        kind: "topic-return",
+                        gapMS: max(0, target.attributes.startedAtMS
+                                   - source.attributes.endedAtMS))))
+            }
+        }
+        return output
+    }
+}
+
 private struct ActivityTopicCluster {
     var id: String
     var category: ActivityCategory
