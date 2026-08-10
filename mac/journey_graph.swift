@@ -80,6 +80,15 @@ struct JourneyGraphCluster: Codable, Equatable {
     var keywords: [String]?
     var priorDayCount: Int?
     var lastSeenAtMS: Double?
+    var priorSeconds: Double? = nil
+    var history: [JourneyGraphClusterDay]? = nil
+}
+
+/// One prior day's active time for a recurring topic, so the UI can show a
+/// cross-day strip without re-reading historical archives.
+struct JourneyGraphClusterDay: Codable, Equatable {
+    var day: String
+    var seconds: Double
 }
 
 /// Sparse user corrections layered over the rebuildable automatic graph.
@@ -124,6 +133,18 @@ struct JourneyGraphCorrections: Codable, Equatable {
                 (nodeOrder[$0] ?? .max) < (nodeOrder[$1] ?? .max)
             }
             let keywords = Array(Set(members.flatMap { $0.keywords ?? [] })).sorted()
+            // Merged topics were distinct activities on the same prior days,
+            // so day seconds add while the day set unions.
+            var mergedDays: [String: Double] = [:]
+            for member in members {
+                for stat in member.history ?? [] {
+                    mergedDays[stat.day, default: 0] += stat.seconds
+                }
+            }
+            let history = mergedDays.isEmpty ? nil
+                : mergedDays.sorted { $0.key < $1.key }.map {
+                    JourneyGraphClusterDay(day: $0.key, seconds: $0.value)
+                }
             return JourneyGraphCluster(
                 id: target, category: base.category,
                 label: labels[target] ?? base.label,
@@ -131,8 +152,13 @@ struct JourneyGraphCorrections: Codable, Equatable {
                 startedAtMS: members.map(\.startedAtMS).min() ?? base.startedAtMS,
                 endedAtMS: members.map(\.endedAtMS).max() ?? base.endedAtMS,
                 topicKey: base.topicKey, keywords: Array(keywords.prefix(8)),
-                priorDayCount: members.compactMap(\.priorDayCount).max(),
-                lastSeenAtMS: members.compactMap(\.lastSeenAtMS).max())
+                priorDayCount: mergedDays.isEmpty
+                    ? members.compactMap(\.priorDayCount).max() : mergedDays.count,
+                lastSeenAtMS: members.compactMap(\.lastSeenAtMS).max(),
+                priorSeconds: mergedDays.isEmpty
+                    ? members.compactMap(\.priorSeconds).max()
+                    : mergedDays.values.reduce(0, +),
+                history: history)
         }
 
         var output = input
@@ -485,26 +511,40 @@ final class JourneyGraphStore {
     /// answering “have I been here before?”.
     func enrichingWithHistory(_ input: JourneyGraphArchive) -> JourneyGraphArchive {
         lock.lock(); defer { lock.unlock() }
-        let history = graphURLsUnlocked().compactMap(loadUnlocked).filter {
-            $0.attributes.rangeEndMS <= input.attributes.rangeStartMS
+        // Only strictly earlier single-day archives count: multi-day (week)
+        // snapshots cover the same activity as the dailies and would
+        // double-count both days and seconds.
+        let history = graphURLsUnlocked().compactMap(loadUnlocked).filter { archive in
+            archive.attributes.rangeEndMS <= input.attributes.rangeStartMS
+                && Self.dayString(archive.attributes.rangeStartMS) == Self.dayString(
+                    max(archive.attributes.rangeStartMS, archive.attributes.rangeEndMS - 1))
         }
         guard !history.isEmpty else { return input }
         var output = input
         for index in output.clusters.indices {
             let current = output.clusters[index]
-            var days = Set<String>(), lastSeen: Double?
+            var daySeconds: [String: Double] = [:], lastSeen: Double?
             for archive in history {
-                guard archive.clusters.contains(where: {
-                    Self.sameTopic(current, $0)
-                }) else { continue }
-                days.insert(Self.dayString(archive.attributes.rangeStartMS))
-                let candidate = archive.clusters.filter {
-                    Self.sameTopic(current, $0)
-                }.map(\.endedAtMS).max() ?? archive.attributes.rangeEndMS
+                let matches = archive.clusters.filter { Self.sameTopic(current, $0) }
+                guard !matches.isEmpty else { continue }
+                let durations = Dictionary(
+                    archive.nodes.map { ($0.key, $0.attributes.activeDurationMS) },
+                    uniquingKeysWith: { first, _ in first })
+                let seconds = matches.reduce(0.0) { total, cluster in
+                    total + cluster.nodeKeys.reduce(0.0) { $0 + (durations[$1] ?? 0) } / 1_000
+                }
+                daySeconds[Self.dayString(archive.attributes.rangeStartMS), default: 0] += seconds
+                let candidate = matches.map(\.endedAtMS).max() ?? archive.attributes.rangeEndMS
                 lastSeen = max(lastSeen ?? candidate, candidate)
             }
-            output.clusters[index].priorDayCount = days.count
+            output.clusters[index].priorDayCount = daySeconds.count
             output.clusters[index].lastSeenAtMS = lastSeen
+            output.clusters[index].priorSeconds =
+                daySeconds.isEmpty ? nil : daySeconds.values.reduce(0, +)
+            output.clusters[index].history = daySeconds.isEmpty ? nil
+                : daySeconds.sorted { $0.key < $1.key }.suffix(21).map {
+                    JourneyGraphClusterDay(day: $0.key, seconds: $0.value)
+                }
         }
         return output
     }

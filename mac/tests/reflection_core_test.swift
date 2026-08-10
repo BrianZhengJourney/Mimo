@@ -158,6 +158,19 @@ struct ReflectionCoreTests {
         expect(enriched.clusters.allSatisfy {
             $0.priorDayCount == 1 && $0.lastSeenAtMS != nil
         }, "today's topic nodes can show honest cross-day recurrence metadata")
+        expect(enriched.clusters.allSatisfy { cluster in
+            let history = cluster.history ?? []
+            return (cluster.priorSeconds ?? 0) > 0 && history.count == 1
+                && abs(history.reduce(0) { $0 + $1.seconds } - (cluster.priorSeconds ?? 0)) < 0.01
+        }, "recurrence carries per-day seconds so the UI can draw a cross-day strip")
+        var weekArchive = graph
+        weekArchive.attributes.rangeEndMS = graph.attributes.rangeStartMS + 7 * dayMS
+        try graphStore.save(weekArchive)
+        let enrichedAgain = graphStore.enrichingWithHistory(nextDay)
+        expect(enrichedAgain.clusters.allSatisfy { outer in
+            outer.priorDayCount == 1 && outer.priorSeconds == enriched.clusters
+                .first(where: { $0.id == outer.id })?.priorSeconds
+        }, "multi-day snapshots never double-count the days they overlap")
         let graphPurged = graphStore.purgeAll()
         let remainingGraphFiles = try FileManager.default.contentsOfDirectory(
             at: graphRoot, includingPropertiesForKeys: nil)
