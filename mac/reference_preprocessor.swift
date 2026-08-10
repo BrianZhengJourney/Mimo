@@ -1023,6 +1023,7 @@ final class MimoReferencePreprocessor {
         let entries: [[String: Any]] = references.enumerated().map { index, reference in
             [
                 "slot": index + 1,
+                "role": index == 0 ? "primary_anchor" : "supporting",
                 "source_index": reference.sourceIndex,
                 "view": reference.view.rawValue,
                 "coverage": reference.coverage.rawValue,
@@ -1042,7 +1043,8 @@ final class MimoReferencePreprocessor {
             "board_mode": board.mode.rawValue,
             "instructions": [
                 "Use the people, not their source background, UI, or text.",
-                "Combine complementary views to preserve stable facial and design features.",
+                "Slot 1 is the primary identity anchor: face, hair, skin tone, outfit, and overall proportions come from it.",
+                "Supporting slots only contribute views, angles, and expressions the primary lacks; when they disagree with slot 1, slot 1 wins.",
             ],
             "reference_count": references.count,
             "references": entries,

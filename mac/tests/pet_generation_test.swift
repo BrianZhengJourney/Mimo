@@ -512,6 +512,9 @@ struct PetGenerationTests {
                candidateBody.contains("same user-selected") &&
                candidateBody.contains("subject from useful views"),
                "candidate prompt must treat the prepared multi-view board as one selected identity")
+        expect(candidateBody.contains("PRIMARY ANCHOR") &&
+               candidateBody.contains("the first slot wins"),
+               "the user's primary reference anchors identity; supporting slots only add missing views")
         for ignoredArtifact in ["source crop", "background", "social-app chrome", "play control",
                                 "product tile", "text"] {
             expect(candidateBody.contains(ignoredArtifact),

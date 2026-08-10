@@ -193,6 +193,12 @@ struct ReferencePreprocessorTests {
                    "provider metadata needs a versioned schema")
             expect(!json.contains("social-shot"),
                    "provider JSON should not contain user input IDs or filenames")
+            let refs = object["references"] as? [[String: Any]] ?? []
+            expect(refs.first?["role"] as? String == "primary_anchor"
+                   && refs.dropFirst().allSatisfy { $0["role"] as? String == "supporting" },
+                   "slot 1 must be marked as the primary identity anchor")
+            expect(json.contains("primary identity anchor"),
+                   "instructions must subordinate supporting slots to the anchor")
         } else {
             expect(false, "provider analysis JSON should be valid")
         }
