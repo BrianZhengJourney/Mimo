@@ -1531,6 +1531,8 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         overall proportions from it. The remaining slots are supporting evidence only — use them for angles, bearing,
         and expressions the primary slot does not show, and when any supporting slot disagrees with the first slot,
         the first slot wins.
+        Supporting slots must never introduce persistent traits the first slot does not show: no outfit pieces,
+        tattoos, markings, hairstyles, or accessories may be imported from a supporting slot.
         Treat repeated subject views as evidence for one identity, never as separate characters, and never merge
         unrelated subjects or objects from different slots.
         Preserve persistent face or marking structure, hair or fur shape, body silhouette, recurring colors, outfit
@@ -1551,7 +1553,9 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         OUTPUT CONTRACT
         Create one 1024×1024 square board containing exactly THREE distinct design candidates for the SAME tiny desktop
         familiar. Arrange them LEFT, CENTER, RIGHT in three evenly spaced columns. These are alternative master designs,
-        not evolution stages. Each is one isolated, full-body canonical idle stance with eyes open and feet visible,
+        not evolution stages. All three candidates depict the same person in the SAME outfit, hairstyle, and colors —
+        the ones the primary anchor slot shows — unless the user visual tuning note explicitly asks for different
+        clothing. The three differ in bearing, expression, and rendering emphasis, never in identity or wardrobe. Each is one isolated, full-body canonical idle stance with eyes open and feet visible,
         facing the viewer within about 15 degrees. The stance must express the subject's characteristic bearing rather
         than a neutral A-pose: even weight on both feet, a perfectly level shoulder line, and a dead-centre forward
         gaze all read as generic and must be avoided. Asymmetry is expected. Keep every character entirely within the middle 72% of its column height and leave at least 12% clear

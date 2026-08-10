@@ -515,6 +515,9 @@ struct PetGenerationTests {
         expect(candidateBody.contains("PRIMARY ANCHOR") &&
                candidateBody.contains("the first slot wins"),
                "the user's primary reference anchors identity; supporting slots only add missing views")
+        expect(candidateBody.contains("never introduce persistent traits") &&
+               candidateBody.contains("SAME outfit"),
+               "candidate variety must come from bearing and rendering, not wardrobe borrowed from supporting slots")
         for ignoredArtifact in ["source crop", "background", "social-app chrome", "play control",
                                 "product tile", "text"] {
             expect(candidateBody.contains(ignoredArtifact),
