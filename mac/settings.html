@@ -650,13 +650,12 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
     <div class="style-tuning-disclosure" data-zh="下一次生成生效 · 不会清掉已有结果" data-en="Applies to the next generation · existing results stay">下一次生成生效 · 不会清掉已有结果</div>
   </div>
 
+  <div class="sheet-result" id="petSheetResult" aria-live="polite"></div>
   <div class="studio-actions"><button class="generate-both" id="petGenerate" type="button" onclick="generateCandidates()" data-zh="生成 3 个草稿" data-en="Generate 3 drafts">生成 3 个草稿</button></div>
   <div class="final-controls" id="finalControls">
     <button class="micro-variations" id="petVariationsGenerate" type="button" onclick="generateCandidateVariations()" title="Low · one explicit OpenAI image request" data-zh="🎲 再来 3 个小表情" data-en="🎲 3 more expressions">🎲 再来 3 个小表情</button>
     <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="生成 Medium 定稿" data-en="Create Medium final">生成 Medium 定稿</button>
   </div>
-
-  <div class="sheet-result" id="petSheetResult" aria-live="polite"></div>
   <div class="petlab-state" id="petLabState" aria-live="polite"><span class="dot"></span>
     先添加一组参考图，其余交给米墨自动完成
   </div>
@@ -1706,7 +1705,7 @@ function expressionStatusHTML(){
     `Expressions ${ex.completed}/${ex.total} · drawing ${stageNames[ex.stageIndex]} faces (blink / joy / rest)…`))}</div>`;
   if(ex.status==='error')return `<div class="expr-status err">${esc(ex.error||'')} <button type="button" onclick="regenerateExpressions()">${tx('重试表情','Retry expressions')}</button></div>`;
   if(ex.status==='done'){
-    if(ex.completed>=ex.total)return `<div class="expr-status ok">${tx('表情已接上 · 它会眨眼了 ✦','Expressions connected · it blinks now ✦')}</div>`;
+    if(ex.completed>=ex.total)return `<div class="expr-status ok">${tx('表情已接上 · 它会眨眼了 ✦','Expressions connected · it blinks now ✦')} <button type="button" onclick="regenerateExpressions()">${tx('重新画表情','Redraw expressions')}</button></div>`;
     return `<div class="expr-status err">${tx(`表情完成 ${ex.completed}/${ex.total}`,`Expressions ${ex.completed}/${ex.total}`)} <button type="button" onclick="regenerateExpressions()">${tx('补画缺的表情','Draw the missing ones')}</button></div>`;
   }
   return '';

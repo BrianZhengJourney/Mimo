@@ -60,7 +60,7 @@ struct ReflectionBrowserDOMTests {
         expect(waiter.finished && !waiter.failed, "fixture loads in a real WKWebView")
         _ = evaluate("window.reflectionFixture('1')", in: webView)
 
-        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,identityFallbacks:document.querySelectorAll('.identity-fallback').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,routeSteps:document.querySelectorAll('[data-thread-node]').length,returnSteps:document.querySelectorAll('.journey-route-step.returning').length,clusterMeta:document.querySelectorAll('.journey-cluster-meta').length,topicEditors:document.querySelectorAll('[data-edit-cluster]').length,graphHeight:parseFloat(document.getElementById('journeyGraph').style.height),donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
+        let initial = evaluate("JSON.stringify({blocks:document.querySelectorAll('.activity-card').length,materials:document.querySelectorAll('.material-card').length,sections:document.querySelectorAll('.reflection-section').length,raw:document.querySelectorAll('.raw-event').length,journey:document.querySelectorAll('.half-hour-chapter').length,chapterSegments:document.querySelectorAll('.chapter-segment').length,quiet:document.querySelectorAll('.half-hour-chapter.quiet').length,phases:document.querySelectorAll('.journey-phase').length,activityHovers:document.querySelectorAll('.activity-hover').length,materialOverlays:document.querySelectorAll('.material-insight-overlay').length,identityImages:document.querySelectorAll('.identity-image').length,identityFallbacks:document.querySelectorAll('.identity-fallback').length,appIdentities:document.querySelectorAll('[data-identity=app]').length,siteIdentities:document.querySelectorAll('[data-identity=site]').length,routeSteps:document.querySelectorAll('[data-thread-topic]').length,returnSteps:document.querySelectorAll('.journey-route-step.returning').length,stones:document.querySelectorAll('.journey-stone').length,seals:document.querySelectorAll('.journey-stone .seal').length,graphHeight:parseFloat(document.getElementById('journeyGraph').style.height),donut:getComputedStyle(document.getElementById('donut')).backgroundImage})",
                                in: webView) as? String
         let object = try JSONSerialization.jsonObject(
             with: Data((initial ?? "{}").utf8)) as? [String: Any]
@@ -83,10 +83,10 @@ struct ReflectionBrowserDOMTests {
                "app activities and websites render representative artwork or a clear fallback")
         expect(object?["routeSteps"] as? Int == 5
                && object?["returnSteps"] as? Int == 1
-               && object?["clusterMeta"] as? Int == 4
-               && object?["topicEditors"] as? Int == 4
-               && (object?["graphHeight"] as? Int ?? 0) >= 400,
-               "the semantic overview exposes a readable five-step route, one return, and four spacious topic zones: \(initial ?? "{}")")
+               && object?["stones"] as? Int == 4
+               && (object?["seals"] as? Int ?? 0) >= 1
+               && (object?["graphHeight"] as? Int ?? 0) >= 300,
+               "the semantic overview exposes a five-step route, one return, and four duration-sized topic stones: \(initial ?? "{}")")
         if let capturePath = ProcessInfo.processInfo.environment["MIMO_CAPTURE_PATH"] {
             _ = evaluate("document.querySelector('.journey-map').scrollIntoView({block:'start'})", in: webView)
             RunLoop.current.run(until: Date().addingTimeInterval(0.35))
@@ -108,15 +108,15 @@ struct ReflectionBrowserDOMTests {
         expect((object?["donut"] as? String)?.contains("conic-gradient") == true,
                "category distribution renders as a visual donut")
 
-        expect((evaluate("(()=>{const topicBefore=document.querySelector('.journey-node')?.style.left;document.querySelector('[data-graph-layout=time]').click();const timeX=document.querySelector('.journey-node')?.style.left;document.querySelector('[data-graph-layout=topic]').click();const topicAfter=document.querySelector('.journey-node')?.style.left;return document.querySelector('[data-graph-layout=topic]').classList.contains('active')&&document.querySelectorAll('.journey-cluster').length===4&&topicBefore===topicAfter&&timeX!==topicAfter})()",
+        expect((evaluate("(()=>{const stonesBefore=document.querySelectorAll('.journey-stone').length;document.querySelector('[data-graph-layout=time]').click();const stops=document.querySelectorAll('.stop-hit').length,ink=document.querySelectorAll('.ink-line').length,stonesGone=document.querySelectorAll('.journey-stone').length===0;document.querySelector('[data-graph-layout=topic]').click();return document.querySelector('[data-graph-layout=topic]').classList.contains('active')&&stonesBefore===4&&stops===5&&ink>=1&&stonesGone&&document.querySelectorAll('.journey-stone').length===4})()",
                          in: webView) as? Bool) == true,
-               "the same local graph can be read as chronological flow or spatial topic clusters")
-        expect((evaluate("(()=>{const step=document.querySelector('[data-thread-node]');step.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));const ok=document.getElementById('journeyGraph').classList.contains('has-hover')&&document.querySelectorAll('.journey-node.related').length>=1;document.getElementById('journeyThread').dispatchEvent(new MouseEvent('mouseleave'));return ok})()",
+               "the same local graph can be read as an ink timeline of stops or a garden of topic stones")
+        expect((evaluate("(()=>{const step=document.querySelector('[data-thread-topic]');step.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));const ok=document.getElementById('journeyGraph').classList.contains('dimmed')&&document.querySelectorAll('.journey-stone.lit').length===1;document.getElementById('journeyThread').dispatchEvent(new MouseEvent('mouseleave'));return ok})()",
                          in: webView) as? Bool) == true,
                "hovering the human-readable route reveals its corresponding graph neighborhood")
-        expect((evaluate("(()=>{const editor=document.querySelector('[data-edit-cluster]');editor.click();const modal=document.getElementById('topicModal'),first=modal.classList.contains('open')&&document.getElementById('topicLabel').value.length>0&&document.getElementById('topicMergeTarget').options.length===4&&document.getElementById('resetTopicEdits').disabled;document.getElementById('cancelTopicEdit').click();state.config.topicEditCount=1;editor.click();const second=!document.getElementById('resetTopicEdits').disabled;document.getElementById('cancelTopicEdit').click();return first&&second&&!modal.classList.contains('open')})()",
+        expect((evaluate("(()=>{document.querySelector('.journey-stone').click();const detail=document.getElementById('topicDetail');const chips=detail.querySelectorAll('[data-visit-block]').length;const editor=detail.querySelector('[data-edit-cluster]');editor.click();const modal=document.getElementById('topicModal'),first=!detail.hidden&&chips>=1&&modal.classList.contains('open')&&document.getElementById('topicLabel').value.length>0&&document.getElementById('topicMergeTarget').options.length===4&&document.getElementById('resetTopicEdits').disabled;document.getElementById('cancelTopicEdit').click();state.config.topicEditCount=1;editor.click();const second=!document.getElementById('resetTopicEdits').disabled;document.getElementById('cancelTopicEdit').click();document.querySelector('.journey-stone.selected')?.click();return first&&second&&!modal.classList.contains('open')})()",
                          in: webView) as? Bool) == true,
-               "topic labels open a local rename/merge editor and reset appears only after a correction")
+               "selecting a stone shows its visits and opens the local rename/merge editor; reset appears only after a correction")
 
         expect((evaluate("const chapter=document.querySelector('.half-hour-chapter:not(.quiet)');chapter.focus();document.getElementById('journeyPreview').dataset.chapter===chapter.dataset.halfHour",
                          in: webView) as? Bool) == true,
@@ -127,9 +127,9 @@ struct ReflectionBrowserDOMTests {
         expect((evaluate("const card=document.querySelector('.activity-card');card.focus();const panel=document.querySelector('.trail-panel').getBoundingClientRect();const hover=card.querySelector('.activity-hover').getBoundingClientRect();hover.height>0&&hover.left>=panel.left&&hover.right<=panel.right",
                          in: webView) as? Bool) == true,
                "activity hover context remains inside the trail panel")
-        expect((evaluate("[...document.querySelectorAll('.half-hour-chapter')].find(item=>item.dataset.chapterBlocks.split(',').includes('b4')).click();document.querySelector('.activity-card[data-block=b4]').classList.contains('located')",
+        expect((evaluate("(()=>{const chapter=[...document.querySelectorAll('.half-hour-chapter')].find(item=>item.dataset.chapterBlocks.split(',').includes('b4'));chapter.click();const zone=document.getElementById('rangeDropZone');const pinned=zone.classList.contains('pinned')&&chapter.classList.contains('pinned')&&document.querySelectorAll('.activity-card').length>=1&&[...document.querySelectorAll('.activity-card')].every(card=>card.dataset.block==='b4');chapter.click();return pinned&&!zone.classList.contains('pinned')&&document.querySelectorAll('.activity-card').length===5})()",
                          in: webView) as? Bool) == true,
-               "selecting a half-hour locates its representative detailed activity")
+               "clicking a half-hour narrows the trail to that interval and clicking again restores the full day")
         expect((evaluate("document.querySelector('.half-hour-chapter:not(.quiet)').click();document.getElementById('journeyAsk').click();document.getElementById('prompt').value.includes('半小时')",
                          in: webView) as? Bool) == true,
                "the selected half-hour can seed a focused Looking Back question")
