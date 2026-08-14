@@ -522,6 +522,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             andSelector: #selector(handleQuitAppleEvent(_:withReplyEvent:)),
             forEventClass: AEEventClass(kCoreEventClass),
             andEventID: AEEventID(kAEQuitApplication))
+        if ProcessInfo.processInfo.arguments.contains("--photos-people-standalone") {
+            // Keep the experiment hermetic. In particular, do not initialize
+            // ReflectionBrowser/MimoSecret: an ad-hoc prototype signature can
+            // otherwise wait on the production Keychain before this window opens.
+            DispatchQueue.main.async {
+                PhotosPeoplePrototypeController.shared.show { _ in }
+            }
+            return
+        }
         if reflectionBrowser.isFixtureMode {
             // A native visual fixture is hermetic: do not watch apps, prune or
             // read activity, start generation cleanup, or make

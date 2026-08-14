@@ -42,6 +42,8 @@ APP_SOURCES=(
   journey_graph.swift
   reflection_model.swift
   reflection_browser.swift
+  prototypes/apple-photos-people/photos_face_clustering.swift
+  prototypes/apple-photos-people/photos_face_embedding.swift
   prototypes/apple-photos-people/photos_people_prototype.swift
   main.swift
   product.swift
@@ -52,5 +54,5 @@ APP_SOURCES=(
 
 APP_FRAMEWORKS=(
   Cocoa WebKit Carbon Security ImageIO
-  Vision CoreImage CoreVideo LocalAuthentication Photos
+  Vision CoreML CoreImage CoreVideo LocalAuthentication Photos PhotosUI UniformTypeIdentifiers
 )

@@ -25,6 +25,29 @@ cp -R assets/style-reference "$APP/Contents/Resources/style-reference"
 cp -R assets/motion-reference "$APP/Contents/Resources/motion-reference"
 cp -R assets/behavior "$APP/Contents/Resources/behavior"
 
+# The Photos identity pipeline must never look selected while actually using
+# Vision's generic image feature print. Developer builds pick up the locally
+# converted IR101 model when it is present; release packaging can make this a
+# hard requirement with MIMO_REQUIRE_FACE_MODEL=1.
+FACE_MODEL_DIR="${MIMO_FACE_MODEL_DIR:-/private/tmp/mimo-face-compiled}"
+PRIMARY_FACE_MODEL=MimoAdaFaceIR101.mlmodelc
+if [ -d "$FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" ]; then
+  ditto "$FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" \
+    "$APP/Contents/Resources/$PRIMARY_FACE_MODEL"
+elif [ "${MIMO_REQUIRE_FACE_MODEL:-0}" = "1" ]; then
+  echo "error: required face model missing: $FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" >&2
+  exit 1
+else
+  echo "note: IR101 face model not bundled; Photos identity scan will stay disabled."
+fi
+VERIFIER_FACE_MODEL=MimoAdaFaceKPRPE.mlmodelc
+if [ -d "$FACE_MODEL_DIR/$VERIFIER_FACE_MODEL" ]; then
+  ditto "$FACE_MODEL_DIR/$VERIFIER_FACE_MODEL" \
+    "$APP/Contents/Resources/$VERIFIER_FACE_MODEL"
+else
+  echo "note: KP-RPE verifier not bundled; Photos grouping will use IR101 only."
+fi
+
 # Stamp the exact source state into the bundle. This is intentionally generated
 # at build time (never checked in), so the running app can make stale builds
 # obvious without shelling out or assuming the repository is still present.
