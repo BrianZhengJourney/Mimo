@@ -28,7 +28,8 @@ struct StudioExperienceUITests {
                "only a real window close should hand an active request to the background")
         expect(html.contains("function removePetReference(id)")
                && html.contains("referenceSetChanged({autoGenerate:false})")
-               && html.contains("else candidateAutoGenerateSignature=candidateReferenceSignature()"),
+               && html.contains("clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;")
+               && html.contains("candidateAutoGenerateSignature=candidateReferenceSignature();"),
                "removing one reference must leave regeneration as an explicit action")
         expect(html.contains("function customPetAdopted(event)")
                && html.contains("source:null,sourceName:'',references:[],primaryReferenceID:null")

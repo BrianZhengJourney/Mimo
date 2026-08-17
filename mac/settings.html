@@ -1121,11 +1121,15 @@ function referenceSetChanged({autoGenerate=true}={}){
   petLab.references.forEach(ref=>{ref.analysis={status:'pending'}});
   petLab.referenceNoticeZh=petLab.references.length?(autoGenerate?`已在本机准备 ${petLab.references.length} 张参考图；全部就绪后自动生成草稿。`:`参考集已更新（${petLab.references.length} 张）；想重新生成时点下方按钮。`):'参考集已清空；请添加至少一张图片。';
   petLab.referenceNoticeEn=petLab.references.length?(autoGenerate?`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; drafts start when all are ready.`:`Reference set updated (${petLab.references.length}); regenerate below when you're ready.`):'Reference set cleared; add at least one image.';
+  // Deletion is a manual curation action. Fence it before invalidation renders:
+  // renderPetLab schedules generation, so marking the signature afterwards is
+  // already too late and leaves a live 320 ms timer behind.
+  if(!autoGenerate){
+    clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;
+    candidateAutoGenerateSignature=candidateReferenceSignature();
+  }
   invalidatePetDraft();checkpointStudioSession();
   if(autoGenerate)scheduleCandidateAutoGeneration();
-  // Mark the reduced set as handled so later renders don't auto-start either:
-  // removing an image is a curation act, and generating costs real money.
-  else candidateAutoGenerateSignature=candidateReferenceSignature();
 }
 function setPrimaryReference(id){
   if(studioBusy()||referencesImporting()||id===petLab.primaryReferenceID||!petLab.references.some(ref=>ref.id===id))return;
