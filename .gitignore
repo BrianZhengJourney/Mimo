@@ -1,4 +1,5 @@
 mac/build/
+mac/.local/
 artifacts/wan/runs/
 artifacts/walk-image-experiments/
 artifacts/evals/runs/

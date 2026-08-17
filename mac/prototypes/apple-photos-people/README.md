@@ -23,8 +23,14 @@ Mimo 能否在用户明确点击后，用 PhotoKit 读取最近照片、收藏�
 ## 运行
 
 ```bash
+./mac/prototypes/apple-photos-people/setup_face_models.sh
 ./mac/prototypes/apple-photos-people/run.sh
 ```
+
+首次运行或本地模型损坏时，先执行 setup。模型会保存在
+`mac/.local/face-models`（Git 忽略），不会再依赖可能被系统清理的
+`/private/tmp`。`build.sh` 也会验证 `coremldata.bin`，拒绝把空的
+`.mlmodelc` 目录误装进 App。
 
 这会打开 bundle ID 独立的 `Mimo Photos Prototype`，不会取代正在运行的 Mimo。
 正式 Mimo 的菜单中也保留了「实验：从照片找主角…」入口。

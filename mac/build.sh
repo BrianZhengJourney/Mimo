@@ -11,6 +11,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 source ./common.sh
+source ./face_models.sh
 
 APP="build/$APP_NAME.app"
 # clear the whole build dir, not just this bundle — the pre-rename bundle used
@@ -29,19 +30,20 @@ cp -R assets/behavior "$APP/Contents/Resources/behavior"
 # Vision's generic image feature print. Developer builds pick up the locally
 # converted IR101 model when it is present; release packaging can make this a
 # hard requirement with MIMO_REQUIRE_FACE_MODEL=1.
-FACE_MODEL_DIR="${MIMO_FACE_MODEL_DIR:-/private/tmp/mimo-face-compiled}"
+FACE_MODEL_DIR="$(mimo_face_model_dir)"
 PRIMARY_FACE_MODEL=MimoAdaFaceIR101.mlmodelc
-if [ -d "$FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" ]; then
+if mimo_compiled_face_model_is_valid "$FACE_MODEL_DIR/$PRIMARY_FACE_MODEL"; then
   ditto "$FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" \
     "$APP/Contents/Resources/$PRIMARY_FACE_MODEL"
 elif [ "${MIMO_REQUIRE_FACE_MODEL:-0}" = "1" ]; then
-  echo "error: required face model missing: $FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" >&2
+  echo "error: required face model missing or invalid: $FACE_MODEL_DIR/$PRIMARY_FACE_MODEL" >&2
   exit 1
 else
-  echo "note: IR101 face model not bundled; Photos identity scan will stay disabled."
+  echo "note: IR101 face model missing or invalid; Photos identity scan will stay disabled."
+  echo "note: restore it with ./prototypes/apple-photos-people/setup_face_models.sh"
 fi
 VERIFIER_FACE_MODEL=MimoAdaFaceKPRPE.mlmodelc
-if [ -d "$FACE_MODEL_DIR/$VERIFIER_FACE_MODEL" ]; then
+if mimo_compiled_face_model_is_valid "$FACE_MODEL_DIR/$VERIFIER_FACE_MODEL"; then
   ditto "$FACE_MODEL_DIR/$VERIFIER_FACE_MODEL" \
     "$APP/Contents/Resources/$VERIFIER_FACE_MODEL"
 else

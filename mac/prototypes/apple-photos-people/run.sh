@@ -9,7 +9,8 @@ SOURCE_APP="$MAC_ROOT/build/Mimo.app"
 # do not reliably register app bundles from /private/tmp, which made Photos
 # permission disappear after an ad-hoc rebuild.
 PROTOTYPE_APP="$MAC_ROOT/build/Mimo Photos Prototype.app"
-MODEL_DIR="${MIMO_FACE_MODEL_DIR:-/private/tmp/mimo-face-compiled}"
+source "$MAC_ROOT/face_models.sh"
+MODEL_DIR="$(cd "$MAC_ROOT" && mimo_face_model_dir)"
 
 "$MAC_ROOT/build.sh"
 rm -rf "$PROTOTYPE_APP"
@@ -24,7 +25,7 @@ for argument in "$@"; do
   fi
 done
 for model in "${models[@]}"; do
-  if [[ -d "$MODEL_DIR/$model.mlmodelc" ]]; then
+  if mimo_compiled_face_model_is_valid "$MODEL_DIR/$model.mlmodelc"; then
     ditto "$MODEL_DIR/$model.mlmodelc" "$PROTOTYPE_APP/Contents/Resources/$model.mlmodelc"
   fi
 done
