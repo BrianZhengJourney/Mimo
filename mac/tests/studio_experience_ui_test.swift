@@ -26,6 +26,16 @@ struct StudioExperienceUITests {
                && product.contains("func windowWillClose")
                && product.contains("backgroundStudioRequests.insert(requestID)"),
                "only a real window close should hand an active request to the background")
+        expect(html.contains("function removePetReference(id)")
+               && html.contains("referenceSetChanged({autoGenerate:false})")
+               && html.contains("else candidateAutoGenerateSignature=candidateReferenceSignature()"),
+               "removing one reference must leave regeneration as an explicit action")
+        expect(html.contains("function customPetAdopted(event)")
+               && html.contains("source:null,sourceName:'',references:[],primaryReferenceID:null")
+               && html.contains("Previous references cleared; ready for the next project.")
+               && product.contains(".resetAfterCompletedStudioProject()")
+               && product.contains("studioSessionStore.purgeAll()"),
+               "a completed adoption should clear both Studio references and the Photos project")
 
         expect(html.contains("generateCandidateVariations")
                && html.contains("petGenerateVariations")

@@ -4083,6 +4083,8 @@ extension AppDelegate {
                 refreshNativeCompanion()
                 settingsCall("customPetAdopted", ["spec": spec])
                 try? studioSessionStore.purgeAll()
+                PhotosPeoplePrototypeController.shared
+                    .resetAfterCompletedStudioProject()
                 pushSettingsState()
                 revealOverlay()
                 // One durable post-install pipeline: mature-form expressions

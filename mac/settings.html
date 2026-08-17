@@ -1419,11 +1419,11 @@ function renderPetLab(){
   }else{
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('等待参考图','Waiting for references')}</b><span class="sheet-meta">AUTO</span></div><div class="sheet-empty">${tx('图片全部就绪后，米墨会自动生成 3 个草稿。','Mimo automatically makes 3 drafts after every image is ready.')}</div>`;
   }
-  if(!petLab.source)state.innerHTML=`<span class="dot"></span>${tx('先添加至少一张参考图','Add at least one reference')}`;
+  if(petLab.status==='adopted')state.innerHTML=`<span class="dot"></span>${esc(tx(`${petLab.adoptedName} 已住进桌面 · 上一轮照片已清空`,`${petLab.adoptedName} is home · previous photos cleared`))}`;
+  else if(!petLab.source)state.innerHTML=`<span class="dot"></span>${tx('先添加至少一张参考图','Add at least one reference')}`;
   else if(importing){const pending=Math.max(1,+petLab.importing||0);state.innerHTML=`<span class="dot"></span>${tx(`正在准备图片 · 还剩 ${pending} 张`,`Preparing images · ${pending} remaining`)}`}
   else if(petLab.status==='busy')state.innerHTML=`<span class="dot"></span>${esc(phaseInfo().title)} · <span id="stateElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</span>`;
   else if(petLab.status==='installing')state.innerHTML=`<span class="dot"></span>${tx('正在保存到这台 Mac…','Saving this familiar on your Mac…')}`;
-  else if(petLab.status==='adopted')state.innerHTML=`<span class="dot"></span>${esc(tx(`${petLab.adoptedName} 已住进桌面 · 最终形态与全部状态已接上`,`${petLab.adoptedName} is home · final form and all states are connected`))}`;
   else if(petLab.status==='error')state.innerHTML=`<span class="dot"></span>${petLab.errorCode==='install_failed'?tx('角色完整 · 只需重试本机保存','Character intact · retry local save only'):petLab.errorKind==='local'?tx('OpenAI 已完成 · 本机处理未通过','OpenAI finished · local processing failed'):petLab.errorKind==='setup'?tx('尚未发送请求','No request sent'):tx('OpenAI 请求未完成','OpenAI request did not finish')}`;
   else if(petLab.sheet)state.innerHTML=`<span class="dot"></span>${tx('Medium 定稿已完成 · 可以带回桌面','Medium final ready · bring it home')}`;
   else if(petLab.candidateIndex!==null)state.innerHTML=`<span class="dot"></span>${tx(`已选择草稿 ${petLab.candidateIndex+1} · 可以生成定稿`,`Draft ${petLab.candidateIndex+1} selected · ready for final`)}`;
@@ -1662,7 +1662,18 @@ function petInstallError(event){
 function customPetAdopted(event){
   const spec=event.spec;if(!spec)return;S.customPets=(S.customPets||[]).filter(p=>p.characterID!==spec.characterID).concat([spec]);S.character=spec.characterID;
   clearTimeout(studioCheckpointTimer);studioCheckpointTimer=null;
-  petLab.status='adopted';petLab.requestID=null;petLab.draftID=null;petLab.preservedResult=false;petLab.adoptedCharacterID=spec.characterID;petLab.adoptedName=spec.name||tx('新伴灵','New familiar');petLab.sheet=spec.assetURL||petLab.sheet;petLab.startedAt=null;studioSessionApplied=true;renderCards();renderPetLab();
+  clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;candidateAutoGenerateSignature='';referenceBatchDepth=0;
+  const adoptedName=spec.name||tx('新伴灵','New familiar'),installedSheet=spec.assetURL||petLab.sheet;
+  Object.assign(petLab,{name:tx('我的小伴灵','My little familiar'),source:null,sourceName:'',references:[],primaryReferenceID:null,importing:0,
+    requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,
+    status:'adopted',operation:null,phase:'',phaseMessage:'',error:'',errorKind:'',errorCode:'',outputRetained:false,
+    sheet:installedSheet,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],stageBusyIndex:null,preservedResult:false,
+    warnings:[],partialImage:null,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,recoveryUntil:null,canRetryLocally:false,
+    providerSeconds:null,localSeconds:null,providerCompleted:false,model:null,size:null,partialImages:null,referenceCount:null,
+    styleBoardUsed:null,usage:null,providerDetail:null,startedAt:null,finishedElapsed:null,cancelArmedUntil:0,
+    adoptedCharacterID:spec.characterID,adoptedName,referenceNoticeZh:'上一轮参考图已清空，可以开始下一个项目。',referenceNoticeEn:'Previous references cleared; ready for the next project.'});
+  const nameInput=document.getElementById('petName');if(nameInput)nameInput.value=petLab.name;
+  studioSessionApplied=true;closeCandidateLightbox();renderCards();renderPetLab();
 }
 /* Expression sheets: post-adoption blink/joy/rest frames, one run per pet. */
 function petExpressionProgress(event){

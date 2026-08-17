@@ -43,6 +43,14 @@ struct PhotosPeoplePrototypeUITests {
                source.contains("configuration.selectionLimit = 8") &&
                source.contains("configuration.selection = .ordered"),
                "the system Photos picker should provide a manual correction path")
+        expect(!source.contains("window?.orderOut(nil)") &&
+               source.contains("func keepVisible(alongside studioWindow: NSWindow?)") &&
+               source.contains("combinedWidth <= visible.width") &&
+               source.contains("func resetAfterCompletedStudioProject()") &&
+               source.contains("rawCandidates.removeAll()") &&
+               source.contains("groups.removeAll()") &&
+               source.contains("purgeTemporaryPortraitDirectories()"),
+               "photo handoff should keep its window open and release the completed person's scan")
         expect(source.contains("presentPhotoSelection(for:") &&
                source.contains("PhotosAppearancePreset") &&
                source.contains("米墨推荐") &&

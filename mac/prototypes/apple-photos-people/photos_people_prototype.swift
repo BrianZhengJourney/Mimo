@@ -156,6 +156,7 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
     private var appearanceControl: NSSegmentedControl?
     private var selectionCountLabel: NSTextField?
     private var selectionConfirmButton: NSButton?
+    private var temporaryPortraitDirectories: Set<URL> = []
     private var scanGeneration = UUID()
     private var scanning = false
     private var onSelect: (([URL]) -> Void)?
@@ -170,6 +171,61 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
         NSApp.unhide(nil)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func keepVisible(alongside studioWindow: NSWindow?) {
+        guard let window else { return }
+        guard let studioWindow,
+              let screen = studioWindow.screen ?? window.screen ?? NSScreen.main else {
+            window.orderFront(nil)
+            return
+        }
+        let visible = screen.visibleFrame
+        let gap: CGFloat = 14
+        let combinedWidth = window.frame.width + gap + studioWindow.frame.width
+        if combinedWidth <= visible.width {
+            let left = visible.midX - combinedWidth / 2
+            window.setFrameOrigin(NSPoint(
+                x: left,
+                y: visible.midY - window.frame.height / 2))
+            studioWindow.setFrameOrigin(NSPoint(
+                x: left + window.frame.width + gap,
+                y: visible.midY - studioWindow.frame.height / 2))
+        }
+        window.orderFront(nil)
+        studioWindow.makeKeyAndOrderFront(nil)
+    }
+
+    /// Release the previous person's in-memory photo scan after the installed
+    /// familiar is safely persisted. The window deliberately stays open so it
+    /// is immediately ready for the next project.
+    func resetAfterCompletedStudioProject() {
+        scanGeneration = UUID()
+        scanning = false
+        closePhotoSelection()
+        rawCandidates.removeAll()
+        groups.removeAll()
+        inferenceMilliseconds.removeAll()
+        benchmarkCopy = ""
+        showingSingletons = false
+        purgeTemporaryPortraitDirectories()
+
+        guard window != nil else { return }
+        sourceControl.isEnabled = true
+        modelControl.isEnabled = true
+        groupingControl.isEnabled = true
+        manualButton.isEnabled = true
+        scanButton.isEnabled = true
+        scanButton.title = voice("开始寻找", "Start finding")
+        progressIndicator.stopAnimation(nil)
+        progressIndicator.isHidden = true
+        resultSummaryLabel.stringValue = voice(
+            "上一位主角的照片已清空", "Previous subject photos cleared")
+        statusLabel.stringValue = voice(
+            "可以直接开始下一个项目。", "Ready for the next project.")
+        renderEmpty(voice(
+            "上一轮照片与人物分组已清空。选择照片范围，开始寻找下一位主角。",
+            "The previous photos and face groups were cleared. Choose a source to find the next subject."))
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -1734,7 +1790,6 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
             "\(urls.count) selected · handing off to Mimo Studio…")
         closePhotoSelection()
         onSelect?(urls)
-        window?.orderOut(nil)
     }
 
     private func closePhotoSelection() {
@@ -1770,6 +1825,7 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
             statusLabel.stringValue = voice("无法准备所选照片。", "Could not prepare the selected photos.")
             return
         }
+        rememberTemporaryPortraitDirectory(directory)
 
         let group = DispatchGroup()
         let lock = NSLock()
@@ -1812,10 +1868,6 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
             self.statusLabel.stringValue = voice(
                 "正在交给 Mimo Studio…", "Handing off to Mimo Studio…")
             self.onSelect?(urls)
-            self.window?.orderOut(nil)
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 600) {
-                try? FileManager.default.removeItem(at: directory)
-            }
         }
     }
 
@@ -1825,6 +1877,7 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
         do { try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true) }
         catch { return nil }
+        rememberTemporaryPortraitDirectory(directory)
         var urls: [URL] = []
         for (index, candidate) in candidates.enumerated() {
             let rep = NSBitmapImageRep(cgImage: candidate.portrait)
@@ -1835,10 +1888,23 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
             do { try data.write(to: url, options: .atomic); urls.append(url) }
             catch { continue }
         }
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 600) {
+        return urls
+    }
+
+    private func rememberTemporaryPortraitDirectory(_ directory: URL) {
+        temporaryPortraitDirectories.insert(directory)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 600) { [weak self] in
+            try? FileManager.default.removeItem(at: directory)
+            self?.temporaryPortraitDirectories.remove(directory)
+        }
+    }
+
+    private func purgeTemporaryPortraitDirectories() {
+        let directories = temporaryPortraitDirectories
+        temporaryPortraitDirectories.removeAll()
+        for directory in directories {
             try? FileManager.default.removeItem(at: directory)
         }
-        return urls
     }
 
     private func authorizationCopy() -> String {
@@ -1923,6 +1989,8 @@ extension AppDelegate {
         PhotosPeoplePrototypeController.shared.show { [weak self] urls in
             guard let self else { return }
             self.showSettings()
+            PhotosPeoplePrototypeController.shared.keepVisible(
+                alongside: self.settingsWin)
             self.waitForStudioThenImportPhotos(urls, attempt: 0)
         }
     }

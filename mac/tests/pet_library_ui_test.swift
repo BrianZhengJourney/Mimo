@@ -161,7 +161,8 @@ struct PetLibraryUITests {
         let deletionReceiver = section(
             settings, from: "function petLibraryDeleted(",
             to: "function applyPetLibraryUpdate(")
-        expect(adoption.contains("petLab.adoptedCharacterID=spec.characterID") &&
+        expect(adoption.contains("adoptedCharacterID:spec.characterID") &&
+               adoption.contains("source:null,sourceName:'',references:[],primaryReferenceID:null") &&
                deletionReceiver.contains("event.characterID===petLab.adoptedCharacterID") &&
                deletionReceiver.contains("adoptedCharacterID:null,adoptedName:'',status:'idle'") &&
                deletionReceiver.contains("candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{}") &&
@@ -172,7 +173,7 @@ struct PetLibraryUITests {
                !deletionReceiver.contains("references:[]") &&
                !deletionReceiver.contains("source:null") &&
                !deletionReceiver.contains("primaryReferenceID:null"),
-               "deleting the adopted DIY should clear stale Studio output while retaining uploaded references")
+               "adoption clears its finished references, while later deletion must not erase a new round's references")
         let expressionCancellation = section(
             settings, from: "function petExpressionCancelled(",
             to: "function petExpressionError(")
