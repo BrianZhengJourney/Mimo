@@ -83,6 +83,21 @@ struct StudioSessionTests {
         expect(restoredStore.restoredCandidate()?.0 == requestID,
                "the native pending candidate can be rehydrated after restart")
 
+        let secondCandidateID = UUID().uuidString.lowercased()
+        let secondImage = Data([0x89, 0x50, 0x4e, 0x47, 4, 5, 6])
+        try restoredStore.saveCandidate(id: secondCandidateID, value: .init(
+            pngData: secondImage,
+            candidatePNGs: [secondImage, secondImage, secondImage],
+            sourceDataURI: source, referenceEvidenceJSON: "{}",
+            styleTuningNote: "soft", temperamentID: "quiet-curious",
+            likeness: 0.7, styleProfile: .creatureV1, lastTouchedAt: Date()))
+        let historyPayload = FamiliarStudioSessionStore(root: root).runtimePayload()
+        expect((historyPayload?["candidateBatches"] as? [[String: Any]])?.count == 2
+               && FamiliarStudioSessionStore(root: root).restoredCandidates().count == 2
+               && FamiliarStudioSessionStore(root: root).restoredCandidate()?.0
+                    == secondCandidateID,
+               "every Low batch in the current DIY round survives restart")
+
         let evolutionID = UUID().uuidString.lowercased()
         try restoredStore.saveEvolution(id: evolutionID, value: .init(
             pngData: image, stagePNGs: [image, image, image], masterPNG: image,
@@ -127,6 +142,11 @@ struct StudioSessionTests {
         let attributes = try FileManager.default.attributesOfItem(atPath: sessionURL.path)
         expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600,
                "the durable Studio checkpoint is private to the current user")
+
+        try restoredStore.clearCandidateHistory()
+        expect(restoredStore.restoredCandidates().isEmpty
+               && restoredStore.restoredEvolution()?.0 == evolutionID,
+               "starting a new DIY round clears Low history without discarding a safe final")
 
         try restoredStore.purgeAll()
         expect(restoredStore.runtimePayload() == nil,

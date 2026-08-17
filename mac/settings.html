@@ -172,10 +172,6 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .reference-role{ position:absolute; left:4px; top:4px; max-width:calc(100% - 8px); padding:2px 5px;
   border-radius:6px; color:#eeeaf8; background:#15112bcc; font-size:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .reference-card.primary .reference-role{ color:#142820; background:#7df0cfe8; font-weight:750; }
-.reference-badges{ display:flex; gap:3px; min-height:17px; margin-top:4px; overflow:hidden; }
-.reference-badge{ min-width:0; padding:2px 4px; border-radius:5px; color:#9b94ad; background:#ffffff08;
-  font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.reference-badge.pending{ color:#d2bb83; background:#ffd4790d; }
 .reference-tools{ display:flex; align-items:center; gap:2px; margin-top:3px; }
 .reference-tools button{ flex:1; min-width:0; padding:3px 2px; border:0; border-radius:5px; color:#9992ac;
   min-height:26px; background:#ffffff07; font-size:11px; line-height:1; }
@@ -285,6 +281,24 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .candidate-feedback{ width:100%; min-height:42px; resize:vertical; padding:6px; color:var(--ink);
   background:var(--surface); border:1px solid var(--line); border-radius:7px; font:9.5px/1.35 var(--ui-font-family); }
 .candidate-feedback:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.candidate-round{ margin-bottom:8px; padding:9px; border:1px solid var(--line); border-radius:13px;
+  background:color-mix(in srgb,var(--surface) 86%,var(--accent-soft)); }
+.candidate-round-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.candidate-round-copy{ min-width:0; }
+.candidate-round-copy b{ display:block; font-size:10.5px; }
+.candidate-round-copy span{ display:block; margin-top:2px; color:var(--dim); font-size:8.5px; }
+.candidate-round-nav{ display:flex; align-items:center; gap:4px; }
+.candidate-round-nav button{ min-width:27px; height:26px; padding:0 7px; border-radius:8px; font-size:11px; }
+.candidate-round-strip{ display:grid; grid-template-columns:repeat(auto-fill,minmax(50px,1fr)); gap:5px; margin-top:8px; }
+.candidate-round-item{ position:relative; min-width:0; padding:3px; border:1px solid transparent;
+  border-radius:9px; background:transparent; }
+.candidate-round-item:hover{ background:var(--surface-raised); }
+.candidate-round-item.current{ border-color:var(--line); background:var(--surface-raised); }
+.candidate-round-item.sel{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft); }
+.candidate-round-item img{ display:block; width:100%; aspect-ratio:1; object-fit:contain; border-radius:6px;
+  background:var(--surface-muted); }
+.candidate-round-item small{ display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; color:var(--dim); font-size:7.5px; }
 .candidate-lightbox{ position:fixed; z-index:1000; inset:0; display:grid; place-items:center; padding:28px;
   background:#352c25a8; backdrop-filter:blur(8px); }
 .candidate-lightbox[hidden]{ display:none; }
@@ -340,16 +354,11 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .expr-status.err{ color:var(--bad); }
 .expr-status button{ flex:0 0 auto; padding:3px 9px; font-size:9.5px; }
 .expr-note{ margin-top:7px; color:#77718e; font-size:9.5px; }
-.studio-progress{ position:relative; min-height:139px; display:grid; grid-template-columns:minmax(0,1fr) auto;
-  align-items:center; gap:12px; padding:13px; overflow:hidden; border:1px dashed #ffffff14; border-radius:11px; }
-.studio-progress.has-preview{ grid-template-columns:minmax(0,1fr) 92px; }
-.progress-copy b{ display:block; color:var(--ink); font-size:10.5px; margin-bottom:5px; }
-.progress-copy p{ color:var(--dim); font-size:10.5px; line-height:1.5; }
-.progress-time{ margin-top:8px; color:var(--warn); font:600 10px ui-monospace,monospace; }
-.progress-actions{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-.progress-actions button{ padding:4px 7px; font-size:10px; }
-.progress-stay{ display:inline-flex; align-items:center; min-height:25px; padding:3px 7px; color:var(--good);
-  border:1px solid #7df0cf33; border-radius:8px; background:#7df0cf0b; font-size:9.5px; }
+.studio-progress{ width:min(430px,100%); margin:auto; padding:10px 4px; }
+.progress-copy b{ display:block; color:var(--ink); font-size:16px; margin-bottom:10px; letter-spacing:-.015em; }
+.progress-time{ margin-top:10px; color:var(--warn); font:600 11px ui-monospace,monospace; }
+.progress-actions{ display:flex; justify-content:flex-start; margin-top:16px; }
+.progress-actions button{ min-height:34px; padding:6px 12px; font-size:10.5px; }
 .progress-cancel{ color:#9992ad; border-color:#ffffff12; background:#ffffff06; }
 .micro-variations{ color:var(--accent); border-color:var(--accent); background:var(--surface-raised); }
 .micro-variations:hover{ background:var(--accent-soft); }
@@ -366,8 +375,15 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .reference-review-meta{ display:flex; flex-wrap:wrap; gap:5px; }
 .reference-review-actions{ display:grid; grid-template-columns:1fr auto; gap:7px; }
 .reference-confirm{ color:#15112b; border:0; background:linear-gradient(120deg,#cabcf5,#7df0cf); font-weight:750; }
-.phase-track{ display:flex; gap:4px; margin-top:8px; }.phase-track i{ width:18px; height:3px;
-  border-radius:3px; background:#ffffff12; }.phase-track i.on{ background:var(--good); box-shadow:0 0 6px #7df0cf55; }
+.phase-track{ height:5px; margin-top:12px; overflow:hidden; border-radius:999px; background:#ded2c4; }
+.phase-track i{ display:block; height:100%; border-radius:inherit; background:var(--good);
+  transition:width .28s ease; }
+.progress-reference-strip{ display:grid; grid-template-columns:repeat(auto-fit,52px); gap:9px; margin-top:22px; }
+.progress-reference{ width:52px; height:52px; padding:3px; overflow:hidden; border:1px solid var(--line);
+  border-radius:13px; background:var(--surface-raised); }
+.progress-reference.primary{ border-color:var(--good); box-shadow:0 0 0 2px color-mix(in srgb,var(--good) 18%,transparent); }
+.progress-reference img{ display:block; width:100%; height:100%; object-fit:contain; border-radius:9px;
+  background:var(--surface-muted); }
 .diagnostics{ display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
 .diag{ padding:3px 6px; color:#918aa7; border:1px solid #ffffff10; border-radius:7px;
   background:#ffffff06; font:9.5px ui-monospace,monospace; }
@@ -392,6 +408,23 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .petlab-state{ display:flex; align-items:center; gap:7px; min-height:18px; margin-top:9px;
   color:var(--dim); font-size:10px; }
 .petlab-state .dot{ width:6px; height:6px; border-radius:50%; background:#7df0cf; box-shadow:0 0 7px #7df0cf88; }
+
+#petLab:not(.studio-busy){ padding:22px; }
+#petLab:not(.studio-busy) .reference-set{ margin:4px 0 18px; padding:14px; }
+#petLab:not(.studio-busy) .reference-tray{ gap:10px; }
+#petLab.studio-busy{ min-height:640px; padding:30px 28px; }
+#petLab.studio-busy > h2{ margin-bottom:34px; }
+#petLab.studio-busy .petlab-intro,
+#petLab.studio-busy .reference-set,
+#petLab.studio-busy .style-tuning,
+#petLab.studio-busy .studio-actions,
+#petLab.studio-busy .final-controls,
+#petLab.studio-busy .petlab-state,
+#petLab.studio-busy .pet-privacy,
+#petLab.studio-busy .recovery-archive,
+#petLab.studio-busy .api-setup{ display:none!important; }
+#petLab.studio-busy .sheet-result{ min-height:430px; padding:42px 32px; display:grid; align-items:center;
+  border-color:color-mix(in srgb,var(--line) 70%,transparent); background:var(--surface-raised); }
 .pet-privacy{ margin-top:8px; color:#8e879f; font-size:9.5px; }
 .pet-privacy summary{ cursor:pointer; color:#aaa3ba; }.pet-privacy p{ margin-top:6px; line-height:1.45; }
 .recovery-archive{ display:none; align-items:center; justify-content:space-between; gap:8px; margin-top:8px;
@@ -853,6 +886,10 @@ function setSettingsTab(tab){
   document.querySelectorAll('[data-panel]').forEach(el => el.classList.toggle('cur', el.dataset.panel === activeSettingsTab));
   if(changed){ document.body.scrollTop = 0; document.documentElement.scrollTop = 0; }
 }
+function showPhotoHandoffStudio(){
+  setSettingsTab('pet');
+  requestAnimationFrame(()=>document.getElementById('petLab')?.scrollIntoView({behavior:'auto',block:'start'}));
+}
 function syncLanguageChoices(){
   document.querySelectorAll('[data-language]').forEach(el => {
     const selected = el.dataset.language === LANG;
@@ -971,7 +1008,7 @@ const defaultStylePreset=()=>DIY_STYLE_PRESETS.find(preset=>preset.default)||DIY
 const localizedStylePresetNote=preset=>preset?(LANG==='en'?preset.tuningNoteEn:preset.tuningNoteZh):'';
 const defaultStyleTuning=()=>localizedStylePresetNote(defaultStylePreset())||(LANG==='zh'?STYLE_TUNING_MIMO_V2.zh:STYLE_TUNING_MIMO_V2.en);
 const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],primaryReferenceID:null,requestID:null,draftID:null,
-  candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
+  candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,
   temperamentID:'quiet-curious',quality:'medium',
   stylePresetID:'mimo-v2',styleTuningNote:STYLE_TUNING_MIMO_V2.zh,styleTuningCustomized:false,
   sheetQuality:null,stageQualities:[null,null,null],preservedResult:false,
@@ -984,6 +1021,20 @@ const petLab={name:'我的小伴灵',source:null,sourceName:'',references:[],pri
   importing:0,
   expr:null};
 let studioSessionApplied=false,studioCheckpointTimer=null;
+
+function normalizedCandidateBatches(raw,currentDraftID,currentCandidates,currentIndex,currentFeedback){
+  const batches=(Array.isArray(raw)?raw:[]).map(batch=>({
+    candidateDraftID:String(batch?.candidateDraftID||''),
+    candidates:(Array.isArray(batch?.candidates)?batch.candidates:[]).filter(candidate=>candidateImage(candidate)),
+    candidateIndex:null,candidateFeedback:{},createdAt:Number(batch?.createdAt)||null,
+  })).filter(batch=>batch.candidateDraftID&&batch.candidates.length);
+  if(currentDraftID&&currentCandidates.length&&!batches.some(batch=>batch.candidateDraftID===currentDraftID)){
+    batches.push({candidateDraftID:currentDraftID,candidates:currentCandidates,candidateIndex:null,candidateFeedback:{},createdAt:null});
+  }
+  let active=batches.findIndex(batch=>batch.candidateDraftID===currentDraftID);if(active<0)active=batches.length?batches.length-1:null;
+  if(active!==null){batches[active].candidateIndex=Number.isInteger(currentIndex)?currentIndex:null;batches[active].candidateFeedback=currentFeedback||{}}
+  return {batches,active};
+}
 
 // Every Studio start is bound to the native privacy epoch that produced this
 // settings state. A message posted before Delete Everything may reach native
@@ -1001,7 +1052,7 @@ function studioCheckpointPayload(){
   syncPrimaryReference();return{name:petLab.name,primaryReferenceID:petLab.primaryReferenceID,
     references:petLab.references.map(ref=>({id:ref.id,name:ref.name||'',source:ref.source,width:ref.width,height:ref.height})),
     temperamentID:petLab.temperamentID,stylePresetID:stylePresetIDForBridge(),styleTuningNote:styleTuningForBridge(),
-    styleTuningCustomized:!!petLab.styleTuningCustomized,candidateIndex:petLab.candidateIndex,
+    styleTuningCustomized:!!petLab.styleTuningCustomized,candidateDraftID:petLab.candidateDraftID,candidateIndex:petLab.candidateIndex,
     candidateFeedback:petLab.candidateFeedback||{},status:petLab.status,operation:petLab.operation,requestID:petLab.requestID};
 }
 function checkpointStudioSession(immediate=false){
@@ -1012,10 +1063,14 @@ function restoreStudioSession(session){
   if(!session||typeof session!=='object')return;
   const refs=Array.isArray(session.references)?session.references.filter(ref=>ref&&ref.id&&ref.source).slice(0,MAX_PET_REFERENCES):[];
   const recoverable=!!(session.recoveryRequestID&&session.rawPreview&&session.canRetryLocally),interrupted=!!session.interrupted&&!recoverable;
+  const restoredCandidates=Array.isArray(session.candidates)?session.candidates.filter(candidate=>candidateImage(candidate)):[];
+  const history=normalizedCandidateBatches(session.candidateBatches,session.candidateDraftID||null,restoredCandidates,
+    Number.isInteger(session.candidateIndex)?session.candidateIndex:null,session.candidateFeedback||{});
+  const activeBatch=history.active===null?null:history.batches[history.active];
   Object.assign(petLab,{name:session.name||petLab.name,references:refs,primaryReferenceID:session.primaryReferenceID||refs[0]?.id||null,
     temperamentID:session.temperamentID||petLab.temperamentID,stylePresetID:session.stylePresetID||petLab.stylePresetID,
     styleTuningNote:session.styleTuningNote||petLab.styleTuningNote,styleTuningCustomized:!!session.styleTuningCustomized,
-    candidateDraftID:session.candidateDraftID||null,candidates:Array.isArray(session.candidates)?session.candidates:[],
+    candidateDraftID:activeBatch?.candidateDraftID||null,candidates:activeBatch?.candidates||[],candidateBatches:history.batches,candidateBatchIndex:history.active,
     candidateIndex:Number.isInteger(session.candidateIndex)?session.candidateIndex:null,candidateFeedback:session.candidateFeedback||{},
     draftID:session.draftID||null,sheet:session.sheet||null,sheetQuality:session.sheetQuality||null,
     stageQualities:Array.isArray(session.stageQualities)?session.stageQualities:[null,null,null],
@@ -1077,32 +1132,19 @@ function syncPrimaryReference(){
   petLab.primaryReferenceID=primary?.id||null;
   petLab.source=primary?.source||null;petLab.sourceName=primary?.name||'';
 }
-function referenceBadges(ref,isPrimary){
-  const analysis=ref.analysis||{};
-  if(analysis.status==='ready'){
-    const supplied=LANG==='zh'?analysis.badgesZh:analysis.badgesEn;
-    if(Array.isArray(supplied)&&supplied.length)return supplied.slice(0,2).map(label=>({label:String(label),pending:false}));
-  }
-  return [
-    {label:isPrimary?tx('主角 · 待分析','subject · pending'):tx('辅助参考','supporting ref'),pending:true},
-    {label:tx('文字/UI · 待隔离','text/UI · isolate'),pending:true},
-  ];
-}
 function renderReferenceSet(){
   syncPrimaryReference();
   const tray=document.getElementById('petReferenceTray'),count=document.getElementById('petReferenceCount'),status=document.getElementById('petReferenceStatus');if(!tray||!count)return;
   const refs=petLab.references,busy=studioBusy()||referencesImporting();count.textContent=`${refs.length} / ${MAX_PET_REFERENCES}`;
   const cards=refs.map((ref,index)=>{
-    const primary=ref.id===petLab.primaryReferenceID,badges=referenceBadges(ref,primary);
+    const primary=ref.id===petLab.primaryReferenceID;
     const name=ref.name||tx(`参考图 ${index+1}`,`Reference ${index+1}`);
     return `<div class="reference-card ${primary?'primary':''}" role="listitem" data-reference-id="${esc(ref.id)}">
       <button type="button" class="reference-image-button" aria-pressed="${primary}" ${busy?'disabled':''} onclick="setPrimaryReference('${esc(ref.id)}')" aria-label="${esc(primary?tx(`${name}，当前主参考`,`${name}, current primary reference`):tx(`设 ${name} 为主参考`,`Make ${name} the primary reference`))}">
         <img src="${esc(ref.source)}" alt="${esc(name)}"><span class="reference-role">${primary?tx('★ 主参考','★ primary'):tx(`#${index+1} 辅助`,`#${index+1} support`)}</span>
       </button>
-      <div class="reference-badges" aria-label="${esc(tx('分析状态','Analysis status'))}">${badges.map(b=>`<span class="reference-badge ${b.pending?'pending':''}">${esc(b.label)}</span>`).join('')}</div>
       <div class="reference-tools">
         <button type="button" class="reference-zoom" onclick="openReferenceLightbox('${esc(ref.id)}')" aria-label="${esc(tx(`放大查看 ${name} 原图`,`Zoom into ${name}`))}">${tx('放大','Zoom')}</button>
-        ${ref.analysis?.cutout?`<button type="button" class="reference-zoom" onclick="openReferenceLightbox('${esc(ref.id)}','cutout')" aria-label="${esc(tx(`放大查看 ${name} 的抠图结果`,`Zoom into the cutout from ${name}`))}">${tx('抠图','Cutout')}</button>`:''}
         <button type="button" ${busy||index===0?'disabled':''} onclick="movePetReference('${esc(ref.id)}',-1)" aria-label="${esc(tx(`将 ${name} 向前移动`,`Move ${name} earlier`))}">←</button>
         <button type="button" ${busy||index===refs.length-1?'disabled':''} onclick="movePetReference('${esc(ref.id)}',1)" aria-label="${esc(tx(`将 ${name} 向后移动`,`Move ${name} later`))}">→</button>
         <button type="button" class="reference-remove" ${busy?'disabled':''} onclick="removePetReference('${esc(ref.id)}')" aria-label="${esc(tx(`移除 ${name}`,`Remove ${name}`))}">×</button>
@@ -1116,41 +1158,47 @@ function renderReferenceSet(){
   if(glyph)glyph.style.display=petLab.source?'none':'';
   if(status)status.textContent=LANG==='zh'?petLab.referenceNoticeZh:petLab.referenceNoticeEn;
 }
-function referenceSetChanged({autoGenerate=true}={}){
+function preserveDraftsAfterReferenceChange(){
+  const hasResult=!!petLab.sheet||petLab.candidates.length>0||petLab.candidateBatches.length>0;
+  Object.assign(petLab,{requestID:null,status:hasResult?'ready':'idle',phase:'',phaseMessage:'',
+    error:'',errorKind:'',errorCode:'',outputRetained:false,partialImage:null,
+    candidateBatches:petLab.candidateBatches,preservedResult:!!petLab.sheet,
+    startedAt:null,finishedElapsed:null,cancelArmedUntil:0});
+  closeCandidateLightbox();renderPetLab();
+}
+function referenceSetChanged({autoGenerate=false}={}){
   syncPrimaryReference();
   petLab.references.forEach(ref=>{ref.analysis={status:'pending'}});
   petLab.referenceNoticeZh=petLab.references.length?(autoGenerate?`已在本机准备 ${petLab.references.length} 张参考图；全部就绪后自动生成草稿。`:`参考集已更新（${petLab.references.length} 张）；想重新生成时点下方按钮。`):'参考集已清空；请添加至少一张图片。';
   petLab.referenceNoticeEn=petLab.references.length?(autoGenerate?`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; drafts start when all are ready.`:`Reference set updated (${petLab.references.length}); regenerate below when you're ready.`):'Reference set cleared; add at least one image.';
-  // Deletion is a manual curation action. Fence it before invalidation renders:
-  // renderPetLab schedules generation, so marking the signature afterwards is
-  // already too late and leaves a live 320 ms timer behind.
+  // Reference curation is always manual. Fence any queued first-import run
+  // before rendering so reordering, deletion, or a new primary cannot generate.
   if(!autoGenerate){
     clearTimeout(candidateAutoGenerateTimer);candidateAutoGenerateTimer=null;
     candidateAutoGenerateSignature=candidateReferenceSignature();
   }
-  invalidatePetDraft();checkpointStudioSession();
+  preserveDraftsAfterReferenceChange();checkpointStudioSession();
   if(autoGenerate)scheduleCandidateAutoGeneration();
 }
 function setPrimaryReference(id){
   if(studioBusy()||referencesImporting()||id===petLab.primaryReferenceID||!petLab.references.some(ref=>ref.id===id))return;
-  petLab.primaryReferenceID=id;referenceSetChanged();
+  petLab.primaryReferenceID=id;referenceSetChanged({autoGenerate:false});
 }
 function movePetReference(id,direction){
   if(studioBusy()||referencesImporting())return;const index=petLab.references.findIndex(ref=>ref.id===id),next=index+direction;
   if(index<0||next<0||next>=petLab.references.length)return;
-  [petLab.references[index],petLab.references[next]]=[petLab.references[next],petLab.references[index]];referenceSetChanged();
+  [petLab.references[index],petLab.references[next]]=[petLab.references[next],petLab.references[index]];referenceSetChanged({autoGenerate:false});
 }
 function removePetReference(id){
   if(studioBusy()||referencesImporting())return;const before=petLab.references.length;
   petLab.references=petLab.references.filter(ref=>ref.id!==id);if(petLab.references.length===before)return;
   if(petLab.primaryReferenceID===id)petLab.primaryReferenceID=petLab.references[0]?.id||null;referenceSetChanged({autoGenerate:false});
 }
-// Future native analysis can replace the honest pending badges without changing
-// reference order: {references:[{id,status:'ready',badgesZh:[...],badgesEn:[...]}]}.
+// Native analysis feeds the small prepared cutouts shown only during generation.
 function petReferenceAnalysis(event){
   const updates=Array.isArray(event?.references)?event.references:[];
   updates.forEach(update=>{const ref=petLab.references.find(item=>item.id===update.id);if(ref)ref.analysis={...ref.analysis,...update}});
-  renderReferenceSet();
+  renderPetLab();
 }
 // Bridge contract. Nothing in this object leaves the web view until the settled
 // reference set starts draft generation. `source` remains the primary data URI
@@ -1221,10 +1269,11 @@ function updateStyleTuning(value,customized=true){
 }
 function invalidatePetDraft(){
   if(studioBusy())return;
+  const hadCandidateRound=petLab.candidateBatches.length>0||!!petLab.candidateDraftID;
   const keep=!!petLab.draftID&&!!petLab.sheet;
   const accepted=keep?{draftID:petLab.draftID,sheet:petLab.sheet,sheetQuality:petLab.sheetQuality,
     stageImages:[...petLab.stageImages],stageQualities:[...petLab.stageQualities]}:null;
-  Object.assign(petLab,{requestID:null,draftID:accepted?.draftID||null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
+  Object.assign(petLab,{requestID:null,draftID:accepted?.draftID||null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,
     sheet:accepted?.sheet||null,sheetQuality:accepted?.sheetQuality||null,
     stageImages:accepted?.stageImages||[null,null,null],stageQualities:accepted?.stageQualities||[null,null,null],
     preservedResult:keep,stageBusyIndex:null,error:'',errorKind:'',errorCode:'',outputRetained:false,
@@ -1232,7 +1281,9 @@ function invalidatePetDraft(){
     localSeconds:null,providerCompleted:false,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,
     recoveryUntil:null,canRetryLocally:false,resetTo:null,localRetry:false,
     model:null,size:null,partialImages:null,referenceCount:null,styleBoardUsed:null,usage:null,providerDetail:null,
-    startedAt:null,finishedElapsed:null,adoptedCharacterID:null,adoptedName:''});closeCandidateLightbox();renderPetLab();
+    startedAt:null,finishedElapsed:null,adoptedCharacterID:null,adoptedName:''});
+  if(hadCandidateRound)sendStudio({type:'petStudioResetRound'});
+  closeCandidateLightbox();renderPetLab();
 }
 function petPrivacyReset(event){
   if(!adoptStudioPrivacyGeneration(event?.studioPrivacyGeneration))return;
@@ -1245,7 +1296,7 @@ function petPrivacyReset(event){
   if(S&&typeof S==='object')S.generationRecoveryCount=0;
   Object.assign(petLab,{
     source:null,sourceName:'',references:[],primaryReferenceID:null,importing:0,
-    requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
+    requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,
     sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false,
     status:'idle',operation:null,phase:'',phaseMessage:'',error:'',errorKind:'',errorCode:'',
     outputRetained:false,warnings:[],partialImage:null,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,
@@ -1312,22 +1363,55 @@ function phaseInfo(){
   return {title:copy[0],detail:copy[1],step,local,phase};
 }
 function progressHTML(){
-  const info=phaseInfo(),partial=petLab.partialImage;
+  const info=phaseInfo();
   const cancelTitle=tx('明确取消请求；如果 OpenAI 已经开始生成，仍可能产生费用，而且最终结果可能无法取回。','Explicitly cancel the request; if OpenAI already started, cost may still be incurred and the final result may not be recoverable.');
   const cancelArmed=Date.now()<(petLab.cancelArmedUntil||0);
   const cancel=info.local&&info.phase!=='analyzing'?'':`<button type="button" class="progress-cancel" title="${esc(cancelTitle)}" onclick="cancelStudioOperation()">${info.phase==='analyzing'?tx('停止本机分析','Stop local analysis'):cancelArmed?tx('再次点击：确认取消','Click again: confirm cancel'):tx('取消请求','Cancel request')}</button>`;
-  return `<div class="studio-progress ${partial?'has-preview':''}"><div class="progress-copy"><b>${esc(info.title)}</b><p>${esc(info.detail)}</p><div class="progress-time" id="studioElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</div><div class="phase-track" aria-hidden="true"><i class="on"></i><i class="${info.step>=1?'on':''}"></i><i class="${info.step>=2?'on':''}"></i></div><div class="progress-actions"><span class="progress-stay">${tx('页面会留在这里','This page stays open')}</span>${cancel}</div></div>${partial?`<img class="partial-preview" src="${esc(partial)}" alt="${tx('生成中的局部预览','Partial generation preview')}">`:''}</div>${diagnosticsHTML()}`;
+  const progress=info.step>=2?88:info.step>=1?56:22;
+  const portraits=petLab.references.slice(0,MAX_PET_REFERENCES).map(ref=>{
+    const primary=ref.id===petLab.primaryReferenceID,source=ref.analysis?.cutout||ref.source;
+    return `<div class="progress-reference ${primary?'primary':''}"><img src="${esc(source)}" alt=""></div>`;
+  }).join('');
+  return `<div class="studio-progress"><div class="progress-copy"><b>${esc(info.title)}</b><div class="phase-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><i style="width:${progress}%"></i></div><div class="progress-time" id="studioElapsed" aria-hidden="true">${durationText(elapsedSeconds())||'0.0s'}</div><div class="progress-reference-strip" aria-label="${tx('已筛选的参考人像','Prepared reference portraits')}">${portraits}</div><div class="progress-actions">${cancel}</div></div></div>`;
 }
 function draftFeedbackForBridge(index){
   return String(petLab.candidateFeedback?.[index]||'').replace(/\s+/g,' ').trim().slice(0,160);
 }
+function syncActiveCandidateBatch(){
+  const index=petLab.candidateBatchIndex,batch=Number.isInteger(index)?petLab.candidateBatches[index]:null;
+  if(!batch||batch.candidateDraftID!==petLab.candidateDraftID)return;
+  batch.candidateIndex=petLab.candidateIndex;batch.candidateFeedback={...(petLab.candidateFeedback||{})};
+}
 function updateCandidateFeedback(index,value){
   if(!Number.isInteger(index)||index<0||index>=petLab.candidates.length)return;
-  petLab.candidateFeedback[index]=String(value??'').slice(0,160);checkpointStudioSession();
+  petLab.candidateFeedback[index]=String(value??'').slice(0,160);syncActiveCandidateBatch();checkpointStudioSession();
+}
+function switchCandidateBatch(batchIndex,candidateIndex=null){
+  if(studioBusy()||!Number.isInteger(batchIndex)||batchIndex<0||batchIndex>=petLab.candidateBatches.length)return;
+  syncActiveCandidateBatch();const batch=petLab.candidateBatches[batchIndex];
+  Object.assign(petLab,{candidateBatchIndex:batchIndex,candidateDraftID:batch.candidateDraftID,candidates:batch.candidates,
+    candidateIndex:Number.isInteger(candidateIndex)?candidateIndex:(Number.isInteger(batch.candidateIndex)?batch.candidateIndex:null),
+    candidateFeedback:{...(batch.candidateFeedback||{})},status:'ready',operation:'candidates',error:'',errorKind:'',errorCode:'',preservedResult:!!petLab.sheet});
+  syncActiveCandidateBatch();closeCandidateLightbox();renderPetLab();checkpointStudioSession(true);
+}
+function moveCandidateBatch(delta){
+  const current=Number.isInteger(petLab.candidateBatchIndex)?petLab.candidateBatchIndex:petLab.candidateBatches.length-1;
+  switchCandidateBatch(current+delta);
+}
+function candidateRoundHTML(){
+  const batches=petLab.candidateBatches||[];if(batches.length<2)return '';
+  const current=Number.isInteger(petLab.candidateBatchIndex)?petLab.candidateBatchIndex:batches.length-1;
+  const total=batches.reduce((sum,batch)=>sum+batch.candidates.length,0);
+  const strip=batches.flatMap((batch,batchIndex)=>batch.candidates.map((candidate,candidateIndex)=>{
+    const selected=batchIndex===current&&petLab.candidateIndex===candidateIndex;
+    return `<button type="button" class="candidate-round-item ${batchIndex===current?'current':''} ${selected?'sel':''}" onclick="switchCandidateBatch(${batchIndex},${candidateIndex})" aria-label="${esc(tx(`第 ${batchIndex+1} 组，草稿 ${candidateIndex+1}`,`Batch ${batchIndex+1}, draft ${candidateIndex+1}`))}"><img src="${esc(candidateImage(candidate))}" alt=""><small>${batchIndex+1}.${candidateIndex+1}</small></button>`;
+  })).join('');
+  return `<section class="candidate-round" aria-label="${tx('本轮生成记录','Current round history')}"><div class="candidate-round-head"><div class="candidate-round-copy"><b>${tx(`本轮全部 · ${total} 个`,`This round · ${total}`)}</b><span>${tx(`正在看第 ${current+1} / ${batches.length} 组`,`Viewing batch ${current+1} of ${batches.length}`)}</span></div><div class="candidate-round-nav"><button type="button" ${current<=0?'disabled':''} onclick="moveCandidateBatch(-1)" aria-label="${tx('上一组','Previous batch')}">←</button><button type="button" ${current>=batches.length-1?'disabled':''} onclick="moveCandidateBatch(1)" aria-label="${tx('下一组','Next batch')}">→</button></div></div><div class="candidate-round-strip">${strip}</div></section>`;
 }
 function candidateGridHTML(){
   return `<div class="candidate-grid" role="radiogroup" aria-label="${tx('选择一个草稿','Choose one draft')}">${petLab.candidates.map((candidate,i)=>{const selected=petLab.candidateIndex===i,image=candidateImage(candidate),feedback=petLab.candidateFeedback?.[i]||'';return `<article class="candidate ${selected?'sel':''}"><button type="button" class="candidate-select" role="radio" aria-checked="${selected}" onclick="selectCandidate(${i})"><img src="${esc(image)}" alt="${esc(tx(`草稿 ${i+1}`,`Draft ${i+1}`))}"><span>${selected?tx(`已选 · 草稿 ${i+1}`,`selected · draft ${i+1}`):tx(`选择草稿 ${i+1}`,`choose draft ${i+1}`)}</span></button><div class="candidate-tools"><button type="button" class="candidate-zoom" onclick="openCandidateLightbox(${i})">${tx('放大','Zoom')}</button></div><label class="candidate-feedback-label"><span>${tx('这张想怎么改？','What should change?')}</span><textarea class="candidate-feedback" maxlength="160" placeholder="${esc(tx('可选：例如头小一点、表情更萌','Optional: e.g. smaller head, cuter expression'))}" oninput="updateCandidateFeedback(${i},this.value)">${esc(feedback)}</textarea></label></article>`}).join('')}</div>`;
 }
+function candidateWorkspaceHTML(){return `${candidateRoundHTML()}${candidateGridHTML()}`}
 function openCandidateLightbox(index){
   const image=candidateImage(petLab.candidates[index]);if(!image)return;
   const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');if(!box||!preview)return;
@@ -1338,14 +1422,12 @@ function closeCandidateLightbox(){
   const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');
   if(box)box.hidden=true;if(preview)preview.removeAttribute('src');
 }
-function openReferenceLightbox(id,kind){
+function openReferenceLightbox(id){
   const ref=petLab.references.find(item=>item.id===id);if(!ref)return;
-  const cutout=kind==='cutout';
-  const image=cutout?ref.analysis?.cutout:ref.source;if(!image)return;
+  const image=ref.source;if(!image)return;
   const box=document.getElementById('candidateLightbox'),preview=document.getElementById('candidateLightboxImage');if(!box||!preview)return;
   preview.src=image;
-  preview.alt=cutout?tx(`${ref.name||'参考图'} 的抠图结果放大预览`,`Cutout from ${ref.name||'reference'}, enlarged`)
-    :tx(`${ref.name||'参考图'} 原图放大预览`,`${ref.name||'Reference'} enlarged original`);
+  preview.alt=tx(`${ref.name||'参考图'} 原图放大预览`,`${ref.name||'Reference'} enlarged original`);
   box.hidden=false;
   box.querySelector('.candidate-lightbox-close')?.focus();
 }
@@ -1390,8 +1472,10 @@ function syncVisibleDrafts(){
   visibleDraftSignature=signature;send({type:'petVisibleDrafts',draftID,candidateDraftID});
 }
 function renderPetLab(){
+  const busy=studioBusy(),importing=referencesImporting(),lab=document.getElementById('petLab');
+  if(lab)lab.classList.toggle('studio-busy',busy);
   renderStyleTuning();renderKeyState();renderReferenceSet();renderRecoveryArchive();
-  const busy=studioBusy(),importing=referencesImporting(),generate=document.getElementById('petGenerate'),evolve=document.getElementById('petEvolutionGenerate'),variations=document.getElementById('petVariationsGenerate');
+  const generate=document.getElementById('petGenerate'),evolve=document.getElementById('petEvolutionGenerate'),variations=document.getElementById('petVariationsGenerate');
   document.querySelectorAll('[data-pet-upload]').forEach(button=>button.disabled=busy||importing||petLab.references.length>=MAX_PET_REFERENCES);
   const petName=document.getElementById('petName');if(petName)petName.disabled=busy||importing;
   if(generate){const pending=Math.max(1,+petLab.importing||0);generate.disabled=busy||importing||!petLab.source;generate.textContent=importing?tx(`正在导入 ${pending} 张…`,`Importing ${pending}…`):petLab.status==='busy'&&petLab.operation==='candidates'?tx('正在生成 3 个草稿…','Generating 3 drafts…'):petLab.candidates.length?tx('重新生成 3 个草稿','Regenerate 3 drafts'):tx('生成 3 个草稿','Generate 3 drafts')}
@@ -1407,19 +1491,18 @@ function renderPetLab(){
   const result=document.getElementById('petSheetResult'),state=document.getElementById('petLabState');if(!result||!state)return;
   result.setAttribute('aria-busy',petLab.status==='busy'?'true':'false');
   if(petLab.status==='busy'){
-    const title=petLab.localRetry?tx('本机重新处理 · 不会调用 OpenAI','Local retry · no OpenAI call'):petLab.operation==='candidates'?tx('正在生成 3 个草稿','Generating 3 drafts'):petLab.operation==='variations'?tx('正在画 3 个小表情','Drawing 3 expressions'):tx('正在生成 Medium 定稿','Creating Medium final');
-    result.innerHTML=`<div class="sheet-result-head"><b>${title}</b><span class="sheet-meta">${petLab.operation==='evolution'?'MEDIUM':'LOW'}</span></div>${progressHTML()}`;
+    result.innerHTML=progressHTML();
   }else if(petLab.status==='error'){
-    const preserved=petLab.sheet?`${finalPreviewHTML(petLab.sheet)}<div style="height:8px"></div>`:petLab.candidates.length?`${candidateGridHTML()}<div style="height:8px"></div>`:'';
+    const preserved=petLab.sheet?`${finalPreviewHTML(petLab.sheet)}<div style="height:8px"></div>`:petLab.candidates.length?`${candidateWorkspaceHTML()}<div style="height:8px"></div>`:'';
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('这一步没有完成','This step did not finish')}</b><span class="sheet-meta err">${petLab.errorKind==='local'?'LOCAL':petLab.errorKind==='setup'?'SETUP':'OPENAI'} · ${tx('失败','FAILED')}</span></div>${preserved}${errorHTML()}`;
   }else if(petLab.status==='adopted'&&petLab.sheet){
     result.innerHTML=`<div class="sheet-result-head"><b>${esc(tx(`${petLab.adoptedName} 已住进桌面`,`${petLab.adoptedName} is home`))}</b><span class="sheet-meta">ADOPTED</span></div>${finalPreviewHTML(petLab.sheet)}${expressionStatusHTML()}${diagnosticsHTML()}`;
   }else if(petLab.candidates.length&&petLab.preservedResult&&petLab.sheet){
-    result.innerHTML=`<div class="sheet-result-head"><b>${tx('选择一个新草稿','Choose one new draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateGridHTML()}${diagnosticsHTML()}<div class="preserved-result"><b>${tx('上一套仍安全保留','Previous final remains safe')}</b>${finalPreviewHTML(petLab.sheet)}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('仍然使用上一套 ✦','Use previous final ✦')}</button></div></div>`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${tx('选择一个新草稿','Choose one new draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateWorkspaceHTML()}${diagnosticsHTML()}<div class="preserved-result"><b>${tx('上一套仍安全保留','Previous final remains safe')}</b>${finalPreviewHTML(petLab.sheet)}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('仍然使用上一套 ✦','Use previous final ✦')}</button></div></div>`;
   }else if(petLab.sheet){
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('完整伴灵已完成','Your familiar is ready')}</b><span class="sheet-meta">MEDIUM</span></div>${finalPreviewHTML(petLab.sheet)}${diagnosticsHTML()}<div class="sheet-actions"><button class="sheet-adopt" type="button" onclick="installCharacterSheet()">${tx('让它住进桌面 ✦','Bring it home ✦')}</button></div>`;
   }else if(petLab.candidates.length){
-    result.innerHTML=`<div class="sheet-result-head"><b>${petLab.operation==='variations'?tx('选一个最舒服的小表情','Choose the expression that feels right'):tx('选择一个草稿','Choose one draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateGridHTML()}${diagnosticsHTML()}`;
+    result.innerHTML=`<div class="sheet-result-head"><b>${petLab.operation==='variations'?tx('选一个最舒服的小表情','Choose the expression that feels right'):tx('选择一个草稿','Choose one draft')}</b><span class="sheet-meta">LOW · 3</span></div>${candidateWorkspaceHTML()}${diagnosticsHTML()}`;
   }else{
     result.innerHTML=`<div class="sheet-result-head"><b>${tx('等待参考图','Waiting for references')}</b><span class="sheet-meta">AUTO</span></div><div class="sheet-empty">${tx('图片全部就绪后，米墨会自动生成 3 个草稿。','Mimo automatically makes 3 drafts after every image is ready.')}</div>`;
   }
@@ -1522,7 +1605,7 @@ function selectCandidate(index){
   petLab.candidateIndex=index;
   if(petLab.sheet)petLab.preservedResult=true;
   petLab.status='ready';petLab.error='';petLab.errorKind='';petLab.errorCode='';
-  renderPetLab();checkpointStudioSession();
+  syncActiveCandidateBatch();renderPetLab();checkpointStudioSession();
 }
 function generateEvolution(){
   if(!canGenerate())return;const index=petLab.candidateIndex;
@@ -1573,7 +1656,7 @@ function petGenerationCancelled(event){
 }
 function petDraftExpired(event){
   if(event.kind==='candidate'&&event.draftID===petLab.candidateDraftID){
-    Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{}});
+    Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null});
     if(!petLab.sheet)Object.assign(petLab,{status:'error',operation:'candidates',errorKind:'setup',errorCode:'candidate_expired',resetTo:'candidates',error:tx('这些 Low 草稿已经过期；不会自动产生新费用。','These Low drafts expired; no new cost was incurred automatically.')});
   }
   if(event.kind==='evolution'&&event.draftID===petLab.draftID){
@@ -1600,8 +1683,11 @@ function petStudioProgress(event){
 function petCandidateResult(event){
   if(event.requestID!==petLab.requestID)return;const candidates=(event.candidates||event.images||[]).filter(candidate=>candidateImage(candidate));
   if(!candidates.length){petStudioError({...event,kind:'local',message:tx('OpenAI 返回了结果，但没有找到可展示的候选角色。','OpenAI returned a result, but no displayable character candidates were found.')});return}
+  syncActiveCandidateBatch();const candidateDraftID=event.candidateDraftID||event.draftID||event.requestID;
+  const candidateBatches=(petLab.candidateBatches||[]).filter(batch=>batch.candidateDraftID!==candidateDraftID);
+  candidateBatches.push({candidateDraftID,candidates,candidateIndex:null,candidateFeedback:{},createdAt:Date.now(),mode:event.mode||'candidates'});
   const keepPrevious=!!petLab.sheet&&!!petLab.draftID;finishStudioOperation(event);Object.assign(petLab,{requestID:null,status:'ready',operation:event.mode==='variations'?'variations':'candidates',candidates,
-    candidateDraftID:event.candidateDraftID||event.draftID||event.requestID,candidateIndex:null,candidateFeedback:{},preservedResult:keepPrevious,
+    candidateDraftID,candidateIndex:null,candidateFeedback:{},candidateBatches,candidateBatchIndex:candidateBatches.length-1,preservedResult:keepPrevious,
     stageBusyIndex:null,error:'',errorKind:'',errorCode:''});
   if(!keepPrevious)Object.assign(petLab,{draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null]});
   // Low is a deliberate stopping point. Do not select a draft or start a
@@ -1648,9 +1734,9 @@ function petStudioError(event){
   if(local&&event.providerCompleted&&event.canRetryLocally){
     petLab.recoveryRequestID=event.requestID||petLab.requestID;
   }else petLab.recoveryRequestID=null;
-  if(event.resetTo==='candidates'&&event.code==='candidate_expired')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},preservedResult:!!petLab.sheet});
-  else if(event.resetTo==='candidates')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
-  if(event.resetTo==='upload')Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
+  if(event.resetTo==='candidates'&&event.code==='candidate_expired')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,preservedResult:!!petLab.sheet});
+  else if(event.resetTo==='candidates')Object.assign(petLab,{candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,draftID:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
+  if(event.resetTo==='upload')Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
   if(event.draftID&&!petLab.draftID)petLab.draftID=event.draftID;renderPetLab();checkpointStudioSession();
 }
 function installCharacterSheet(){
@@ -1660,7 +1746,7 @@ function installCharacterSheet(){
 function petInstallError(event){
   const expired=event.code==='preview_expired';Object.assign(petLab,{status:'error',operation:'install',errorKind:expired?'setup':'local',errorCode:event.code||'install_failed',resetTo:expired?'candidates':null,
     error:(LANG==='zh'?(event.messageZh||event.message):(event.messageEn||event.message))||tx('无法保存这套伴灵。','Could not save this familiar.')});
-  if(expired)Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
+  if(expired)Object.assign(petLab,{draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],preservedResult:false});
   renderPetLab();checkpointStudioSession();
 }
 function customPetAdopted(event){
@@ -1756,7 +1842,7 @@ function petLibraryDeleted(event){
   if(!event?.characterID||event.characterID===petManagerUI.characterID)closePetManager();
   if(event?.characterID&&event.characterID===petLab.adoptedCharacterID){
     Object.assign(petLab,{adoptedCharacterID:null,adoptedName:'',status:'idle',operation:null,
-      requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},
+      requestID:null,draftID:null,candidateDraftID:null,candidates:[],candidateIndex:null,candidateFeedback:{},candidateBatches:[],candidateBatchIndex:null,
       sheet:null,sheetQuality:null,stageImages:[null,null,null],stageQualities:[null,null,null],stageBusyIndex:null,
       preservedResult:false,expr:null,error:'',errorKind:'',errorCode:'',phase:'',phaseMessage:'',
       partialImage:null,rawPreview:null,recoveryDraftID:null,recoveryRequestID:null,recoveryUntil:null,
@@ -1876,7 +1962,7 @@ function loadPetImageData(url,sourceName,options={append:true}){
     petLab.referenceNoticeZh=`已在本机准备 ${petLab.references.length} 张参考图；全部就绪后自动生成草稿。`;
     petLab.referenceNoticeEn=`${petLab.references.length} reference${petLab.references.length===1?' is':'s are'} ready locally; drafts start when all are ready.`;
     syncPrimaryReference();
-    invalidatePetDraft();return true;
+    preserveDraftsAfterReferenceChange();return true;
   });
   petReferenceLoadQueue=task.finally(()=>{
     if(privacyGeneration!==studioPrivacyGeneration)return;
@@ -1925,7 +2011,7 @@ async function addPetReferenceFiles(fileList){
     if(privacyGeneration===studioPrivacyGeneration)referenceBatchDepth=Math.max(0,referenceBatchDepth-1);
   }
   if(privacyGeneration!==studioPrivacyGeneration)return;
-  if(added&&petLab.status==='error'&&petLab.errorKind==='setup')invalidatePetDraft();
+  if(added&&petLab.status==='error'&&petLab.errorKind==='setup')preserveDraftsAfterReferenceChange();
   if(skipped){
     petLab.referenceNoticeZh=`已添加可用图片；另有 ${skipped} 张因超过上限、20 MB 或无法读取而跳过。`;
     petLab.referenceNoticeEn=`Usable images were added; ${skipped} skipped due to the limit, 20 MB size, or an unreadable file.`;renderReferenceSet();

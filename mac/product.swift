@@ -397,6 +397,7 @@ extension AppDelegate {
         "petInstallRaster",
         "petRegenerateExpressions",
         "petStudioCheckpoint",
+        "petStudioResetRound",
     ]
 
     private var studioPrivacyGenerationToken: String {
@@ -422,10 +423,10 @@ extension AppDelegate {
     }
 
     func restorePersistedStudioSession() {
-        if let (id, candidate) = studioSessionStore.restoredCandidate() {
+        for (id, candidate) in studioSessionStore.restoredCandidates() {
             pendingCandidateBoards[id] = candidate
-            visibleCandidateDraftID = id
         }
+        visibleCandidateDraftID = studioSessionStore.persistedCandidateID
         if let (id, evolution) = studioSessionStore.restoredEvolution() {
             pendingEvolutionSheets[id] = evolution
             visibleEvolutionDraftID = id
@@ -1342,9 +1343,7 @@ extension AppDelegate {
             .union(recoveryCandidateIDs)
             .union(settingsWin?.isVisible == true
                    ? visibleCandidateDraftID.map { Set([$0]) } ?? [] : [])
-        if let persisted = studioSessionStore.persistedCandidateID {
-            pinnedCandidateIDs.insert(persisted)
-        }
+        pinnedCandidateIDs.formUnion(studioSessionStore.persistedCandidateIDs)
         pendingCandidateBoards = retainingStudioDrafts(
             pendingCandidateBoards, newerThan: sessionCutoff,
             pinnedIDs: pinnedCandidateIDs, lastTouchedAt: { $0.lastTouchedAt })
@@ -3308,7 +3307,8 @@ extension AppDelegate {
     }
 
     func importPetReferenceURLs(_ urls: [URL],
-                                skippedDueToLimit: Int) {
+                                skippedDueToLimit: Int,
+                                revealStudioWhenFinished: Bool = false) {
         guard petReferenceImportQueue == nil, !urls.isEmpty else { return }
         let privacyEpoch = generationPurgeEpoch
         let privacyToken = StudioPrivacyGeneration.token(for: privacyEpoch)
@@ -3360,8 +3360,15 @@ extension AppDelegate {
                 }
             },
             completion: { [weak self] in
-                guard self?.generationPurgeEpoch == privacyEpoch else { return }
-                self?.petReferenceImportQueue = nil
+                guard let self, self.generationPurgeEpoch == privacyEpoch else { return }
+                self.petReferenceImportQueue = nil
+                if revealStudioWhenFinished, let window = self.settingsWin {
+                    self.presentSettingsWindow(window)
+                    self.settingsWeb?.evaluateJavaScript(
+                        "showPhotoHandoffStudio()", completionHandler: nil)
+                    PhotosPeoplePrototypeController.shared.keepVisible(
+                        alongside: window)
+                }
             })
         petReferenceImportQueue = queue
         queue.start()
@@ -3563,6 +3570,21 @@ extension AppDelegate {
                 settingsCall("petStudioCheckpointFailed", [
                     "messageZh": "这次工作区恢复点没有保存成功；请保留当前窗口并重试。",
                     "messageEn": "This Studio checkpoint was not saved. Keep this window open and try again.",
+                ])
+            }
+        case "petStudioResetRound":
+            let removedIDs = studioSessionStore.persistedCandidateIDs
+            do {
+                try studioSessionStore.clearCandidateHistory()
+                for id in removedIDs { pendingCandidateBoards.removeValue(forKey: id) }
+                if let visibleCandidateDraftID,
+                   removedIDs.contains(visibleCandidateDraftID) {
+                    self.visibleCandidateDraftID = nil
+                }
+            } catch {
+                settingsCall("petStudioCheckpointFailed", [
+                    "messageZh": "新一轮已经打开，但上一轮草稿记录没有清理成功。",
+                    "messageEn": "The new round opened, but the previous draft history could not be cleared.",
                 ])
             }
         case "petWebReference":

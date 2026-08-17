@@ -48,6 +48,16 @@ struct StudioExperienceUITests {
                && generation.contains("MICRO EXPRESSION VARIATIONS")
                && generation.contains("same locked character"),
                "variation generation should preserve the selected master through a dedicated prompt")
+        expect(html.contains("candidateBatches")
+               && html.contains("function candidateRoundHTML()")
+               && html.contains("本轮全部")
+               && html.contains("function moveCandidateBatch(delta)")
+               && html.contains("function switchCandidateBatch(")
+               && session.contains("candidateHistory")
+               && session.contains("func restoredCandidates()")
+               && product.contains("studioSessionStore.restoredCandidates()")
+               && product.contains("case \"petStudioResetRound\""),
+               "the current DIY round should retain, browse, and restore every generated Low option")
 
         expect(product.contains("queuePostInstallStarterActions(")
                && product.contains("resumePostInstallStarterActions()")

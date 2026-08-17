@@ -1527,7 +1527,7 @@ final class PetGenerationCoordinator: @unchecked Sendable {
         Image 1 is a locally prepared IDENTITY EVIDENCE BOARD. When a person was detected, its slots are isolated
         views of the same user-selected subject from useful views; otherwise they are sanitized primary frames for a
         pet or object.
-        The FIRST slot (top-left) is the PRIMARY ANCHOR the user chose: take the face, hair, skin tone, outfit, and
+        The FIRST slot (the large left slot) is the visually dominant PRIMARY ANCHOR the user chose: take the face, hair, skin tone, outfit, and
         overall proportions from it. The remaining slots are supporting evidence only — use them for angles, bearing,
         and expressions the primary slot does not show, and when any supporting slot disagrees with the first slot,
         the first slot wins.

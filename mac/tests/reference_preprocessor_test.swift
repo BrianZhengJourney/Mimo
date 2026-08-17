@@ -228,6 +228,28 @@ struct ReferencePreprocessorTests {
             $0.sourceInputID == "different"
         }), "an unambiguously distant face should be excluded")
 
+        // The first input is the user's explicit primary reference. Board
+        // hardening may demote noisy supporting crops, but it must never replace
+        // that chosen anchor with a cleaner supporting upload.
+        let cleanPerson = analysis(
+            people: [person(0.20, 0.08, 0.55, 0.82)],
+            faces: [face(0.36, 0.66, 0.18, 0.16)])
+        let textHeavyPrimary = analysis(
+            people: [person(0.20, 0.08, 0.55, 0.82)],
+            faces: [face(0.36, 0.66, 0.18, 0.16)],
+            text: [CGRect(x: 0.20, y: 0.08, width: 0.55, height: 0.82)])
+        let anchorStub = StubAnalyzer(
+            analyses: [textHeavyPrimary, cleanPerson, cleanPerson, cleanPerson],
+            featureValues: [0, 1, 2, 3])
+        let anchored = MimoReferencePreprocessor(analyzer: anchorStub).process([
+            MimoReferenceInput(id: "chosen-primary", data: source),
+            MimoReferenceInput(id: "support-a", data: source),
+            MimoReferenceInput(id: "support-b", data: source),
+            MimoReferenceInput(id: "support-c", data: source),
+        ])
+        expect(anchored.recommendedReferences.first?.sourceInputID == "chosen-primary",
+               "clean-board hardening must not replace the user-selected primary anchor")
+
         // A single collage can contribute two useful angles, but only with
         // positive identity compatibility.
         let compatibleStub = StubAnalyzer(analyses: [twoPeople], featureValues: [0, 3])

@@ -23,6 +23,7 @@ private struct StoredStudioUI: Codable {
     var stylePresetID: String = "mimo-v2"
     var styleTuningNote: String = ""
     var styleTuningCustomized = false
+    var candidateDraftID: String?
     var candidateIndex: Int?
     var candidateFeedback: [String: String] = [:]
     var status: String = "idle"
@@ -63,9 +64,12 @@ private struct StoredEvolutionDraft: Codable {
 }
 
 private struct FamiliarStudioEnvelope: Codable {
-    static let schemaVersion = 2
+    static let schemaVersion = 3
     var schemaVersion = Self.schemaVersion
     var ui: StoredStudioUI?
+    /// Schema 3 keeps every Low board produced in the current DIY round.
+    /// `candidate` remains decode-only for schema 1/2 checkpoints.
+    var candidateHistory: [StoredCandidateDraft]?
     var candidate: StoredCandidateDraft?
     var evolution: StoredEvolutionDraft?
     var recovery: StudioLocalRecoveryCheckpoint?
@@ -108,6 +112,9 @@ final class FamiliarStudioSessionStore {
         ui.styleTuningNote = String((object["styleTuningNote"] as? String
             ?? "").prefix(160))
         ui.styleTuningCustomized = object["styleTuningCustomized"] as? Bool ?? false
+        ui.candidateDraftID = (object["candidateDraftID"] as? String).flatMap {
+            UUID(uuidString: $0)?.uuidString.lowercased()
+        }
         ui.candidateIndex = (object["candidateIndex"] as? NSNumber)?.intValue
         ui.candidateFeedback = feedback
         ui.status = String((object["status"] as? String ?? "idle").prefix(30))
@@ -130,7 +137,14 @@ final class FamiliarStudioSessionStore {
             styleProfile: value.styleProfile.rawValue,
             lastTouchedAt: value.lastTouchedAt)
         try update { envelope in
-            envelope.candidate = stored
+            var history = Self.candidateHistory(in: envelope)
+            history.removeAll { $0.id == stored.id }
+            history.append(stored)
+            envelope.candidateHistory = history
+            envelope.candidate = nil
+            envelope.ui?.candidateDraftID = stored.id
+            envelope.ui?.candidateIndex = nil
+            envelope.ui?.candidateFeedback = [:]
             // A new candidate branch supersedes an older unadopted final.
             envelope.evolution = nil
         }
@@ -176,7 +190,19 @@ final class FamiliarStudioSessionStore {
     }
 
     func restoredCandidate() -> (String, PendingCandidateBoardDraft)? {
-        guard let value = load()?.candidate else { return nil }
+        guard let envelope = load(),
+              let value = Self.activeCandidate(in: envelope) else { return nil }
+        return Self.pendingCandidate(value)
+    }
+
+    func restoredCandidates() -> [(String, PendingCandidateBoardDraft)] {
+        guard let envelope = load() else { return [] }
+        return Self.candidateHistory(in: envelope).map(Self.pendingCandidate)
+    }
+
+    private static func pendingCandidate(
+        _ value: StoredCandidateDraft
+    ) -> (String, PendingCandidateBoardDraft) {
         return (value.id, PendingCandidateBoardDraft(
             pngData: value.pngData, candidatePNGs: value.candidatePNGs,
             sourceDataURI: value.sourceDataURI,
@@ -187,8 +213,25 @@ final class FamiliarStudioSessionStore {
             lastTouchedAt: Date()))
     }
 
-    var persistedCandidateID: String? { load()?.candidate?.id }
+    var persistedCandidateID: String? {
+        guard let envelope = load() else { return nil }
+        return Self.activeCandidate(in: envelope)?.id
+    }
+    var persistedCandidateIDs: Set<String> {
+        guard let envelope = load() else { return [] }
+        return Set(Self.candidateHistory(in: envelope).map(\.id))
+    }
     var persistedEvolutionID: String? { load()?.evolution?.id }
+
+    func clearCandidateHistory() throws {
+        try update { envelope in
+            envelope.candidateHistory = nil
+            envelope.candidate = nil
+            envelope.ui?.candidateDraftID = nil
+            envelope.ui?.candidateIndex = nil
+            envelope.ui?.candidateFeedback = [:]
+        }
+    }
 
     func restoredEvolution() -> (String, PendingEvolutionSheetDraft)? {
         guard let value = load()?.evolution else { return nil }
@@ -210,6 +253,7 @@ final class FamiliarStudioSessionStore {
 
     func runtimePayload() -> [String: Any]? {
         guard let envelope = load(), envelope.ui != nil
+                || envelope.candidateHistory?.isEmpty == false
                 || envelope.candidate != nil || envelope.evolution != nil
                 || envelope.recovery != nil else { return nil }
         var output: [String: Any] = [:]
@@ -234,7 +278,19 @@ final class FamiliarStudioSessionStore {
             output["interrupted"] = ui.status == "busy" || ui.status == "installing"
             output["operation"] = ui.operation ?? ""
         }
-        if let candidate = envelope.candidate {
+        let candidateHistory = Self.candidateHistory(in: envelope)
+        if !candidateHistory.isEmpty {
+            output["candidateBatches"] = candidateHistory.map { candidate in
+                [
+                    "candidateDraftID": candidate.id,
+                    "candidates": candidate.candidatePNGs.map {
+                        Self.dataURI($0, mimeType: "image/png")
+                    },
+                    "createdAt": candidate.lastTouchedAt.timeIntervalSince1970 * 1_000,
+                ] as [String: Any]
+            }
+        }
+        if let candidate = Self.activeCandidate(in: envelope) {
             output["candidateDraftID"] = candidate.id
             output["candidates"] = candidate.candidatePNGs.map {
                 Self.dataURI($0, mimeType: "image/png")
@@ -286,6 +342,24 @@ final class FamiliarStudioSessionStore {
             return nil
         }
         return value
+    }
+
+    private static func candidateHistory(
+        in envelope: FamiliarStudioEnvelope
+    ) -> [StoredCandidateDraft] {
+        if let history = envelope.candidateHistory { return history }
+        return envelope.candidate.map { [$0] } ?? []
+    }
+
+    private static func activeCandidate(
+        in envelope: FamiliarStudioEnvelope
+    ) -> StoredCandidateDraft? {
+        let history = candidateHistory(in: envelope)
+        if let activeID = envelope.ui?.candidateDraftID,
+           let active = history.first(where: { $0.id == activeID }) {
+            return active
+        }
+        return history.last
     }
 
     private static func references(from raw: Any?) throws -> [StoredStudioReference] {

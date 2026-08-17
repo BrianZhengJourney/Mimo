@@ -95,6 +95,15 @@ struct DIYStudioFlowTests {
                 settings.contains("role=\"radio\"") &&
                 settings.contains("function selectCandidate(index)"),
                 "the three drafts should behave as a single-choice group")
+        require(settings.contains("function candidateRoundHTML()") &&
+                settings.contains("function switchCandidateBatch(") &&
+                settings.contains("本轮全部") &&
+                settings.contains("candidateBatchIndex"),
+                "regenerated drafts should remain browsable inside one DIY round")
+        require(settings.contains("petLab.primaryReferenceID=id;referenceSetChanged({autoGenerate:false})") &&
+                settings.contains("function preserveDraftsAfterReferenceChange()") &&
+                settings.contains("candidateBatches:petLab.candidateBatches"),
+                "changing the primary reference must stay manual and preserve earlier drafts")
         require(settings.contains("candidateFeedback:{}") &&
                 settings.contains("function updateCandidateFeedback(index,value)") &&
                 settings.contains("class=\"candidate-feedback\"") &&
@@ -133,6 +142,14 @@ struct DIYStudioFlowTests {
                 settings.contains("Drop to add") &&
                 settings.contains("从 Google 图片、网页或 Finder 直接拖进来"),
                 "DIY should explain and visibly acknowledge cross-app image drops")
+        require(settings.contains("function showPhotoHandoffStudio()") &&
+                settings.contains("scrollIntoView({behavior:'auto',block:'start'})"),
+                "a Photos handoff should reveal the DIY Studio directly")
+        require(settings.contains("class=\"progress-reference-strip\"") &&
+                settings.contains("classList.toggle('studio-busy',busy)") &&
+                !settings.contains("class=\"reference-badges\"") &&
+                !settings.contains("tx('抠图','Cutout')"),
+                "busy Studio should be a minimal progress surface with small prepared portraits")
         require(settings.contains("function petDropURLCandidates(dataTransfer)") &&
                 settings.contains("dataTransfer.getData('text/html')") &&
                 settings.contains("dataTransfer.getData('text/uri-list')") &&

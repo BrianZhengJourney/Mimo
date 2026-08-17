@@ -196,6 +196,14 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
         studioWindow.makeKeyAndOrderFront(nil)
     }
 
+    func reactivateAfterPhotoPicker() {
+        guard let window else { return }
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
     /// Release the previous person's in-memory photo scan after the installed
     /// familiar is safely persisted. The window deliberately stays open so it
     /// is immediately ready for the next project.
@@ -1855,6 +1863,7 @@ final class PhotosPeoplePrototypeController: NSObject, NSWindowDelegate {
 
         group.notify(queue: .main) { [weak self] in
             guard let self else { return }
+            self.reactivateAfterPhotoPicker()
             let urls = copied.sorted { $0.0 < $1.0 }.map(\.1)
             guard !urls.isEmpty else {
                 self.resultSummaryLabel.stringValue = voice("没有读到照片", "No photos loaded")
@@ -1974,6 +1983,9 @@ extension PhotosPeoplePrototypeController: PHPickerViewControllerDelegate {
     func picker(_ picker: PHPickerViewController,
                 didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(nil)
+        DispatchQueue.main.async { [weak self] in
+            self?.reactivateAfterPhotoPicker()
+        }
         guard !results.isEmpty else { return }
         resultSummaryLabel.stringValue = voice(
             "正在准备 \(results.count) 张照片…", "Preparing \(results.count) photos…")
@@ -1985,12 +1997,16 @@ extension PhotosPeoplePrototypeController: PHPickerViewControllerDelegate {
 }
 
 extension AppDelegate {
+    private func showPhotoHandoffStudio() {
+        showSettings()
+        settingsWeb?.evaluateJavaScript("showPhotoHandoffStudio()", completionHandler: nil)
+        PhotosPeoplePrototypeController.shared.keepVisible(alongside: settingsWin)
+    }
+
     @objc func showPhotosPeoplePrototype() {
         PhotosPeoplePrototypeController.shared.show { [weak self] urls in
             guard let self else { return }
-            self.showSettings()
-            PhotosPeoplePrototypeController.shared.keepVisible(
-                alongside: self.settingsWin)
+            self.showPhotoHandoffStudio()
             self.waitForStudioThenImportPhotos(urls, attempt: 0)
         }
     }
@@ -2001,8 +2017,10 @@ extension AppDelegate {
             [weak self] result, _ in
             guard let self else { return }
             if result as? Bool == true {
-                web.evaluateJavaScript("setSettingsTab('pet')", completionHandler: nil)
-                self.importPetReferenceURLs(urls, skippedDueToLimit: 0)
+                self.showPhotoHandoffStudio()
+                self.importPetReferenceURLs(
+                    urls, skippedDueToLimit: 0,
+                    revealStudioWhenFinished: true)
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                     self.waitForStudioThenImportPhotos(urls, attempt: attempt + 1)

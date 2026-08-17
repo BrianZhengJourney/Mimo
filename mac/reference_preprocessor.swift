@@ -873,6 +873,21 @@ final class MimoReferencePreprocessor {
             ? allSorted.filter(isCleanBoardReference)
             : allSorted
 
+        // `petReferenceInputs` moves the user's chosen primary upload to source
+        // index zero. Board hardening may reject noisy supporting crops, but it
+        // must never silently replace that explicit anchor with a cleaner
+        // supporting upload. Text intersecting this crop has already been
+        // sanitized locally by `render`, so retaining it does not weaken the
+        // upload privacy boundary.
+        let userPrimaryGroup = allSorted.filter { $0.sourceIndex == 0 }
+        let userPrimary = userPrimaryGroup.first(where: {
+            identityFeatures[$0.id] != nil
+        }) ?? userPrimaryGroup.first
+        if let userPrimary,
+           !sorted.contains(where: { $0.id == userPrimary.id }) {
+            sorted.append(userPrimary)
+        }
+
         // A phone-obscured face can still receive a plausible Vision face box.
         // Suppress it only when a clearly stronger crop of the same view exists
         // in the same upload and the batch already has enough clean sources.
@@ -901,7 +916,8 @@ final class MimoReferencePreprocessor {
                 (lhs.map(\.sourceIndex).min() ?? .max) < (rhs.map(\.sourceIndex).min() ?? .max)
             }
         let primaryGroup = sourceIDs.first
-        let primary = primaryGroup?.first(where: { identityFeatures[$0.id] != nil }) ??
+        let primary = userPrimary ??
+            primaryGroup?.first(where: { identityFeatures[$0.id] != nil }) ??
             primaryGroup?.first ??
             sorted.first(where: { identityFeatures[$0.id] != nil }) ?? sorted.first
         let anchorFeature = primary.flatMap { identityFeatures[$0.id] }
@@ -1041,6 +1057,7 @@ final class MimoReferencePreprocessor {
             "schema": "mimo.reference-evidence.v1",
             "identity_scope": "user_selected_same_subject_unverified",
             "board_mode": board.mode.rawValue,
+            "anchor_layout": references.count > 1 ? "dominant_left" : "single",
             "instructions": [
                 "Use the people, not their source background, UI, or text.",
                 "Slot 1 is the primary identity anchor: face, hair, skin tone, outfit, and overall proportions come from it.",
@@ -1074,14 +1091,52 @@ final class MimoReferencePreprocessor {
     private func makeBoard(_ slots: [BoardSlot], mode: MimoReferenceIdentityBoardMode)
         -> MimoReferenceIdentityBoard? {
         guard !slots.isEmpty else { return nil }
-        let columns = min(3, slots.count)
-        let rows = Int(ceil(Double(slots.count) / Double(columns)))
         let boardWidth = 1_024
         let boardHeight = 1_024
         let gap: CGFloat = 18
         let boardExtent = CGRect(x: 0, y: 0, width: boardWidth, height: boardHeight)
-        let cellWidth = (CGFloat(boardWidth) - gap * CGFloat(columns + 1)) / CGFloat(columns)
-        let cellHeight = (CGFloat(boardHeight) - gap * CGFloat(rows + 1)) / CGFloat(rows)
+        let dominantPrimary = mode == .isolatedPeople && slots.count > 1
+        let slotRects: [CGRect]
+        if dominantPrimary {
+            let primaryWidth = CGFloat(boardWidth) * 0.56
+            let supportCount = slots.count - 1
+            let supportColumns = min(2, supportCount)
+            let supportRows = Int(ceil(Double(supportCount) / Double(supportColumns)))
+            let supportX = gap + primaryWidth + gap
+            let supportWidth = CGFloat(boardWidth) - supportX - gap
+            let cellWidth = (supportWidth - gap * CGFloat(supportColumns - 1)) /
+                CGFloat(supportColumns)
+            let cellHeight = (CGFloat(boardHeight) - gap * CGFloat(supportRows + 1)) /
+                CGFloat(supportRows)
+            var rects = [CGRect(x: gap, y: gap, width: primaryWidth,
+                               height: CGFloat(boardHeight) - gap * 2)]
+            for index in 0..<supportCount {
+                let column = index % supportColumns
+                let topRow = index / supportColumns
+                let row = supportRows - topRow - 1
+                rects.append(CGRect(
+                    x: supportX + CGFloat(column) * (cellWidth + gap),
+                    y: gap + CGFloat(row) * (cellHeight + gap),
+                    width: cellWidth, height: cellHeight))
+            }
+            slotRects = rects
+        } else {
+            let columns = min(3, slots.count)
+            let rows = Int(ceil(Double(slots.count) / Double(columns)))
+            let cellWidth = (CGFloat(boardWidth) - gap * CGFloat(columns + 1)) /
+                CGFloat(columns)
+            let cellHeight = (CGFloat(boardHeight) - gap * CGFloat(rows + 1)) /
+                CGFloat(rows)
+            slotRects = slots.indices.map { index in
+                let column = index % columns
+                let topRow = index / columns
+                let row = rows - topRow - 1
+                return CGRect(
+                    x: gap + CGFloat(column) * (cellWidth + gap),
+                    y: gap + CGFloat(row) * (cellHeight + gap),
+                    width: cellWidth, height: cellHeight)
+            }
+        }
         let decoded: [CGImage] = slots.compactMap { slot in
             guard let source = CGImageSourceCreateWithData(slot.png as CFData, nil) else { return nil }
             return CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -1093,17 +1148,13 @@ final class MimoReferencePreprocessor {
             context.fill(boardExtent)
             context.interpolationQuality = .high
             for (index, image) in decoded.enumerated() {
-                let scale = min(cellWidth / CGFloat(image.width),
-                                cellHeight / CGFloat(image.height))
+                let cell = slotRects[index]
+                let scale = min(cell.width / CGFloat(image.width),
+                                cell.height / CGFloat(image.height))
                 let fittedWidth = CGFloat(image.width) * scale
                 let fittedHeight = CGFloat(image.height) * scale
-                let column = index % columns
-                let topRow = index / columns
-                let row = rows - topRow - 1
-                let x = gap + CGFloat(column) * (cellWidth + gap) +
-                    (cellWidth - fittedWidth) / 2
-                let y = gap + CGFloat(row) * (cellHeight + gap) +
-                    (cellHeight - fittedHeight) / 2
+                let x = cell.minX + (cell.width - fittedWidth) / 2
+                let y = cell.minY + (cell.height - fittedHeight) / 2
                 context.draw(image, in: CGRect(x: x, y: y,
                                                width: fittedWidth, height: fittedHeight))
             }

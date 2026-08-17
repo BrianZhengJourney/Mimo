@@ -51,6 +51,10 @@ struct PhotosPeoplePrototypeUITests {
                source.contains("groups.removeAll()") &&
                source.contains("purgeTemporaryPortraitDirectories()"),
                "photo handoff should keep its window open and release the completed person's scan")
+        expect(source.contains("func reactivateAfterPhotoPicker()") &&
+               source.contains("showPhotoHandoffStudio()") &&
+               source.contains("revealStudioWhenFinished: true"),
+               "finishing the Photos picker should reactivate Mimo and reveal Studio")
         expect(source.contains("presentPhotoSelection(for:") &&
                source.contains("PhotosAppearancePreset") &&
                source.contains("米墨推荐") &&
