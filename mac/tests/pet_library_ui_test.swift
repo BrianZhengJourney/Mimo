@@ -64,12 +64,12 @@ struct PetLibraryUITests {
                settings.contains("Array.isArray(library.visibleRecentIDs)") &&
                settings.contains("return recent.slice(0,3)") &&
                settings.contains("library.visibleActiveIDs"),
-               "Your Familiar should render native's variation-collapsed IDs")
-        expect(product.contains("\"visibleRecentIDs\"") &&
-               product.contains("\"visibleActiveIDs\"") &&
-               product.contains("PetLibraryVariationDisplay.collapsedCharacterIDs") &&
-               product.contains("PetLibraryVariationDisplay.primaryCharacterIDs"),
-               "native state should expose one current companion and collapse same-name DIY variations")
+               "Your Familiar should render native's individual IDs")
+        expect(product.contains("\"visibleRecentIDs\": recentIDs") &&
+               product.contains("\"visibleActiveIDs\": activeIDs") &&
+               !product.contains("PetLibraryVariationDisplay") &&
+               !product.contains("variationGroupByID"),
+               "native state should expose every same-name familiar as an individual card")
 
         let libraryRendering = section(
             settings, from: "function petLibraryItem(", to: "const filters =")
@@ -79,15 +79,18 @@ struct PetLibraryUITests {
                libraryRendering.contains("library.deletedIDs") &&
                libraryRendering.contains("library.metadata") &&
                !libraryRendering.contains(".sort("),
-               "JS should display collapsed IDs while preserving native's full reorder list")
-        expect(libraryRendering.contains("function petLibraryVariationGroup(") &&
-               libraryRendering.contains("function collapsePetLibraryVariations(") &&
-               libraryRendering.contains("function primaryPetLibraryIDs(") &&
-               libraryRendering.contains("visibleGroups.has(petLibraryVariationGroup(id))") &&
-               libraryRendering.contains("collapsePetLibraryVariations(library.activeIDs||[])") &&
-               settings.contains("collapsePetLibraryVariations(pending.activeIDs)") &&
-               settings.contains("visibleRecentIDs=primaryPetLibraryIDs("),
-               "dragging one visible familiar should move its hidden variation group atomically")
+               "JS should display individual IDs while preserving native's full reorder list")
+        expect(libraryRendering.contains("const visibleSet=new Set(visibleOrder)") &&
+               libraryRendering.contains("visibleSet.has(id)?queue.shift():id") &&
+               settings.contains("visibleActiveIDs=pending.activeIDs.slice()") &&
+               settings.contains("visibleRecentIDs=pending.recentIDs.slice()"),
+               "dragging a filtered card should move only that individual familiar")
+        expect(!settings.contains("card-stack-count") &&
+               !settings.contains("function petLibraryVariationMembers(") &&
+               !settings.contains("function openPetLibraryVariationTray(") &&
+               !settings.contains("id=\"petVariationTray\"") &&
+               !settings.contains("selectPetLibraryVariation"),
+               "same-name familiars should stay expanded without stacking or version trays")
         expect(libraryRendering.contains("pet-library-filter") &&
                libraryRendering.contains("setPetLibraryCategory") &&
                libraryRendering.contains("setPetLibraryView('archived')") &&
@@ -98,7 +101,7 @@ struct PetLibraryUITests {
                libraryRendering.contains("class=\"card-manage\"") &&
                libraryRendering.contains("openPetManager('") &&
                libraryRendering.contains("metadata.displayName||m.name") &&
-               libraryRendering.contains("onclick=\"pick(event,'") &&
+               libraryRendering.contains("pick(event,'${characterID}')") &&
                libraryRendering.contains("startPetLibraryDrag") &&
                libraryRendering.contains("dropPetLibraryCard") &&
                libraryRendering.contains("type:'petLibraryReorder',requestID,orderedCharacterIDs") &&

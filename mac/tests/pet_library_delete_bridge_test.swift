@@ -56,7 +56,8 @@ struct PetLibraryDeleteBridgeTests {
                "custom deletion should cancel producers immediately but purge assets and jobs only at expiry")
         expect(product.contains("Mimo pet library restore fail-closed")
                && product.contains("Mimo pet library fail-closed")
-               && product.contains("PetLibraryStateStore.shared.load().isSelectable(active)"),
+               && product.contains("PetLibraryStateStore.shared.load()")
+               && product.contains(".isSelectable(characterID)"),
                "corrupt lifecycle state and custom work entry points should fail closed")
         expect(product.contains("settingsCall(\"petExpressionCancelled\"")
                && product.contains("endExpressionRun(continuePostInstallActions: false)"),

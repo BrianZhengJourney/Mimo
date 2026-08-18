@@ -19,36 +19,6 @@ private func expectThrows(_ message: String, _ body: () throws -> Void) {
 @main
 struct PetLibraryTests {
     static func main() throws {
-        let variations = [
-            "custom:older", "nat", "custom:selected", "custom:other", "lulu",
-        ]
-        let variationNames = [
-            "custom:older": "我的小伴灵",
-            "custom:selected": " 我的小伴灵 ",
-            "custom:other": "李解",
-        ]
-        expect(PetLibraryVariationDisplay.collapsedCharacterIDs(
-            variations,
-            selectedID: "custom:selected",
-            customNamesByID: variationNames
-        ) == ["custom:selected", "nat", "custom:other", "lulu"],
-               "same-name DIY variations should render once and prefer the selected one")
-        expect(PetLibraryVariationDisplay.collapsedCharacterIDs(
-            variations,
-            selectedID: nil,
-            customNamesByID: variationNames
-        ) == ["custom:older", "nat", "custom:other", "lulu"],
-               "without a selected variation the first library item should represent the group")
-        expect(PetLibraryVariationDisplay.primaryCharacterIDs(
-            ["custom:other", "custom:selected", "nat"],
-            selectedID: "custom:selected"
-        ) == ["custom:selected"],
-               "collapsed Your Familiar should show only the current companion")
-        expect(PetLibraryVariationDisplay.primaryCharacterIDs(
-            ["custom:other", "nat"], selectedID: "custom:missing"
-        ) == ["custom:other"],
-               "a stale selection should fall back to one visible companion")
-
         let base = Date(timeIntervalSinceReferenceDate: 1_000)
         var state = PetLibraryState()
         try state.setDisplayName("  米墨  ", for: "lulu")
