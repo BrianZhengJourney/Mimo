@@ -31,6 +31,43 @@ enum CompanionDisplaySize {
     }
 }
 
+/// Keeps the *visible pixels* of an attached animation frame inside the wall's
+/// vertical work-area span. A legal anchor is not sufficient: an authored sit
+/// frame can extend below the shared registration point even when the standing
+/// frame does not.
+enum CompanionWallFrameContainment {
+    static let padding: CGFloat = 4
+
+    static func correctedAnchorY(currentAnchorY: CGFloat,
+                                 visibleRect: CGRect,
+                                 span: ClosedRange<CGFloat>,
+                                 padding requestedPadding: CGFloat = padding) -> CGFloat {
+        guard currentAnchorY.isFinite,
+              visibleRect.minY.isFinite, visibleRect.maxY.isFinite,
+              !visibleRect.isEmpty else {
+            return min(max(currentAnchorY, span.lowerBound), span.upperBound)
+        }
+        let spanLength = max(0, span.upperBound - span.lowerBound)
+        let inset = min(max(0, requestedPadding), spanLength / 2)
+        let lower = span.lowerBound + inset
+        let upper = span.upperBound - inset
+        let availableHeight = max(0, upper - lower)
+
+        // An unusually tall frame cannot satisfy both edges. Centre it rather
+        // than oscillating between bottom and top corrections every tick.
+        if visibleRect.height > availableHeight {
+            return currentAnchorY + (lower + upper) / 2 - visibleRect.midY
+        }
+        if visibleRect.minY < lower {
+            return currentAnchorY + lower - visibleRect.minY
+        }
+        if visibleRect.maxY > upper {
+            return currentAnchorY + upper - visibleRect.maxY
+        }
+        return currentAnchorY
+    }
+}
+
 enum SurfaceKind {
     /// Supports a companion from below. Anchor rests at `position`.
     case floor

@@ -22,6 +22,16 @@ struct StarterActionTests {
             .up, .upperRight, .right, .lowerRight,
             .down, .lowerLeft, .left, .upperLeft,
         ], "gaze directions have a stable clockwise runtime order")
+        expect(gaze.contractRevision == 2,
+               "the strict cardinal gaze contract supersedes ambiguous left-side jobs")
+        let gazePoses = gaze.batches.flatMap(\.poses).joined(separator: " ")
+        expect(gaze.poseContract.contains("viewer/screen coordinates")
+               && gaze.poseContract.contains("cardinal hard gates"),
+               "gaze generation defines one explicit screen-coordinate basis")
+        expect(gazePoses.contains("RIGHT / 090° CARDINAL HARD GATE")
+               && gazePoses.contains("LEFT / 270° CARDINAL HARD GATE")
+               && gazePoses.contains("must not read front-facing or screen-right"),
+               "both horizontal cardinals are visually encoded and left cannot pass as front/right")
 
         let sleep = StarterActionCatalog.definition(.sleep)
         expect(sleep.manifestActionName == "rest",
@@ -48,6 +58,8 @@ struct StarterActionTests {
         let wall = StarterActionCatalog.definition(.wall)
         expect(wall.manifestActionName == "wall", "wall installs under the attached-state key")
         expect(wall.finalFrameCount == 6, "wall contains a 3-frame stand and 3-frame sit")
+        expect(wall.contractRevision == 2,
+               "wall sitting uses the bounded full-silhouette contract")
         expect(wall.segments.map(\.name) == ["wall-stand", "ledge-sit"],
                "wall exposes both user-requested edge poses")
 
@@ -126,6 +138,16 @@ struct StarterActionTests {
                "historical three-frame gaze keeps neutral/left/right order")
         expect(StarterGazeMapper.selection(dx: 100, dy: 0, frameCount: 3)?.frameIndex == 2,
                "historical three-frame gaze can still follow horizontally")
+
+        let exactBoundary = tan(Double.pi / 8)
+        expect(StarterGazeMapper.selection(
+            dx: -200, dy: 200 / exactBoundary + 0.01,
+            frameCount: 8)?.frameIndex == 0,
+               "a point just inside the upper octant remains up")
+        expect(StarterGazeMapper.selection(
+            dx: -200, dy: 200 / exactBoundary - 0.01,
+            frameCount: 8)?.frameIndex == 7,
+               "crossing the left-side 22.5-degree boundary selects upper-left")
     }
 
     static func testGazeWaitsForASettledCursorAndFocusDisablesIt() {
@@ -149,6 +171,16 @@ struct StarterActionTests {
             dt: 0.40, dx: -180, dy: 0, cursorSpeed: 0,
             frameCount: 8, enabled: false) == nil,
                "Focus mode clears gaze instead of competing for attention")
+
+        var explicit = CompanionGazeFollowProcedure()
+        expect(explicit.update(
+            dt: 0.06, dx: 520, dy: 0, cursorSpeed: 900,
+            frameCount: 8, enabled: true, mode: .explicit) == nil,
+               "manual cursor-follow still smooths the first direction change")
+        expect(explicit.update(
+            dt: 0.06, dx: 520, dy: 0, cursorSpeed: 900,
+            frameCount: 8, enabled: true, mode: .explicit) == 2,
+               "manual cursor-follow responds across the desktop while the pointer moves")
     }
 
     static func testTennisBallOwnsOneDeterministicNineFrameTrajectory() {

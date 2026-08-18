@@ -337,6 +337,22 @@ struct CompanionSprite {
 }
 
 extension CompanionFrame {
+    /// The actual non-transparent artwork inside a rendered cell rect.
+    /// `opaqueBounds` uses image-space y-down coordinates while `rect` uses
+    /// AppKit's y-up screen coordinates.
+    func visibleRect(in rect: CGRect, cellSize: CGSize) -> CGRect {
+        guard cellSize.width > 0, cellSize.height > 0,
+              rect.width > 0, rect.height > 0,
+              !opaqueBounds.isEmpty else { return .zero }
+        let scaleX = rect.width / cellSize.width
+        let scaleY = rect.height / cellSize.height
+        return CGRect(
+            x: rect.minX + opaqueBounds.minX * scaleX,
+            y: rect.maxY - opaqueBounds.maxY * scaleY,
+            width: opaqueBounds.width * scaleX,
+            height: opaqueBounds.height * scaleY)
+    }
+
     /// Whether `point`, given in the frame's on-screen rect, is on the artwork.
     ///
     /// `rect` is y-up (AppKit); the mask is y-down (image space), so the row is

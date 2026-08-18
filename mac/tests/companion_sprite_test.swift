@@ -233,6 +233,43 @@ struct CompanionSpriteTests {
                     "ceiling contact keeps the artwork below the menu-bar boundary")
     }
 
+    static func testWallPreviewContainsEachFramesVisibleSilhouette() {
+        // The shared authored anchor works for the standing frame, while the
+        // seated frame extends much farther below it. This is the real wall
+        // preview failure: the anchor remains legal but visible pixels do not.
+        let sheet = makeSheet(cell: 64, blobs: [
+            CGRect(x: 20, y: 8, width: 24, height: 32),
+            CGRect(x: 12, y: 30, width: 40, height: 34),
+        ])
+        let sprite = CompanionSprite.slice(
+            sheet: sheet, frameCount: 2,
+            semantics: .actionPoses,
+            fixedAnchorInCell: CGPoint(x: 32, y: 40))!
+        let seated = sprite.frame(1)
+        let unsafeAnchor = CGPoint(x: 0, y: 0)
+        let unsafeCell = seated.rect(
+            attachedTo: .workAreaLeft(displayID: 1),
+            anchor: unsafeAnchor, displayHeight: 64,
+            cellSize: sprite.cellSize)
+        let unsafeVisible = seated.visibleRect(
+            in: unsafeCell, cellSize: sprite.cellSize)
+        expect(unsafeVisible.minY < 0,
+               "fixture reproduces a seated frame drawn below the work-area floor")
+
+        let correctedY = CompanionWallFrameContainment.correctedAnchorY(
+            currentAnchorY: unsafeAnchor.y,
+            visibleRect: unsafeVisible,
+            span: CGFloat(0)...CGFloat(100))
+        let safeCell = seated.rect(
+            attachedTo: .workAreaLeft(displayID: 1),
+            anchor: CGPoint(x: 0, y: correctedY), displayHeight: 64,
+            cellSize: sprite.cellSize)
+        let safeVisible = seated.visibleRect(
+            in: safeCell, cellSize: sprite.cellSize)
+        expect(safeVisible.minY >= 4 && safeVisible.maxY <= 96,
+               "every wall frame's actual visible silhouette stays inside the padded span")
+    }
+
     // MARK: - Hit testing
 
     static func testHitMaskFollowsTheArtwork() {
@@ -290,6 +327,7 @@ struct CompanionSpriteTests {
         testPreviewPlaysSleepSettleOnceThenLoopsOnlyBreathing()
         testRectPutsFeetOnTheAnchor()
         testAttachedRectKeepsOpaqueArtworkInsideEveryBoundary()
+        testWallPreviewContainsEachFramesVisibleSilhouette()
         testHitMaskFollowsTheArtwork()
         testHitMaskRejectsEmptySpaceInsideTheRect()
         testHitTestOutsideRectIsAlwaysMiss()

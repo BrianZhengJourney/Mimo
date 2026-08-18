@@ -80,19 +80,22 @@ struct CompanionActionMenuTests {
         expect(runtime.contains("var availableActionNames: Set<String> { Set(actionSprites.keys) }") &&
                playback.contains("guard actionSprites[name] != nil"),
                "runtime playback should allow only successfully loaded strips")
-        expect(playback.contains("if name == \"gaze\" { return previewAction(named: nil) }"),
-               "gaze should resume directional cursor-following, not loop its contact sheet")
-        expect(playback.contains("beginWallBehaviorIfSafe") &&
+        expect(playback.contains("beginExplicitGazeFollow") &&
+               !playback.contains("if name == \"gaze\" { return previewAction(named: nil) }"),
+               "choosing gaze should enter a visible manual cursor-follow mode")
+        expect(playback.contains("beginWallSequence") &&
                playback.contains("nearestWallPlacement") &&
-               playback.contains("companion.state = .attached(placement.surface.id)") &&
-               playback.contains("cling(companion, to: placement.surface, dt: 0, world: world)") &&
                playback.contains("return previewAction(named: name)"),
-               "wall should use a safe nearest edge and fall back to local strip preview")
+               "wall should play its complete six-frame sequence at a safe nearest edge")
+        expect(runtime.contains("keepWallPreviewInsideSurface")
+               && runtime.contains("CompanionWallFrameContainment.correctedAnchorY")
+               && runtime.contains("currentFrame.visibleRect"),
+               "wall playback must contain each newly presented frame, not only its anchor")
 
         let sprite = oneFrameSprite()
         let localRuntime = CompanionRuntime()
-        localRuntime.setActionSprites(["gaze": sprite, "rest": sprite])
-        expect(localRuntime.availableActionNames == Set(["gaze", "rest"]),
+        localRuntime.setActionSprites(["gaze": sprite, "rest": sprite, "wall": sprite])
+        expect(localRuntime.availableActionNames == Set(["gaze", "rest", "wall"]),
                "the menu allow-list should expose only installed runtime sprites")
         localRuntime.spawn(sprite: sprite, at: CGPoint(x: 100, y: 100))
         expect(localRuntime.previewAction(named: "rest") &&
@@ -126,8 +129,22 @@ struct CompanionActionMenuTests {
                 reactionTo: "focusCompleteFallback", snapshot: groundedSnapshot),
                "a body without tennis art has one legal anatomy-neutral celebration")
         expect(localRuntime.playInstalledAction(named: "gaze") &&
+               localRuntime.previewActionName == "gaze",
+               "choosing gaze should expose a cancellable manual cursor-follow mode")
+        expect(localRuntime.previewAction(named: nil) &&
                localRuntime.previewActionName == nil,
-               "choosing gaze should resume automatic cursor-following")
+               "Resume Automatic should leave explicit cursor-follow mode")
+        expect(localRuntime.playInstalledAction(named: "wall") &&
+               localRuntime.previewActionName == "wall",
+               "choosing wall should enter the complete manual edge sequence")
+        expect(localRuntime.previewAction(named: nil) &&
+               localRuntime.previewActionName == nil,
+               "Resume Automatic should leave the wall sequence and release the edge")
+        let wallPlayback = CompanionRuntime.manualPreviewPlaybackSpec(
+            for: "wall", frameCount: 6, persisted: nil)
+        expect(wallPlayback.frameDurationsSeconds == [0.95, 0.85, 1.25, 1.00, 0.85, 1.25] &&
+               wallPlayback.loopStartFrame == 3,
+               "manual wall playback should stand once, then keep the sitting-leg loop alive")
         expect(!localRuntime.playInstalledAction(named: "tennis"),
                "an uninstalled action cannot be invoked through the runtime")
         localRuntime.removeAll()

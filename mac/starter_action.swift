@@ -103,7 +103,12 @@ struct StarterActionDefinition: Equatable, Sendable {
     /// Durable generation contract revision. Increment only when retained
     /// provider batches are no longer semantically reusable.
     var contractRevision: Int {
-        id == .sleep ? 3 : 1
+        switch id {
+        case .gaze: return 2
+        case .sleep: return 3
+        case .tennis: return 1
+        case .wall: return 2
+        }
     }
 
     /// Constant-FPS fallback for contact-sheet preview only. Runtime behavior
@@ -127,30 +132,35 @@ enum StarterActionCatalog {
                 titleZh: "跟随光标",
                 titleEn: "Follow the cursor",
                 motionClass: "directional",
-                poseContract: "Keep the body root, torso, shoulders, feet, silhouette, and camera "
-                    + "perfectly fixed. Move only the eyes or primary sensing features first; allow "
-                    + "a tiny head tilt only when the direction would otherwise be unreadable. This "
-                    + "is a micro-glance family, never eight separate body poses or full head turns.",
+                poseContract: "Directions use absolute viewer/screen coordinates. Preserve the body "
+                    + "root, support points, scale, identity, and camera. Treat UP / 000°, RIGHT / "
+                    + "090°, DOWN / 180°, and LEFT / 270° as cardinal hard gates: each must be "
+                    + "recognizable without labels at runtime size. Eyes or primary sensing features "
+                    + "lead; eyelids and brows may participate; then the face, head, neck, and only a "
+                    + "restrained upper-body follow-through may reinforce the same direction. For a "
+                    + "face, the pupils and nose tip / face aim must cross to the named side of head "
+                    + "center. Diagonals must visibly preserve both named axes. Never rotate or warp "
+                    + "the whole sprite, and reject any leftward frame that reads front-facing or rightward.",
                 batches: [
                     StarterActionBatch(
                         poses: [
-                            "look straight up",
-                            "look toward upper screen-right",
-                            "look toward screen-right",
+                            "UP / 000° CARDINAL HARD GATE: look straight up; pupils or primary sensors, face aim, and chin clearly cue above head center with no horizontal bias",
+                            "UPPER-RIGHT / 045°: preserve both upward and screen-right cues in the eyes or sensors and face/head aim",
+                            "RIGHT / 090° CARDINAL HARD GATE: pupils or primary sensors and nose tip / face aim must sit visibly on the screen-right side of head center; it must not read front-facing or screen-left",
                         ],
                         keepCount: 3),
                     StarterActionBatch(
                         poses: [
-                            "look toward lower screen-right",
-                            "look straight down",
-                            "look toward lower screen-left",
+                            "LOWER-RIGHT / 135°: preserve both downward and screen-right cues in the eyes or sensors and face/head aim",
+                            "DOWN / 180° CARDINAL HARD GATE: look straight down; pupils or primary sensors, face aim, and chin clearly cue below head center with no horizontal bias",
+                            "LOWER-LEFT / 225°: preserve both downward and screen-left cues in the eyes or sensors and face/head aim; it must not drift toward front/right",
                         ],
                         keepCount: 3),
                     StarterActionBatch(
                         poses: [
-                            "look toward screen-left",
-                            "look toward upper screen-left",
-                            "closure check: recreate straight-up gaze; discard this frame",
+                            "LEFT / 270° CARDINAL HARD GATE: pupils or primary sensors and nose tip / face aim must sit visibly on the screen-left side of head center; head and neck may turn subtly screen-left; it must not read front-facing or screen-right",
+                            "UPPER-LEFT / 315°: preserve both upward and screen-left cues in the eyes or sensors and face/head aim; it must not drift toward front/right",
+                            "closure check: recreate the exact UP / 000° cardinal gaze; discard this frame",
                         ],
                         keepCount: 2),
                 ],
@@ -252,22 +262,27 @@ enum StarterActionCatalog {
                 titleZh: "墙边站着 / 坐着",
                 titleEn: "Stand / sit by the edge",
                 motionClass: "ambient",
-                poseContract: "The first family stands against an invisible screen wall; "
-                    + "the second sits on an invisible edge with legs hanging. Keep the "
-                    + "authored wall or ledge contact fixed and draw no scenery.",
+                poseContract: "The first family stays fully inside the panel while leaning "
+                    + "against one invisible screen wall. The second family must read as a "
+                    + "distinct seated pose on an invisible edge, with hips supported and both "
+                    + "legs hanging naturally. Keep the authored wall or ledge contact fixed. "
+                    + "Use one consistent scale and central safe zone for all six frames: the "
+                    + "complete silhouette, hair, hands, feet, and any dangling legs must remain "
+                    + "above the panel baseline with clear matte below them. Draw no wall, ledge, "
+                    + "floor, scenery, shadow, text, or prop.",
                 batches: [
                     StarterActionBatch(
                         poses: [
-                            "relaxed wall-standing pose at settled exhale",
-                            "same wall contact with a small inhale and weight shift",
-                            "same relaxed wall-standing pose, closing the seam",
+                            "full-body relaxed standing lean against an invisible side wall at settled exhale; both feet fully visible above the baseline",
+                            "same standing wall contact with only a small inhale and weight shift; full silhouette stays inside the safe zone",
+                            "same full-body wall-standing pose as the first frame, closing the seam without lowering below the baseline",
                         ],
                         keepCount: 3),
                     StarterActionBatch(
                         poses: [
-                            "sitting on an invisible screen-edge ledge, legs hanging",
-                            "same ledge contact with one gentle alternating leg swing",
-                            "same settled ledge-sit pose, closing the seam",
+                            "clearly seated on an invisible screen-edge ledge: hips supported, torso upright, both legs visibly hanging, both feet fully above the baseline",
+                            "same unmistakable ledge-sit contact with one gentle alternating leg swing; never revert to standing",
+                            "same settled seated pose as the first frame, hips supported and legs hanging, closing the seam with clear matte below both feet",
                         ],
                         keepCount: 3),
                 ],
@@ -294,6 +309,13 @@ enum StarterActionCatalog {
 struct StarterGazeSelection: Equatable, Sendable {
     let frameIndex: Int
     let mirrorHorizontally: Bool
+}
+
+enum CompanionGazeFollowMode: Equatable, Sendable {
+    /// A quiet, occasional glance while Mimo is otherwise automatic.
+    case ambient
+    /// The user explicitly chose Follow the cursor from the action menu.
+    case explicit
 }
 
 /// Pure cursor-direction mapping shared by the native runtime and tests.
@@ -383,7 +405,8 @@ struct CompanionGazeFollowProcedure {
 
     mutating func update(dt: Double, dx: Double, dy: Double,
                          cursorSpeed: Double, frameCount: Int,
-                         enabled: Bool) -> Int? {
+                         enabled: Bool,
+                         mode: CompanionGazeFollowMode = .ambient) -> Int? {
         guard enabled, dt.isFinite, dt > 0,
               dx.isFinite, dy.isFinite, cursorSpeed.isFinite,
               frameCount > 0 else {
@@ -395,7 +418,9 @@ struct CompanionGazeFollowProcedure {
             reset()
             return nil
         }
-        if engaged {
+        if mode == .explicit {
+            engaged = true
+        } else if engaged {
             if distance > Self.releaseDistance {
                 reset()
                 return nil
@@ -408,7 +433,7 @@ struct CompanionGazeFollowProcedure {
 
         // A fast cursor is transit, not an invitation. Hold one readable pose
         // while it passes; a later settled candidate must dwell from zero.
-        guard cursorSpeed <= Self.settledSpeed else {
+        guard mode == .explicit || cursorSpeed <= Self.settledSpeed else {
             candidate = nil
             candidateSeconds = 0
             return displayed?.frameIndex
@@ -427,7 +452,8 @@ struct CompanionGazeFollowProcedure {
             candidate = next
             candidateSeconds = dt
         }
-        if candidateSeconds >= Self.dwellSeconds {
+        let dwell = mode == .explicit ? 0.08 : Self.dwellSeconds
+        if candidateSeconds >= dwell {
             displayed = next
             candidate = nil
             candidateSeconds = 0
