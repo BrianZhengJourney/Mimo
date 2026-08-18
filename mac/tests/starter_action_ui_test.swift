@@ -34,11 +34,26 @@ struct StarterActionUITests {
                    "Settings should not expose action control: \(removedControl)")
         }
 
-        // Older native events can land in a Settings web view that was already
-        // open during an update. Global no-op receivers make that harmless.
+        expect(html.contains("id=\"petManagerMotion\"") &&
+               html.contains("function regenerateManagedPetAction(") &&
+               html.contains("petManagerUI.regenActionID!==actionID") &&
+               html.contains("type:'petStarterActionRegenerate'") &&
+               html.contains("新版完成前保留旧动作") &&
+               bridge.contains("case \"petStarterActionRegenerate\"") &&
+               bridge.contains("prepareRegeneration("),
+               "each familiar manager should offer a two-step, action-specific replacement flow")
         for receiver in [
             "starterActionJobUpdated", "starterActionJobProgress",
-            "starterActionJobError", "actionJobImportStarted",
+            "starterActionJobError",
+        ] {
+            expect(html.contains("function \(receiver)(event)"),
+                   "managed actions should react to native callback: \(receiver)")
+        }
+
+        // Unrelated legacy import callbacks remain harmless for web views that
+        // were already open during an app update.
+        for receiver in [
+            "actionJobImportStarted",
             "actionJobImported", "actionJobPreviewing", "actionJobAccepted",
             "actionJobError",
         ] {

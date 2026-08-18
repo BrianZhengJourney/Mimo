@@ -155,33 +155,43 @@ final class StarterActionJobStore: @unchecked Sendable {
             var current = existing.filter(Self.isCurrentContract)
             for actionID in StarterActionID.allCases
                 where !current.contains(where: { $0.actionID == actionID }) {
-                let definition = StarterActionCatalog.definition(actionID)
-                let record = StarterActionJobRecord(
-                    schemaVersion: StarterActionJobRecord.schemaVersion,
-                    id: UUID().uuidString.lowercased(),
-                    characterID: characterID,
-                    actionID: actionID,
-                    contractRevision: definition.contractRevision,
-                    state: .planned,
-                    createdAt: now,
-                    updatedAt: now,
-                    attempt: 0,
-                    maximumAttempts: StarterActionJobRecord.maximumAttempts,
-                    requestID: nil,
-                    quality: "medium",
-                    phase: nil,
-                    completedBatches: 0,
-                    estimatedProviderCalls: definition.estimatedProviderCalls,
-                    usedProviderCalls: 0,
-                    resultJobID: nil,
-                    errorCode: nil,
-                    errorMessage: nil,
-                    providerCallMetrics: [])
+                let record = Self.plannedRecord(
+                    characterID: characterID, actionID: actionID, now: now)
                 try persist(record)
                 existing.append(record)
                 current.append(record)
             }
-            return Self.productOrdered(current)
+            return Self.productOrdered(Self.newestPerAction(current))
+        }
+    }
+
+    /// Creates an explicit replacement job while preserving the installed
+    /// artifact and its paid-call history. Repeated clicks reuse a resumable
+    /// plan instead of producing duplicate rows or duplicate spend.
+    @discardableResult
+    func prepareRegeneration(characterID: String, actionID: StarterActionID,
+                             now: Date = Date()) throws
+        -> StarterActionJobRecord {
+        try synchronized {
+            try prepareStorage()
+            let characterID = try Self.canonicalCharacterID(characterID)
+            let current = try loadAll().filter {
+                $0.characterID == characterID
+                    && $0.actionID == actionID
+                    && Self.isCurrentContract($0)
+            }
+            if let newest = Self.newest(current) {
+                if newest.state.isInFlight {
+                    throw StarterActionJobError.invalidTransition
+                }
+                if newest.canStart {
+                    return newest
+                }
+            }
+            let replacement = Self.plannedRecord(
+                characterID: characterID, actionID: actionID, now: now)
+            try persist(replacement)
+            return replacement
         }
     }
 
@@ -192,7 +202,7 @@ final class StarterActionJobStore: @unchecked Sendable {
             let records = try loadAll().filter {
                 canonical == nil || $0.characterID == canonical
             }.filter(Self.isCurrentContract)
-            return Self.productOrdered(records)
+            return Self.productOrdered(Self.newestPerAction(records))
         }) ?? []
     }
 
@@ -745,6 +755,48 @@ final class StarterActionJobStore: @unchecked Sendable {
             if $0.characterID != $1.characterID { return $0.characterID < $1.characterID }
             return (order[$0.actionID] ?? Int.max) < (order[$1.actionID] ?? Int.max)
         }
+    }
+
+    private static func newestPerAction(_ records: [StarterActionJobRecord])
+        -> [StarterActionJobRecord] {
+        Dictionary(grouping: records) {
+            "\($0.characterID)|\($0.actionID.rawValue)"
+        }.values.compactMap(newest)
+    }
+
+    private static func newest(_ records: [StarterActionJobRecord])
+        -> StarterActionJobRecord? {
+        records.max {
+            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+            return $0.id < $1.id
+        }
+    }
+
+    private static func plannedRecord(characterID: String,
+                                      actionID: StarterActionID,
+                                      now: Date) -> StarterActionJobRecord {
+        let definition = StarterActionCatalog.definition(actionID)
+        return StarterActionJobRecord(
+            schemaVersion: StarterActionJobRecord.schemaVersion,
+            id: UUID().uuidString.lowercased(),
+            characterID: characterID,
+            actionID: actionID,
+            contractRevision: definition.contractRevision,
+            state: .planned,
+            createdAt: now,
+            updatedAt: now,
+            attempt: 0,
+            maximumAttempts: StarterActionJobRecord.maximumAttempts,
+            requestID: nil,
+            quality: "medium",
+            phase: nil,
+            completedBatches: 0,
+            estimatedProviderCalls: definition.estimatedProviderCalls,
+            usedProviderCalls: 0,
+            resultJobID: nil,
+            errorCode: nil,
+            errorMessage: nil,
+            providerCallMetrics: [])
     }
 
     private static func isCurrentContract(_ record: StarterActionJobRecord) -> Bool {

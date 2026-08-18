@@ -46,6 +46,29 @@ struct StarterActionJobTests {
     static let characterID = "custom:7d8dfd2e-e852-4691-a585-c74803211f0d"
     static let otherCharacterID = "custom:21d6f02c-8f60-44d6-bc70-bcd9000ff0b6"
 
+    @discardableResult
+    static func install(_ job: StarterActionJobRecord,
+                        in store: StarterActionJobStore) throws
+        -> StarterActionJobRecord {
+        _ = try store.queue(
+            jobID: job.id, requestID: UUID().uuidString, quality: "medium")
+        for batchIndex in 0..<job.estimatedProviderCalls {
+            _ = try store.markGenerating(
+                jobID: job.id, phase: "batch-\(batchIndex + 1)",
+                completedBatches: batchIndex,
+                usedProviderCalls: batchIndex,
+                requestID: UUID().uuidString)
+            _ = try store.storeCompletedBatch(
+                jobID: job.id, batchIndex: batchIndex,
+                pngData: makeBatchPNG(), usedProviderCalls: batchIndex + 1,
+                providerSeconds: 1)
+        }
+        _ = try store.markLocalProcessing(jobID: job.id, phase: "fixture")
+        _ = try store.markAwaitingReview(
+            jobID: job.id, resultJobID: UUID().uuidString)
+        return try store.markInstalled(jobID: job.id)
+    }
+
     static func testEnsureCreatesOneDurableCardPerStarterAction() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "mimo-starter-jobs-\(UUID().uuidString)", isDirectory: true)
@@ -168,6 +191,46 @@ struct StarterActionJobTests {
             jobID: sleep.id, requestID: UUID().uuidString, quality: "medium")
         expect(resumed.completedBatches == 1 && resumed.usedProviderCalls == 1,
                "explicit retry resumes at the first unfinished batch without hidden spend")
+    }
+
+    static func testExplicitRegenerationPreservesInstalledHistoryAndHasOneRow() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "mimo-starter-regeneration-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let base = Date(timeIntervalSinceReferenceDate: 5_000)
+        let store = StarterActionJobStore(root: root)
+        let original = try store.ensureJobs(
+            characterID: characterID, now: base)
+            .first { $0.actionID == .wall }!
+        let installed = try install(original, in: store)
+        let replacement = try store.prepareRegeneration(
+            characterID: characterID, actionID: .wall,
+            now: base.addingTimeInterval(1))
+
+        expect(replacement.id != installed.id && replacement.state == .planned,
+               "explicit regeneration creates a fresh unspent replacement")
+        let preserved = try store.record(jobID: installed.id)
+        expect(preserved.state == .installed,
+               "the installed action and its paid history remain intact")
+        expect(store.jobs(characterID: characterID).filter {
+            $0.actionID == .wall
+        }.map(\.id) == [replacement.id],
+               "the familiar manager exposes one newest row per action")
+        let repeated = try store.prepareRegeneration(
+            characterID: characterID, actionID: .wall,
+            now: base.addingTimeInterval(2))
+        expect(repeated.id == replacement.id,
+               "a repeated confirmation reuses the existing unspent plan")
+
+        _ = try store.queue(
+            jobID: replacement.id, requestID: UUID().uuidString,
+            quality: "medium")
+        expectThrows("an in-flight replacement cannot create a duplicate") {
+            _ = try store.prepareRegeneration(
+                characterID: characterID, actionID: .wall,
+                now: base.addingTimeInterval(3))
+        }
     }
 
     static func testRevisedSleepKeepsPaidLegacyAndCreatesANewCurrentCard() throws {
@@ -311,6 +374,7 @@ struct StarterActionJobTests {
         try testEnsureCreatesOneDurableCardPerStarterAction()
         try testJobMovesThroughPaidAndLocalPhasesIntoReview()
         try testRestartFailsClosedWithoutRepeatingPaidWork()
+        try testExplicitRegenerationPreservesInstalledHistoryAndHasOneRow()
         try testRevisedSleepKeepsPaidLegacyAndCreatesANewCurrentCard()
         try testFailedAndCancelledProviderCallsKeepLatencyEvidence()
         try testDeleteJobsIsScopedIdempotentAndRejectsPathEscape()

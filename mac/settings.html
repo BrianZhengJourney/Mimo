@@ -116,6 +116,24 @@ b,strong,h2{ font-weight:var(--ui-strong-weight); }
 .pet-manager-repair[hidden]{ display:none; }
 .pet-manager-repair span{ color:var(--dim); font-size:10px; line-height:1.4; }
 .pet-manager-repair button{ flex:none; color:var(--accent); }
+.pet-manager-motion{ display:grid; gap:7px; padding:10px; border:1px solid var(--line);
+  border-radius:12px; background:var(--surface); }
+.pet-manager-motion[hidden]{ display:none; }
+.pet-manager-motion-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.pet-manager-motion-head b{ font-size:10.5px; }
+.pet-manager-motion-head small{ color:var(--dim); font-size:8.5px; }
+.pet-manager-motion-list{ display:grid; gap:5px; }
+.pet-manager-motion-row{ display:grid; grid-template-columns:24px minmax(0,1fr) auto; align-items:center;
+  gap:8px; min-height:34px; padding:5px 0; border-top:1px solid color-mix(in srgb,var(--line) 65%,transparent); }
+.pet-manager-motion-row:first-child{ border-top:0; }
+.pet-manager-motion-icon{ font-size:15px; text-align:center; }
+.pet-manager-motion-copy{ min-width:0; }
+.pet-manager-motion-copy b,.pet-manager-motion-copy small{ display:block; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.pet-manager-motion-copy b{ font-size:10px; }
+.pet-manager-motion-copy small{ margin-top:2px; color:var(--dim); font-size:8.5px; }
+.pet-manager-motion-row button{ min-width:76px; min-height:28px; padding:4px 8px; color:var(--accent); font-size:9px; }
+.pet-manager-motion-row button.armed{ color:#fffaf3; border-color:var(--accent); background:var(--accent); }
 .pet-manager-status{ min-height:16px; color:var(--bad); font-size:10px; line-height:1.5; }
 .pet-manager-status[data-tone="busy"]{ color:var(--dim); }
 .pet-manager-actions{ display:flex; align-items:center; gap:7px; padding-top:2px; }
@@ -838,6 +856,10 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
         <button id="petManagerExpressionButton" type="button" onclick="repairManagedPetExpressions()"
           data-zh="补画表情" data-en="Complete expressions">补画表情</button>
       </div>
+      <section class="pet-manager-motion" id="petManagerMotion" hidden>
+        <div class="pet-manager-motion-head"><b data-zh="动作" data-en="Actions">动作</b><small data-zh="新版完成前保留旧动作" data-en="Current action stays until replacement">新版完成前保留旧动作</small></div>
+        <div class="pet-manager-motion-list" id="petManagerMotionList"></div>
+      </section>
       <div class="pet-manager-status" id="petManagerStatus" role="status" aria-live="polite"></div>
       <div class="pet-manager-actions">
         <button class="pet-manager-save" type="submit" data-zh="保存" data-en="Save">保存</button>
@@ -2105,13 +2127,31 @@ function chooseCompanionScale(percent){
 
 let S = { character: 'lulu' };
 const petLibraryUI={expanded:false,view:'active',category:null,pendingOrder:null};
-const petManagerUI={characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingRestoreDeleted:false,pendingDelete:false,timeout:null};
+const petManagerUI={characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingRestoreDeleted:false,pendingDelete:false,timeout:null,regenActionID:null,regenTimer:null,pendingRegenActionID:null};
 const petLibraryDrag={sourceID:null,targetID:null,after:false,suppressPickUntil:0};
-// Keep harmless global receivers while older native builds can still deliver
-// action-job events to an already-open Settings web view.
-function starterActionJobUpdated(){}
-function starterActionJobProgress(){}
-function starterActionJobError(){}
+const MANAGED_ACTIONS=[
+  {id:'gaze',icon:'👀',zh:'跟随光标',en:'Follow cursor'},
+  {id:'sleep',icon:'💤',zh:'睡觉',en:'Sleep'},
+  {id:'tennis',icon:'🎾',zh:'打网球',en:'Play tennis'},
+  {id:'wall',icon:'🧱',zh:'墙边站着 / 坐着',en:'Stand / sit by edge'},
+];
+function starterActionJobUpdated(event){
+  const job=event?.job;if(!job)return;
+  S.starterActionJobs=(S.starterActionJobs||[]).filter(item=>!(item.characterID===job.characterID&&item.actionID===job.actionID)).concat([job]);
+  if(petManagerUI.pendingRegenActionID===job.actionID)petManagerUI.pendingRegenActionID=null;
+  renderManagedPetActions();
+}
+function starterActionJobProgress(event){
+  const job=(S.starterActionJobs||[]).find(item=>item.jobID===event?.jobID);if(!job)return;
+  Object.assign(job,{phase:event.phase,completedBatches:event.completedBatches,estimatedProviderCalls:event.estimatedProviderCalls});
+  renderManagedPetActions();
+}
+function starterActionJobError(event){
+  const job=(S.starterActionJobs||[]).find(item=>item.jobID===event?.jobID);
+  if(job&&job.characterID!==petManagerUI.characterID)return;
+  petManagerUI.pendingRegenActionID=null;renderManagedPetActions();
+  showPetManagerError((LANG==='zh'?event?.messageZh:event?.messageEn)||tx('动作没有生成完，可以再试一次。','The action was not completed; you can try again.'));
+}
 function actionJobImportStarted(){}
 function actionJobImported(){}
 function actionJobPreviewing(){}
@@ -2134,6 +2174,64 @@ function managedPetNeedsExpressions(){
   const pet=managedPet();
   return !!(pet?.custom&&!pet.legacy&&petManagerUI.characterID===S.character
     &&managedPetMetadata().deleted!==true&&!pet.m?.expressionURLs?.['2']);
+}
+function clearManagedActionArm(){
+  if(petManagerUI.regenTimer)clearTimeout(petManagerUI.regenTimer);
+  petManagerUI.regenTimer=null;petManagerUI.regenActionID=null;
+}
+function managedStarterActionJob(actionID){
+  return (S.starterActionJobs||[]).find(job=>job.characterID===petManagerUI.characterID&&job.actionID===actionID)||null;
+}
+function managedActionState(job){
+  if(!job)return tx('准备生成','Ready');
+  if(['queued','generating','local_processing'].includes(job.state)){
+    const done=Number(job.completedBatches)||0,total=Number(job.estimatedProviderCalls)||0;
+    return tx(`生成中 · ${done}/${total}`,`Generating · ${done}/${total}`);
+  }
+  if(job.state==='installed')return tx('已安装','Installed');
+  if(job.state==='awaiting_review')return tx('正在安装','Installing');
+  if(job.state==='planned')return tx('新版待生成','New version ready');
+  if(job.state==='failed')return tx('上次未完成','Last attempt incomplete');
+  if(job.state==='cancelled')return tx('已取消','Cancelled');
+  return job.state||tx('准备生成','Ready');
+}
+function managedActionButton(job,actionID){
+  if(petManagerUI.pendingRegenActionID===actionID)return tx('正在提交…','Starting…');
+  if(job&&['queued','generating','local_processing','awaiting_review'].includes(job.state))return tx('进行中','In progress');
+  if(petManagerUI.regenActionID===actionID)return tx(`确认 · ${job?.estimatedProviderCalls||0} 次`,`Confirm · ${job?.estimatedProviderCalls||0} calls`);
+  if(job?.state==='planned')return tx('生成新版','Generate');
+  if(['failed','cancelled'].includes(job?.state))return tx('继续','Continue');
+  return tx('重新生成','Regenerate');
+}
+function renderManagedPetActions(){
+  const section=document.getElementById('petManagerMotion'),list=document.getElementById('petManagerMotionList');
+  if(!section||!list)return;
+  const metadata=managedPetMetadata();
+  const visible=String(petManagerUI.characterID||'').startsWith('custom:')
+    &&metadata.archived!==true&&metadata.deleted!==true;
+  section.hidden=!visible;if(!visible){list.innerHTML='';return}
+  const markup=MANAGED_ACTIONS.map(action=>{
+    const job=managedStarterActionJob(action.id),busy=petManagerUI.pendingRegenActionID===action.id||!!(job&&['queued','generating','local_processing','awaiting_review'].includes(job.state));
+    const armed=petManagerUI.regenActionID===action.id;
+    return `<div class="pet-manager-motion-row"><span class="pet-manager-motion-icon" aria-hidden="true">${action.icon}</span><span class="pet-manager-motion-copy"><b>${esc(LANG==='zh'?action.zh:action.en)}</b><small>${esc(managedActionState(job))}</small></span><button type="button" class="${armed?'armed':''}" ${busy?'disabled':''} onclick="regenerateManagedPetAction('${action.id}')">${esc(managedActionButton(job,action.id))}</button></div>`;
+  }).join('');
+  if(list.innerHTML!==markup)list.innerHTML=markup;
+}
+function regenerateManagedPetAction(actionID){
+  const characterID=petManagerUI.characterID,job=managedStarterActionJob(actionID);
+  if(!characterID||!MANAGED_ACTIONS.some(action=>action.id===actionID)||petManagerUI.pendingRegenActionID)return;
+  if(job&&['queued','generating','local_processing','awaiting_review'].includes(job.state))return;
+  if(petManagerUI.regenActionID!==actionID){
+    clearManagedActionArm();petManagerUI.regenActionID=actionID;
+    petManagerUI.regenTimer=setTimeout(()=>{clearManagedActionArm();renderManagedPetActions()},5000);
+    renderManagedPetActions();return;
+  }
+  clearManagedActionArm();petManagerUI.pendingRegenActionID=actionID;renderManagedPetActions();
+  showPetManagerProgress(tx('已提交动作生成；可以关闭这个窗口。','Action generation started; you may close this sheet.'));
+  if(!send({type:'petStarterActionRegenerate',characterID,actionID,quality:'medium'})){
+    petManagerUI.pendingRegenActionID=null;renderManagedPetActions();
+    showPetManagerError(tx('无法连接到 Mimo，这次没有开始生成。','Could not reach Mimo; generation did not start.'));
+  }
 }
 function syncManagedPetExpressionProgress(event,status){
   if(!petManagerUI.characterID||event?.characterID!==petManagerUI.characterID)return;
@@ -2169,6 +2267,7 @@ function syncPetManagerLanguage(){
   const archive=document.getElementById('petManagerArchive'),remove=document.getElementById('petManagerDelete');
   const repair=document.getElementById('petManagerExpressionRepair');
   if(repair)repair.hidden=!managedPetNeedsExpressions();
+  renderManagedPetActions();
   if(archive){archive.hidden=false;archive.textContent=deleted?(archived?tx('恢复到已隐藏','Restore to Hidden'):tx('恢复伴灵','Restore familiar')):archived?tx('取消隐藏','Unhide'):tx('隐藏','Hide')}
   if(remove){remove.hidden=deleted;remove.textContent=tx('删除','Delete')}
   const title=document.getElementById('petDeleteConfirmTitle'),copy=document.getElementById('petDeleteConfirmCopy');
@@ -2182,6 +2281,7 @@ function openPetManager(characterID,trigger){
   const metadata=S.petLibrary?.metadata?.[characterID]||{},overlay=document.getElementById('petManagerOverlay');
   petManagerUI.characterID=characterID;petManagerUI.returnFocus=trigger||document.activeElement;
   petManagerUI.pendingSave=null;petManagerUI.pendingArchive=null;petManagerUI.pendingRestoreDeleted=false;petManagerUI.pendingDelete=false;
+  clearManagedActionArm();petManagerUI.pendingRegenActionID=null;
   document.getElementById('petManagerTitle').textContent=metadata.displayName||pet.m.name||tx('伴灵','Familiar');
   document.getElementById('petManagerName').value=metadata.displayName||pet.m.name||'';
   document.getElementById('petManagerCategory').value=metadata.category||'';
@@ -2195,7 +2295,7 @@ function openPetManager(characterID,trigger){
 function closePetManager(){
   const overlay=document.getElementById('petManagerOverlay');if(overlay)overlay.hidden=true;
   const focus=petManagerUI.returnFocus;
-  clearPetManagerTimeout();Object.assign(petManagerUI,{characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingRestoreDeleted:false,pendingDelete:false,timeout:null});
+  clearPetManagerTimeout();clearManagedActionArm();Object.assign(petManagerUI,{characterID:null,returnFocus:null,pendingSave:null,pendingArchive:null,pendingRestoreDeleted:false,pendingDelete:false,timeout:null,regenActionID:null,regenTimer:null,pendingRegenActionID:null});
   if(focus&&document.contains(focus))focus.focus();
 }
 function savePetManager(event){

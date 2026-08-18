@@ -1199,13 +1199,20 @@ extension AppDelegate {
         return uuid.uuidString.lowercased()
     }
 
+    private func selectableCustomCharacterID(requested: Any?) -> String? {
+        guard let characterID = requested as? String,
+              characterID.hasPrefix(CustomPetStore.characterPrefix),
+              (try? PetLibraryStateStore.shared.load()
+                .isSelectable(characterID)) == true,
+              (try? customPetStore.runtimeSpec(
+                characterID: characterID)) != nil else { return nil }
+        return characterID
+    }
+
     private func activeCustomCharacterID(requested: Any? = nil) -> String? {
         let active = UserDefaults.standard.string(forKey: "character") ?? ""
-        if let requested = requested as? String, requested != active { return nil }
-        guard active.hasPrefix(CustomPetStore.characterPrefix),
-              (try? PetLibraryStateStore.shared.load().isSelectable(active)) == true,
-              (try? customPetStore.runtimeSpec(characterID: active)) != nil else { return nil }
-        return active
+        if let requested, (requested as? String) != active { return nil }
+        return selectableCustomCharacterID(requested: active)
     }
 
     private func reportActionJobError(_ error: Error, code: String) {
@@ -3615,6 +3622,31 @@ extension AppDelegate {
                 characterID: characterID,
                 quality: PetFinalGenerationQuality.resolve(
                     body["quality"] as? String))
+        case "petStarterActionRegenerate":
+            guard let characterID = selectableCustomCharacterID(
+                    requested: body["characterID"]),
+                  let rawActionID = body["actionID"] as? String,
+                  let actionID = StarterActionID(rawValue: rawActionID) else {
+                reportStarterActionError(
+                    jobID: nil,
+                    error: StarterActionJobError.invalidCharacterID,
+                    code: "invalid_regeneration_target")
+                return
+            }
+            do {
+                let job = try starterActionJobStore.prepareRegeneration(
+                    characterID: characterID, actionID: actionID)
+                pushSettingsState()
+                startStarterActionJob(
+                    jobID: job.id,
+                    characterID: characterID,
+                    quality: PetFinalGenerationQuality.resolve(
+                        body["quality"] as? String))
+            } catch {
+                reportStarterActionError(
+                    jobID: nil, error: error,
+                    code: "regeneration_failed")
+            }
         case "petStarterActionCancelDefaults":
             guard let characterID = activeCustomCharacterID(
                     requested: body["characterID"]) else {
