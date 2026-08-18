@@ -45,6 +45,13 @@ struct ReleaseSurfaceTests {
                && signing.contains(" -x ")
                && !signing.contains(" -A "),
                "local builds expose their identity and the optional stable key stays non-exportable and codesign-scoped")
+        expect(signing.contains("/usr/bin/openssl req")
+               && signing.contains("/usr/bin/openssl pkcs12")
+               && signing.contains("/usr/bin/openssl rand -hex 32")
+               && signing.contains("-passout \"pass:$MIMO_SIGNING_PASSWORD\"")
+               && signing.contains("-P \"$MIMO_SIGNING_PASSWORD\"")
+               && !signing.contains("-passout pass:"),
+               "stable signing uses the system OpenSSL and a non-empty ephemeral PKCS#12 password")
 
         print("release surface tests passed")
     }

@@ -37,13 +37,16 @@ P12="$MIMO_SIGNING_TMP/identity.p12"
 if security find-certificate -c "$IDENTITY" "$KEYCHAIN" >/dev/null 2>&1; then
   security find-certificate -c "$IDENTITY" -p "$KEYCHAIN" > "$CERT"
 else
-  openssl req -new -newkey rsa:2048 -x509 -sha256 -days 3650 -nodes \
+  MIMO_SIGNING_PASSWORD="$(/usr/bin/openssl rand -hex 32)"
+  /usr/bin/openssl req -new -newkey rsa:2048 -x509 -sha256 -days 3650 -nodes \
     -subj "/CN=$IDENTITY/O=Mimo Local Development" \
     -addext "keyUsage=critical,digitalSignature" \
     -addext "extendedKeyUsage=critical,codeSigning" \
     -keyout "$KEY" -out "$CERT"
-  openssl pkcs12 -export -inkey "$KEY" -in "$CERT" -out "$P12" -passout pass:
-  security import "$P12" -k "$KEYCHAIN" -f pkcs12 -P "" -x \
+  /usr/bin/openssl pkcs12 -export -inkey "$KEY" -in "$CERT" -out "$P12" \
+    -passout "pass:$MIMO_SIGNING_PASSWORD"
+  security import "$P12" -k "$KEYCHAIN" -f pkcs12 \
+    -P "$MIMO_SIGNING_PASSWORD" -x \
     -T /usr/bin/codesign -T /usr/bin/security
 fi
 
