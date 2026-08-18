@@ -30,15 +30,16 @@ struct ReferenceDeleteAutogenerationTests {
                 of: "clearTimeout(candidateAutoGenerateTimer)"),
               let handled = changed.range(
                 of: "candidateAutoGenerateSignature=candidateReferenceSignature()"),
-              let invalidation = changed.range(of: "invalidatePetDraft();") else {
+              let renderBoundary = changed.range(
+                of: "preserveDraftsAfterReferenceChange();") else {
             expect(false,
                    "manual reference removal needs an explicit pre-render auto-generation fence")
             return
         }
 
-        expect(suppression.lowerBound < invalidation.lowerBound
-               && cancellation.lowerBound < invalidation.lowerBound
-               && handled.lowerBound < invalidation.lowerBound,
+        expect(suppression.lowerBound < renderBoundary.lowerBound
+               && cancellation.lowerBound < renderBoundary.lowerBound
+               && handled.lowerBound < renderBoundary.lowerBound,
                "deletion must cancel and mark the reduced reference set before render can schedule generation")
         print("reference deletion auto-generation regression test passed")
     }
