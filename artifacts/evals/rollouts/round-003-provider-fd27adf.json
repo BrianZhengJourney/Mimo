@@ -1,0 +1,23 @@
+{
+  "baselineCommit" : "36d8f994731466ba41eab3cf339451f22f193dc9",
+  "candidateCommit" : "fd27adf701e75c4f890316da03c4c1a5c8fa10a0",
+  "dataset" : "mimo-diy-v3",
+  "events" : [
+    {
+      "action" : "block",
+      "createdAt" : "2026-07-31T15:23:59Z",
+      "evidenceCommit" : "fd27adf701e75c4f890316da03c4c1a5c8fa10a0",
+      "evidenceLabel" : "round-003-provider-fd27adf-initial",
+      "failedGates" : [
+        "providerP95LatencyWithin10Percent",
+        "rolloutEligible"
+      ],
+      "fromPercent" : 0,
+      "reason" : "candidate did not satisfy every rollout prerequisite",
+      "toPercent" : 0
+    }
+  ],
+  "schemaVersion" : 1,
+  "stagePercent" : 0,
+  "status" : "blocked"
+}
