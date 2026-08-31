@@ -1,6 +1,6 @@
 # Apple Photos → DIY 伴灵 prototype
 
-> THROWAWAY PROTOTYPE — 验证后要么吸收进正式 Studio，要么整个删掉。
+> 2026-08-31 边界：这是独立诊断 prototype，不是正式产品入口。实际 Photos / DIY Studio 在 `mac/settings.html`；prototype 只用于模型 A/B、权限和候选 UI 的隔离验证。
 
 ## 要回答的问题
 

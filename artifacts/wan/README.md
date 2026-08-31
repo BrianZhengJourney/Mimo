@@ -1,5 +1,7 @@
 # Mimo Wan artifacts
 
+> Current local retention layout, checked 2026-08-31. Generated runs remain ignored; only contracts and source inputs are versioned.
+
 All retained Mimo/Wan inputs, preprocessing previews, inference outputs,
 postprocessed sprites, QA reports, logs, and cost manifests live under this
 repository:

@@ -23,6 +23,26 @@ struct JournalClickUITests {
         expect(overlay.contains("function famShowJournal(){") &&
                overlay.contains("J.view='today';J.openSess=null;"),
                "a pet tap should open the complete journal directly on today")
+        expect(overlay.contains("id=\"statusBadgeMain\" type=\"button\"") &&
+               overlay.contains("onclick=\"famToggleJournal();this.blur()\"") &&
+               overlay.contains("id=\"statusBadgeDismiss\" type=\"button\"") &&
+               overlay.contains("onclick=\"famDismissStatusBadge();this.blur()\"") &&
+               overlay.contains("event.key==='Escape'") &&
+               overlay.contains("event.key==='ArrowRight'"),
+               "the compact status and journal should support direct and keyboard interaction")
+        expect(overlay.contains("const STATUS_BADGE_TTL_MS=30000;") &&
+               overlay.contains("setTimeout(famDismissStatusBadge,STATUS_BADGE_TTL_MS)") &&
+               overlay.contains("transform:translate(50%,-12px) scale(.96);") &&
+               overlay.contains("if (q.get('scale')) famSetDisplayScale(q.get('scale'));") &&
+               main.contains("overlayPanelSize = NSSize(width: 560, height: 440)") &&
+               main.contains("positionStatusBadgeNearNativeCompanion()") &&
+               main.contains("statusBadgeRect().contains(NSEvent.mouseLocation)") &&
+               runtime.contains("func primaryCompanionVisualRect() -> CGRect?"),
+               "the compact status should stay unclipped above the largest familiar, remain dismissible, and retire after 30 seconds")
+        expect(overlay.contains("opacity:0; visibility:hidden; pointer-events:none;") &&
+               overlay.contains(".journal.on{ opacity:1; visibility:visible; pointer-events:auto; transform:none; }") &&
+               overlay.contains("prefers-reduced-motion:reduce"),
+               "the journal should animate smoothly while preserving reduced-motion access")
         expect(!overlay.contains("function famShowFocusBrief") &&
                !overlay.contains("🐾 今天专注得怎么样？"),
                "the intermediate focus summary card should be removed")

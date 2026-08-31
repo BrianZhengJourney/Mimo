@@ -1,5 +1,7 @@
 # Higgsfield action postprocessor
 
+> Experimental local postprocessor, checked 2026-08-31. It does not call Higgsfield or install an action.
+
 Converts one fixed-camera Higgsfield MP4 on a flat `#FF00FF` matte into the
 existing Mimo action format.
 

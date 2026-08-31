@@ -18,20 +18,26 @@ struct SettingsVisualContractTests {
         let common = try String(
             contentsOfFile: "mac/common.sh", encoding: .utf8)
 
-        for token in ["--paper:#f6f1e8", "--surface:#fffaf3",
-                      "--surface-muted:#eee3d5", "--ink:#352c25",
-                      "--accent:#91664f"] {
+        for token in ["--paper:#f4f3ef", "--surface:#fbfaf7",
+                      "--surface-muted:#eeece6", "--ink:#292824",
+                      "--accent:#9f4e43"] {
             expect(html.contains(token),
-                   "warm minimalist Settings should define \(token)")
+                   "washi minimalist Settings should define \(token)")
         }
         expect(html.contains("background:var(--paper)") &&
                !html.contains("background:linear-gradient(165deg,#1d1838"),
-               "the release Settings canvas should be warm paper, not midnight purple")
-        expect(html.contains("<h1>🐾 Mimo <span") &&
-               html.contains("米墨</span>") &&
+               "the release Settings canvas should be quiet paper, not midnight purple")
+        expect(html.contains("class=\"brand-seal\"") &&
+               html.contains("class=\"brand-word\">Mimo <small>米墨</small>") &&
+               !html.contains("<h1>🐾") &&
                !html.contains("class=\"tagline\"") &&
                !html.contains(".tagline{"),
-               "keep the Mimo 米墨 title but remove only its subtitle line")
+               "keep the Mimo 米墨 identity as a restrained typographic mark")
+        expect(html.contains("Japanese minimal system") &&
+               html.contains(".settings-tab.cur,.settings-tab.cur:hover") &&
+               html.contains("background:transparent; border-color:var(--accent)") &&
+               html.contains("prefers-reduced-motion:reduce"),
+               "Settings should use the quiet navigation and respect reduced motion")
 
         expect(html.contains("'PingFang SC','PingFang TC','Hiragino Sans GB'") &&
                html.contains(":root[data-font-family=\"pingfang\"]") &&

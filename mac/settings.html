@@ -5,10 +5,10 @@
 <title>Mimo 米墨 — 设置</title>
 <style>
 :root{
-  --paper:#f6f1e8; --surface:#fffaf3; --surface-raised:#fffdf8;
-  --surface-muted:#eee3d5; --ink:#352c25; --dim:#786b60; --card:var(--surface);
-  --line:#d9ccba; --accent:#91664f; --accent-soft:#ead8c7;
-  --good:#668470; --warn:#a4743f; --bad:#a45f5d; --shadow:#6e514118;
+  --paper:#f4f3ef; --surface:#fbfaf7; --surface-raised:#ffffff;
+  --surface-muted:#eeece6; --ink:#292824; --dim:#76736b; --card:var(--surface);
+  --line:#d8d5cd; --accent:#9f4e43; --accent-soft:#f3e7e3;
+  --good:#557564; --warn:#9a6a37; --bad:#a45752; --shadow:#39342d10;
   --ui-font-family:'PingFang SC','PingFang TC','Hiragino Sans GB',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
   --ui-font-weight:400; --ui-strong-weight:500;
 }
@@ -639,17 +639,127 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
 .card-manage{ border-color:var(--line); color:var(--dim); background:var(--surface-raised); }
 .style-tuning-chip.applied{ color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
 .api-field input:focus,.style-tuning-input:focus{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+
+/* ── 余白 / Japanese minimal system ───────────────────────────────────────
+   Fewer containers compete for attention: paper, hairlines, sumi ink, and a
+   single vermilion selection mark.  The dense Studio remains fully capable,
+   but reads as one quiet tool instead of a stack of purple widgets. */
+html{ scroll-behavior:smooth; }
+body{ padding:20px 28px 44px; background:var(--paper); }
+h1{
+  display:flex; align-items:center; gap:10px; margin:0 0 15px;
+  color:var(--ink); font-size:21px; font-weight:600; letter-spacing:-.025em;
+}
+.brand-seal{
+  width:28px; height:28px; display:grid; place-items:center; flex:none;
+  color:#fffaf5; background:var(--accent); border-radius:7px;
+  font-family:'Hiragino Mincho ProN','Songti SC',serif; font-size:14px; font-weight:600;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.brand-word{ display:flex; align-items:baseline; gap:7px; }
+.brand-word small{ color:var(--dim); font-size:11px; font-weight:400; letter-spacing:.08em; }
+.edition{
+  margin-left:auto; padding:2px 7px; color:var(--dim); background:transparent;
+  border:1px solid var(--line); border-radius:999px; font:500 8px/1.5 ui-monospace,monospace;
+  letter-spacing:.08em; text-transform:uppercase;
+}
+.settings-tabs{
+  top:0; grid-template-columns:repeat(4,1fr); gap:0; margin:0 0 18px; padding:0;
+  background:rgba(244,243,239,.93); border-bottom:1px solid var(--line);
+  backdrop-filter:blur(18px) saturate(.75);
+}
+.settings-tab{
+  min-height:42px; gap:7px; padding:7px 4px 8px;
+  color:var(--dim); background:transparent; border:0; border-bottom:2px solid transparent;
+  border-radius:0; font-size:10.5px; backdrop-filter:none;
+  transition:color .2s ease,background .2s ease,border-color .24s ease;
+}
+.settings-tab:hover{ color:var(--ink); background:rgba(255,255,255,.45); }
+.settings-tab.cur,.settings-tab.cur:hover{
+  color:var(--ink); background:transparent; border-color:var(--accent);
+  box-shadow:none; font-weight:600;
+}
+.settings-tab:focus-visible{
+  outline:none; outline-offset:0; background:rgba(255,255,255,.5);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 24%,var(--line));
+}
+.settings-tab .tab-ico{
+  min-width:19px; height:19px; display:grid; place-items:center;
+  color:var(--dim); border:1px solid var(--line); border-radius:5px;
+  font-size:8px; font-weight:600; line-height:1;
+}
+.settings-tab.cur .tab-ico{ color:var(--accent); border-color:color-mix(in srgb,var(--accent) 50%,var(--line)); }
+.tab-panel.cur{ animation:panel-in .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes panel-in{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.sec{
+  margin-bottom:15px; padding:17px 18px; background:rgba(251,250,247,.94);
+  border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 1px 1px rgba(48,43,37,.025),0 8px 24px rgba(48,43,37,.025);
+}
+.sec h2{ margin-bottom:12px; color:var(--ink); font-size:13px; font-weight:600; letter-spacing:.015em; }
+.sec h2::before{ content:""; width:3px; height:13px; border-radius:2px; background:var(--accent); }
+.sec h2 .ico{ display:none; }
+.note{ color:var(--dim); }
+button,select,input,textarea,.card,.reference-set,.reference-card,.reference-add,
+.studio-step,.pet-controls,.temperament-tile,.style-tuning,.quality-tile,.sheet-result,
+.candidate,.language-card,.starter-actions-pack,.starter-action-card{
+  border-radius:9px;
+  transition:background .18s ease,border-color .18s ease,color .18s ease,
+    box-shadow .18s ease,transform .18s cubic-bezier(.2,.8,.2,1);
+}
+button{ color:var(--ink); background:var(--surface-raised); border-color:var(--line); }
+button:hover{ color:var(--ink); background:var(--surface-muted); transform:translateY(-1px); }
+button:active{ transform:translateY(0) scale(.985); }
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:2px solid color-mix(in srgb,var(--accent) 36%,transparent); outline-offset:2px;
+}
+.card,.reference-set,.pet-controls,.style-tuning,.sheet-result,.language-card,
+.starter-actions-pack,.starter-action-card{ box-shadow:none; }
+.card.sel,.candidate.sel,.language-card.sel{ box-shadow:0 5px 18px var(--shadow); }
+.card:hover,.candidate:hover,.language-card:hover{ transform:translateY(-1px); }
+.pet-library-toggle,.pet-library-filter,.style-tuning-chip,.chip{ border-radius:999px; }
+.generate-both,.sheet-adopt,.reference-confirm,button.primary{
+  color:#fffaf5; background:#3c3a35; border-color:#3c3a35; box-shadow:none;
+}
+.generate-both:hover,.sheet-adopt:hover,.reference-confirm:hover,button.primary:hover{
+  color:#fff; background:#24231f; border-color:#24231f;
+}
+.studio-step.cur,.temperament-tile.sel,.quality-tile.sel{
+  color:var(--ink); background:var(--accent-soft); border-color:color-mix(in srgb,var(--accent) 52%,var(--line));
+}
+.chip.cur,.rule-segment button.sel,.size-presets button.sel{
+  color:#fffaf5; background:var(--accent); border-color:var(--accent);
+}
+.rule-segment button[data-bucket="deep"].sel{ background:var(--good); }
+.rule-segment button[data-bucket="distraction"].sel{ background:var(--bad); }
+.row{ min-height:42px; padding:8px 0; border-bottom:1px solid color-mix(in srgb,var(--line) 62%,transparent); }
+.row:last-child{ border-bottom:0; }
+select,.pet-manager-field input,.api-field input,.style-tuning-input,.candidate-feedback{
+  color:var(--ink); background:var(--surface-raised); border-color:var(--line);
+}
+details > summary{ border-radius:7px; transition:color .18s ease,background .18s ease; }
+details > summary:hover{ color:var(--ink); background:var(--surface-muted); }
+.toggle i{ background:#cbc8c0; }.toggle i::after{ background:#fff; }
+.toggle input:checked + i{ background:var(--good); }
+.footer{ margin-top:24px; }
+.kbd{ color:var(--ink); background:var(--surface-muted); border:1px solid var(--line); }
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .tab-panel.cur{ animation:none; }
+  button,select,input,textarea,.settings-tab,.card,.candidate,.language-card{ transition:none; }
+}
 </style>
 </head>
 <body>
 
-<h1>🐾 Mimo <span style="font-size:.62em;color:var(--dim)">米墨</span> <span id="betaBadge" style="font-size:.5em;vertical-align:middle;color:var(--dim);background:var(--surface-muted);border-radius:5px;padding:2px 8px">Beta</span></h1>
+<h1><span class="brand-seal" aria-hidden="true">米</span><span class="brand-word">Mimo <small>米墨</small></span><span class="edition" id="betaBadge">Beta</span></h1>
 
 <nav class="settings-tabs" aria-label="Settings sections">
-  <button class="settings-tab cur" type="button" data-tab="pet" onclick="setSettingsTab('pet')"><span class="tab-ico">🐾</span><span data-zh="伴灵" data-en="Familiar">伴灵</span></button>
-  <button class="settings-tab" type="button" data-tab="focus" onclick="setSettingsTab('focus')"><span class="tab-ico">🎯</span><span data-zh="专注" data-en="Focus">专注</span></button>
-  <button class="settings-tab" type="button" data-tab="general" onclick="setSettingsTab('general')"><span class="tab-ico">⚙</span><span data-zh="通用" data-en="General">通用</span></button>
-  <button class="settings-tab" type="button" data-tab="language" onclick="setSettingsTab('language')"><span class="tab-ico">文/A</span><span data-zh="语言" data-en="Language">语言</span></button>
+  <button class="settings-tab cur" type="button" data-tab="pet" onclick="setSettingsTab('pet')"><span class="tab-ico" aria-hidden="true">伴</span><span data-zh="伴灵" data-en="Familiar">伴灵</span></button>
+  <button class="settings-tab" type="button" data-tab="focus" onclick="setSettingsTab('focus')"><span class="tab-ico" aria-hidden="true">专</span><span data-zh="专注" data-en="Focus">专注</span></button>
+  <button class="settings-tab" type="button" data-tab="general" onclick="setSettingsTab('general')"><span class="tab-ico" aria-hidden="true">般</span><span data-zh="通用" data-en="General">通用</span></button>
+  <button class="settings-tab" type="button" data-tab="language" onclick="setSettingsTab('language')"><span class="tab-ico" aria-hidden="true">文</span><span data-zh="语言" data-en="Language">语言</span></button>
 </nav>
 
 <main>
@@ -704,7 +814,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
   <div class="sheet-result" id="petSheetResult" aria-live="polite"></div>
   <div class="studio-actions"><button class="generate-both" id="petGenerate" type="button" onclick="generateCandidates()" data-zh="生成 3 个草稿" data-en="Generate 3 drafts">生成 3 个草稿</button></div>
   <div class="final-controls" id="finalControls">
-    <button class="micro-variations" id="petVariationsGenerate" type="button" onclick="generateCandidateVariations()" title="Low · one explicit OpenAI image request" data-zh="🎲 再来 3 个小表情" data-en="🎲 3 more expressions">🎲 再来 3 个小表情</button>
+    <button class="micro-variations" id="petVariationsGenerate" type="button" onclick="generateCandidateVariations()" title="Low · one explicit OpenAI image request" data-zh="再来 3 个小表情" data-en="3 more expressions">再来 3 个小表情</button>
     <button class="generate-both" id="petEvolutionGenerate" type="button" onclick="generateEvolution()" data-zh="生成 Medium 定稿" data-en="Create Medium final">生成 Medium 定稿</button>
   </div>
   <div class="petlab-state" id="petLabState" aria-live="polite"><span class="dot"></span>
@@ -784,7 +894,7 @@ select{ font-family:inherit; font-size:11.5px; color:var(--ink); background:#1c1
     <button onclick="send({type:'forget', span:'hour'})" data-zh="忘掉上一小时" data-en="Forget last hour">忘掉上一小时</button>
     <button onclick="send({type:'forget', span:'today'})" data-zh="忘掉今天" data-en="Forget today">忘掉今天</button>
     <button class="danger" onclick="send({type:'forget', span:'all'})" data-zh="全部忘掉…" data-en="Forget everything…">全部忘掉…</button>
-    <button onclick="send({type:'reveal'})" data-zh="📂 数据文件夹" data-en="📂 Data folder">📂 数据文件夹</button>
+    <button onclick="send({type:'reveal'})" data-zh="数据文件夹" data-en="Data folder">数据文件夹</button>
   </div>
 </div>
 
@@ -906,7 +1016,7 @@ function setSettingsTab(tab){
   activeSettingsTab = next;
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('cur', el.dataset.tab === activeSettingsTab));
   document.querySelectorAll('[data-panel]').forEach(el => el.classList.toggle('cur', el.dataset.panel === activeSettingsTab));
-  if(changed){ document.body.scrollTop = 0; document.documentElement.scrollTop = 0; }
+  if(changed){ window.scrollTo({top:0,behavior:'smooth'}); }
 }
 function showPhotoHandoffStudio(){
   setSettingsTab('pet');
@@ -1508,7 +1618,7 @@ function renderPetLab(){
   }
   if(variations){
     variations.disabled=busy||petLab.candidateIndex===null||!petLab.candidateDraftID;
-    variations.textContent=petLab.status==='busy'&&petLab.operation==='variations'?tx('正在画小表情…','Drawing expressions…'):tx('🎲 再来 3 个小表情','🎲 3 more expressions');
+    variations.textContent=petLab.status==='busy'&&petLab.operation==='variations'?tx('正在画小表情…','Drawing expressions…'):tx('再来 3 个小表情','3 more expressions');
   }
   const result=document.getElementById('petSheetResult'),state=document.getElementById('petLabState');if(!result||!state)return;
   result.setAttribute('aria-busy',petLab.status==='busy'?'true':'false');

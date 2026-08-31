@@ -1,5 +1,7 @@
 # Mimo × Wan2.2-Animate (private Modal batch)
 
+> Experimental private batch path, checked 2026-08-31. It is not the product runtime; every paid GPU stage remains manually gated.
+
 This runner pins the official sources and keeps the expensive stage behind a
 human pose/face review gate.
 

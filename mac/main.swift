@@ -424,6 +424,11 @@ final class OverlayWebView: WKWebView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+// The status capsule sits above a companion that can scale to 140% (336pt).
+// 320pt clipped the capsule and its shadow at larger sizes; the extra space is
+// transparent and does not change the familiar's on-screen position.
+private let overlayPanelSize = NSSize(width: 560, height: 440)
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler, WKNavigationDelegate {
     var panel: OverlayPanel!
     var webView: WKWebView!
@@ -433,6 +438,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var lastSent = ""
     var clickable = false          // user preference: always clickable (menu toggle)
     var bubbleOpen = false
+    var statusBadgeVisible = false
     var contextGlobalDismissMonitor: Any?
     var contextLocalDismissMonitor: Any?
     var paused = false
@@ -615,7 +621,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     func buildPanel() {
-        let size = NSSize(width: 560, height: 320)
+        let size = overlayPanelSize
         guard let screen = NSScreen.main else { fatalError("no screen") }
         let fallback = homeOrigin(on: screen, size: size)
         var saved: NSPoint? = nil
@@ -1340,11 +1346,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func startHoverTracking() {
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self, !self.dragging else { return }
+            self.positionStatusBadgeNearNativeCompanion()
             let overCreature = !self.nativeCompanionActive
                 && self.creatureRect().contains(NSEvent.mouseLocation)
-            let interactive = self.bubbleOpen || self.clickable || overCreature
+            let overStatus = self.statusBadgeVisible
+                && self.statusBadgeRect().contains(NSEvent.mouseLocation)
+            let interactive = self.bubbleOpen || self.clickable || overCreature || overStatus
             self.panel.ignoresMouseEvents = !interactive
         }
+    }
+
+    /// Keep the compact status control centered just above the visible native
+    /// artwork instead of leaving it at the transparent panel's old position.
+    func positionStatusBadgeNearNativeCompanion() {
+        guard nativeCompanionActive, !bubbleOpen,
+              let visual = companionRuntime.primaryCompanionVisualRect(),
+              let screen = NSScreen.screens.first(where: { $0.frame.intersects(visual) })
+                ?? panel.screen else { return }
+        let height = CompanionDisplaySize.nativeHeight(percent: companionDisplayScalePercent())
+        let stageCenterOffset = panel.frame.width - 10 - height / 2
+        let safeCenterX = min(max(visual.midX, screen.visibleFrame.minX + 96),
+                              screen.visibleFrame.maxX - 96)
+        var origin = NSPoint(x: safeCenterX - stageCenterOffset,
+                             y: visual.maxY - height - 6)
+        let badgeTopOffset = 6 + height + 8 + 38
+        origin.y = min(origin.y, screen.visibleFrame.maxY - badgeTopOffset - 6)
+        panel.setFrameOrigin(origin)
+    }
+
+    func statusBadgeRect() -> NSRect {
+        let height = nativeCompanionActive
+            ? CompanionDisplaySize.nativeHeight(percent: companionDisplayScalePercent())
+            : 150 * companionDisplayScalePercent() / 100
+        let centerX = panel.frame.maxX - 10 - height / 2
+        return NSRect(x: centerX - 96,
+                      y: panel.frame.minY + 6 + height + 8,
+                      width: 192, height: 40)
     }
 
     // ── drag: window follows the cursor between dragStart/dragEnd from JS ──
@@ -1547,6 +1584,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         switch type {
         case "bubble":
             setContextPanelOpen((body["on"] as? Bool) ?? false)
+        case "statusBadge":
+            statusBadgeVisible = (body["on"] as? Bool) ?? false
         case "dragStart":
             beginDrag()
         case "dragEnd":

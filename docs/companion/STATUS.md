@@ -1,6 +1,6 @@
 # Mimo 当前状态
 
-> 唯一的当前状态入口。最后核对：2026-08-18。其余 companion 文档保留设计和
+> 唯一的当前状态入口。最后核对：2026-08-31。其余 companion 文档保留设计和
 > 实验历史；与本页冲突时，以本页和代码为准。
 
 ## 可用 baseline
@@ -25,6 +25,16 @@
   导出继续保留。伴灵不随机游走；深度工作、分心回访、Focus 完成、连续疲劳和回看
   手记都是稀疏、有冷却的语义事件。
 
+## 当前 UI
+
+- 状态条按角色当前帧的实际非透明区域定位，贴近伴灵头顶；`560 × 440` 透明承载区
+  给大尺寸角色、状态条和阴影留足空间，不再被裁切。
+- 状态条可点 `×` 关闭，也会在 30 秒后自动隐藏；悬停或打开 Quick Look 时暂停。
+  显示时参与鼠标命中，隐藏后恢复 click-through。
+- Quick Look 与 Settings 已统一为暖白、墨色、低饱和朱红的日式极简视觉。
+  Quick Look 支持刷新、`Esc` 关闭和左右键切换 Today / Week；Settings 保留稳定
+  的粘性 tab、active state 与平滑回顶。
+
 ## 今日手记与 Recurrence
 
 - 唯一必需数据源是 Mimo 本机 activity JSONL；ActivityWatch 仅是用户主动开启的
@@ -45,7 +55,7 @@
 
 ## 质量 baseline
 
-2026-08-18 整合后 `main` 的非 GUI 工程门：`./mac/test.sh` 为
+2026-08-31 UI 收口后的 `main` 非 GUI 工程门：`./mac/test.sh` 为
 **65 passed，1 GUI-skipped**。此前解锁 macOS 下的 real WKWebView DOM 门禁
 另行实际执行，为 **1 passed / 0 skipped**。`./mac/build.sh` 成功生成完整 App
 bundle。构建内明确写入 commit、dirty 与 signature mode。`Mimo Local Development`
@@ -88,7 +98,7 @@ git status --short
 git log -1 --oneline
 git rev-parse --abbrev-ref HEAD
 ./mac/build.sh
-open mac/build/Mimo.app
+open -na "$(pwd)/mac/build/Mimo.app"
 ```
 
 `git status` 除本地私有文件外应没有待提交代码，`git log -1` 应与远端当前

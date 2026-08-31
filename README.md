@@ -1,131 +1,52 @@
 # Mimo 米墨
 
-A local-first macOS work companion that **feeds on focus, reflects distraction,
-and remembers lost context**.
+一个 local-first 的 macOS 桌面伴灵：安静陪伴专注、记录被打断的上下文，并把人物、宠物或原创角色做成可交互伴灵。
 
-Mimo combines a quiet desktop familiar, an ambient focus journal, and a studio
-for turning a person, pet, or original character into a custom companion.
+> **当前版本：v0.2 Alpha · `main` · 2026-08-31。** 真实运行入口是仓库内的 `mac/build/Mimo.app`；不要再复制或启动 `/Applications` 里的旧开发版。
 
-## Status
+## 现在能做什么
 
-**v0.2 Alpha · complete working baseline + default Starter Actions (2026-07-31).**
+- **桌面伴灵**：原生 AppKit/CALayer 渲染，支持透明像素命中、拖拽/抛掷、屏幕边界、注视和数据驱动行为。
+- **专注与回看**：本地活动分类、25/50 分钟 Focus、Quick Look、今日手记、周视图和独立 HTML 导出。
+- **DIY Studio**：照片或手动参考图 → 人物候选 → canonical familiar → Starter Actions → 本机 QA → 预览 → 显式接受安装。
+- **Starter Actions**：注视、趴睡、网球、墙边站/坐；付费请求永远由用户显式开始，失败或中断不会静默重放。
+- **当前交互**：状态条贴近伴灵头顶，可手动关闭或 30 秒自动消失；点击打开日式极简 Quick Look，支持刷新、`Esc` 关闭和左右键切换；Settings 也已统一为克制的日式层级。
 
-The current native app is complete and directly usable. Starter Actions now
-extend this working version without making motion generation a prerequisite
-for adopting or using a DIY familiar.
-
-The repository has moved beyond the original browser concept:
-
-- Native AppKit/CALayer companion with alpha hit testing, HiDPI rendering,
-  drag/throw physics, screen surfaces, gaze, and data-driven behavior packs.
-- Local app/browser activity classification, 25/50-minute Focus timers,
-  a bilingual Quick Look, Week view, and a full-page HTML archive.
-- Today Journal turns raw local events into a proportional day journey,
-  interpretable topic clusters, time/topic graph views, hover context,
-  local rename/merge corrections, learning-material summaries, and
-  evidence-linked reflection. An opt-in
-  localhost ActivityWatch adapter can supplement window/tab/AFK evidence.
-  Optional AI enrichment never blocks the fully local dashboard.
-- Mimo Studio reference preprocessing, canonical character generation,
-  expression assets, provider abstraction, generation ledger, and restart-safe
-  local recovery. A paid image and its provider-free processing recipe are
-  installed atomically and retained for at most 24 hours.
-- Mimo Studio includes four default Starter Actions after adoption: cursor
-  gaze, sleep, tennis, and wall stand/sit. One click runs them in sequence.
-- Companion recurrence is context-driven rather than random roaming: deep work
-  stays quiet, repeated distraction gets one cooled-down nudge, Focus completion
-  celebrates once, long active intervals suggest rest, and Today Journal keeps
-  the companion in a shared looking-back state until the window leaves view.
-- Each card discloses calls and estimated cost, checkpoints every completed
-  three-frame batch, survives restart, and resumes only after an explicit click.
-- Generated strips pass through local shared-scale/baseline processing, desktop
-  preview, hard-QA checking, and explicit Accept before manifest installation.
-
-See the [current status](docs/companion/STATUS.md) and
-[custom pet integration plan](docs/companion/11-custom-pet-integration.md). The
-[Today Journal guide](docs/daily-trail.md) documents its local data flow,
-visual model, and privacy boundaries.
-
-## Build and test
+## 构建与运行
 
 ```bash
-mac/build.sh                      # builds mac/build/Mimo.app with swiftc
-mac/test.sh                       # compiles and runs the unit tests
-cp -R mac/build/Mimo.app /Applications/Mimo.app
-open /Applications/Mimo.app
+./mac/test.sh
+./mac/build.sh
+open -na "$(pwd)/mac/build/Mimo.app"
 ```
 
-`build.sh` ad-hoc signs by default, which mints a new identity every build —
-macOS then re-prompts for browser Automation and invalidates the Keychain ACL
-on the stored API key. Set `MIMO_SIGN_IDENTITY` to a stable self-signed
-certificate in your login keychain to keep both across rebuilds.
+`build.sh` 默认 ad-hoc 签名。需要跨重建保留 Keychain 与浏览器 Automation 授权时，设置 `MIMO_SIGN_IDENTITY` 使用本机稳定证书。开发 build 用 Git commit 区分，不用同为 `0.2.0` 的版本号判断新旧。
 
-Activity history stays local. Optional Today Journal AI enrichment sends bounded,
-URL-scrubbed metadata only after a native confirmation. Reference images leave
-the Mac only after the user confirms the identity board and starts a provider
-generation.
+## 产品边界
 
-## Product flow
+- 活动历史、聚类修正、Studio job 与草稿默认留在本机。
+- 只有用户确认参考图并开始生成后，所选素材才会发送给 provider。
+- 可选 AI 回看只发送经过确认、去 URL 的有限元数据；没有 API Key 时本地功能仍完整可用。
+- 生成动作必须通过本机 QA 和桌面预览，再由用户接受；现有已安装资产在替换成功前保留。
+
+## 数据流
 
 ```text
-work context ──> Quick Look ──> Today Journal + focus semantics
-                                              │
-reference images ──> canonical familiar ──> behavior + action assets
-                                              │
-                                              v
-                               native companion runtime
+工作上下文 ──→ Quick Look ──→ 今日手记 / Focus 语义
+                                  │
+参考图 ──→ identity board ──→ canonical familiar ──→ action families
+                                  │
+                                  └─→ 本机 QA ──→ 预览 ──→ 原子安装
 ```
 
-The intended custom-pet flow is:
+## 仓库导航
 
-```text
-references → identity board → canonical master → action families
-           → local normalization/QA → user preview → atomic install
-```
+- `mac/`：原生 App、伴灵 runtime、Studio、测试和动作工具。
+- `docs/companion/STATUS.md`：唯一当前状态与发布门槛。
+- `docs/companion/SESSION-HANDOFF.md`：给下一次开发会话的短交接。
+- `docs/daily-trail.md`：今日手记的数据流和隐私边界。
+- `mac/evals/`：固定数据集、质量门和 rollout ledger。
+- `artifacts/wan/README.md`：本地 Wan 运行产物的保留结构。
+- `index.html` / `styles.css` / `js/`：已归档的早期浏览器概念，不是发布入口。
 
-Studio drafts, finals, and local image-processing failures survive restart.
-Interrupted provider requests are never silently replayed; retrying them is an
-explicit new request. Incomplete adopted expressions remain repairable from the
-familiar manager. The four-action starter pack uses its own durable job ledger
-and resumes only after explicit user intent.
-
-### Quick Look and Today Journal
-
-`⌥ Space` opens Quick Look for immediate context; its Today Journal link opens
-the full day journey, evidence trail, reflection, and learning-material cards.
-The export action still renders the day timeline, complete lists, and week
-heatmap as a standalone HTML page. It writes one dated file to
-`~/Library/Application Support/Mimo/exports/journal-YYYY-MM-DD.html`; opening
-it again updates that file instead of creating duplicates.
-
-## Repository map
-
-- `mac/` — native app, runtime, Studio, tests, action tooling, and curated assets.
-- `docs/companion/` — architecture decisions, generation research, roadmap,
-  current status, archived handoff, and integration plan.
-- `mac/evals/` — fixed DIY eval datasets, gates, round records, and runner.
-- `skills/mimo-animate-pet/` — reproducible hybrid action-generation workflow.
-- `artifacts/wan/README.md` — retained-run layout; generated runs stay local and
-  are intentionally ignored by Git.
-- `index.html`, `styles.css`, `js/` — original browser concept demo.
-
-Large generated intermediates under `output/`, Wan run outputs, retired walk experiments,
-build products, and raw personal reference images are local-only.
-
-## Archived browser concept demo
-
-The original two-minute walkthrough is a historical design archive, not a
-release surface. It intentionally preserves the retired quest/XP/flame concept:
-
-```bash
-python3 -m http.server 5199 --directory .
-# open http://localhost:5199
-```
-
-- `index.html` — desktop shell, familiar SVG, overlays
-- `styles.css` — all theming; familiar states are CSS palettes on `[data-state]`
-- `js/windows.js` — fake app windows (VS Code, Terminal, KiCad, paper, Notion, X, Shorts)
-- `js/familiar.js` — creature state machine, resources, pickups, speech bubble
-- `js/demo.js` — the 7-scene scripted concept demo
-- `js/questmap.js` — daily quest map overlay
-- `js/main.js` — app switching, sandbox focus engine, boot
+更完整的架构索引见 [伴灵文档](docs/companion/README.md)，当前事实以 [STATUS](docs/companion/STATUS.md) 和代码为准。

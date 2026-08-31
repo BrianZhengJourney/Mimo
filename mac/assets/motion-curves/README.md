@@ -1,5 +1,7 @@
 # Motion curves
 
+> Scope checked 2026-08-31: retained deterministic gait reference; it does not replace the current runtime or Starter Action contracts.
+
 One walking cycle, stored as joint-angle curves rather than as pictures.
 
 `side-walk-v1.json` is 3.5 KB and holds a complete left-plus-right gait. It is

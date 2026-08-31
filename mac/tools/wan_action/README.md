@@ -1,5 +1,7 @@
 # Wan action postprocessor
 
+> Deterministic local packaging step, checked 2026-08-31. It does not generate video and cannot bypass Mimo's QA / explicit-accept gate.
+
 Deterministically turns one fixed-camera Wan MP4 (or RGBA PNG sequence) into a
 24-frame Mimo action strip. It does **not** generate or interpolate motion.
 

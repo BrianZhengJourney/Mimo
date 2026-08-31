@@ -242,6 +242,16 @@ final class CompanionRuntime {
     private var pressWasDrag = false
 
     var isEmpty: Bool { companions.isEmpty }
+    /// Actual non-transparent pixels of the front companion in screen coordinates.
+    /// The status capsule uses this instead of the physics cell so it sits on
+    /// the character's visible head even when a generated sheet has padding.
+    func primaryCompanionVisualRect() -> CGRect? {
+        guard let companion = companions.first else { return nil }
+        let cell = companion.screenRect()
+        let visible = companion.currentFrame.visibleRect(
+            in: cell, cellSize: companion.activeSprite.cellSize)
+        return visible.isEmpty ? cell : visible
+    }
     var previewActionName: String? {
         guard let companion = companions.first else { return nil }
         return companion.explicitGazeFollow ? "gaze" : companion.previewActionName

@@ -11,6 +11,7 @@
   --font-mono: 'SF Mono', Menlo, monospace;
   --ink:#e9e6f7; --ink-dim:#9d97b8;
   --fam-display-scale:1;
+  --status-anchor-height:150px;
   --fam-glow: rgba(146,120,255,.45);
   /* wisp dynamic palette */
   --fam-hi:#cabcf5; --fam-lo:#7e68dc; --wisp:#b9a5ff;
@@ -92,11 +93,15 @@ body[data-char="pixel"] .shadow{ display:none; }
   border-radius:50%; animation:sparkUp 1.4s ease-out forwards; }
 @keyframes sparkUp{ 0%{ transform:translateY(0) scale(.6); opacity:0;} 20%{ opacity:1;} 100%{ transform:translateY(-46px) scale(1.15); opacity:0;} }
 
-/* ── persistent focus-status badge: the plain-words "meat" ── */
-.status-badge{ position:absolute; right:0; bottom:158px; display:flex; align-items:center; gap:6px;
+/* ── transient focus status, docked to the familiar's head ── */
+.status-badge{ position:absolute; right:50%; bottom:calc(var(--status-anchor-height) + 8px);
+  display:flex; align-items:center; gap:2px; transform:translateX(50%);
   padding:4px 11px 4px 9px; border-radius:20px; background:rgba(20,16,40,.85); border:1px solid #ffffff1c;
   color:var(--ink); font-size:11.5px; font-weight:500; backdrop-filter:blur(8px); box-shadow:0 4px 14px #0006;
   white-space:nowrap; transition:border-color .4s; }
+.status-badge-main,.status-badge-dismiss{ border:0; color:inherit; background:transparent; font:inherit; cursor:pointer; }
+.status-badge-main{ display:flex; align-items:center; gap:8px; }
+.status-badge-dismiss{ display:grid; place-items:center; }
 .sb-dot{ width:7px; height:7px; border-radius:50%; background:#8890a8; box-shadow:0 0 6px #8890a8;
   transition:background .4s, box-shadow .4s; }
 .status-badge.focus{ border-color:#3fe0b255; }
@@ -415,22 +420,160 @@ body[data-char="pixel"] .shadow{ display:none; }
   box-shadow:0 8px 30px #0007; opacity:0; transform:translateY(6px);
   transition:opacity .5s, transform .5s; pointer-events:none; }
 .toast.on{ opacity:1; transform:none; }
+
+/* ── 静かな道具 / quiet tools ─────────────────────────────────────────────
+   The familiar may be playful; its controls should feel calm.  A pale washi
+   surface, sumi ink, and one restrained vermilion accent replace the heavy
+   purple capsule without changing the activity model underneath. */
+.status-badge{
+  min-height:36px; padding:3px 4px 3px 7px;
+  color:#2d2c27; background:rgba(250,249,245,.9);
+  border:1px solid rgba(63,59,51,.16); border-radius:999px;
+  font-family:'Hiragino Sans','PingFang SC',-apple-system,sans-serif;
+  font-size:11px; font-weight:500; letter-spacing:.01em;
+  box-shadow:0 8px 24px rgba(33,29,22,.16),inset 0 1px rgba(255,255,255,.9);
+  backdrop-filter:blur(18px) saturate(.8);
+  opacity:1; visibility:visible; pointer-events:auto;
+  transition:transform .32s cubic-bezier(.2,.82,.2,1),opacity .2s ease,
+    visibility .2s ease,box-shadow .22s ease,border-color .22s ease,background .22s ease;
+}
+.status-badge-main{ min-height:28px; padding:4px 5px 4px 2px; border-radius:999px; }
+.status-badge-main::after{
+  content:""; width:5px; height:5px; margin-left:1px;
+  border-right:1px solid currentColor; border-bottom:1px solid currentColor;
+  opacity:.42; transform:translateY(-1px) rotate(45deg);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .2s;
+}
+.status-badge:hover{
+  transform:translate(50%,-2px); border-color:rgba(159,78,67,.34);
+  background:rgba(255,254,250,.96); box-shadow:0 12px 28px rgba(33,29,22,.2),inset 0 1px #fff;
+}
+.status-badge:active{ transform:translateX(50%) scale(.98); }
+.status-badge-main:focus-visible,.status-badge-dismiss:focus-visible{ outline:2px solid rgba(159,78,67,.5); outline-offset:1px; }
+.status-badge.is-hidden{
+  opacity:0; visibility:hidden; pointer-events:none;
+  transform:translate(50%,-12px) scale(.96);
+}
+.status-badge-dismiss{
+  width:24px; height:24px; flex:none; border-radius:50%; color:#858178;
+  font:500 13px/1 -apple-system,sans-serif;
+  transition:color .18s ease,background .18s ease,transform .18s ease;
+}
+.status-badge-dismiss:hover{ color:#2d2c27; background:#e9e7e1; transform:scale(1.05); }
+.status-badge-dismiss:active{ transform:scale(.92); }
+.stage.journal-open .status-badge{ border-color:rgba(159,78,67,.38); }
+.stage.journal-open .status-badge-main::after{ opacity:.72; transform:translateY(2px) rotate(225deg); }
+.sb-dot{
+  width:7px; height:7px; background:#8c8a82; box-shadow:none;
+  animation:status-breathe 3.2s ease-in-out infinite;
+}
+.status-badge.focus,.status-badge.distract{ border-color:rgba(63,59,51,.16); }
+.status-badge.focus .sb-dot{ background:#5f7d6b; box-shadow:0 0 0 3px rgba(95,125,107,.12); }
+.status-badge.distract .sb-dot{ background:#a6574f; box-shadow:0 0 0 3px rgba(166,87,79,.11); }
+@keyframes status-breathe{ 0%,100%{opacity:.55;transform:scale(.82)} 50%{opacity:1;transform:scale(1)} }
+
+.journal{
+  right:126px; width:356px; max-height:300px; display:flex;
+  --ink:#2d2c27; --ink-dim:#79766e;
+  color:var(--ink); background:rgba(250,249,245,.975);
+  border:1px solid rgba(63,59,51,.16); border-radius:18px;
+  box-shadow:0 22px 54px rgba(33,29,22,.22),0 2px 8px rgba(33,29,22,.08),inset 0 1px #fff;
+  backdrop-filter:blur(28px) saturate(.76);
+  opacity:0; visibility:hidden; pointer-events:none;
+  transform:translate(14px,8px) scale(.965); transform-origin:92% 92%;
+  transition:opacity .2s ease,visibility .2s ease,
+    transform .32s cubic-bezier(.2,.82,.2,1);
+}
+.journal.on{ opacity:1; visibility:visible; pointer-events:auto; transform:none; }
+.journal .j-head{
+  min-height:42px; padding:8px 10px 7px 13px; gap:7px;
+  color:#2d2c27; border-color:rgba(63,59,51,.11);
+  font-family:'Hiragino Sans','PingFang SC',-apple-system,sans-serif;
+  font-size:12px; font-weight:600; letter-spacing:.03em;
+}
+.j-mark{ width:7px; height:7px; flex:none; border-radius:50%; background:#a64e43; box-shadow:0 0 0 3px rgba(166,78,67,.09); }
+.j-head-actions{ display:flex; align-items:center; gap:2px; }
+.journal .j-close{
+  width:27px; height:27px; display:grid; place-items:center; padding:0;
+  color:#79766e; border:0; border-radius:50%; background:transparent;
+  font:500 12px/1 -apple-system,sans-serif; transition:background .18s,color .18s,transform .18s;
+}
+.journal .j-close:hover{ color:#2d2c27; background:#eceae4; transform:scale(1.04); }
+.journal .j-close:active{ transform:scale(.92); }
+.journal .j-close:focus-visible,.journal .j-tab:focus-visible{
+  outline:2px solid rgba(159,78,67,.38); outline-offset:1px;
+}
+.j-refresh.refreshing{ animation:j-refresh .42s cubic-bezier(.2,.8,.2,1); }
+@keyframes j-refresh{ to{ transform:rotate(180deg); } }
+.journal .j-now{ padding:10px 14px 4px; font-size:11.5px; color:#494741; }
+.journal .j-now b{ color:#2d2c27; font-weight:600; }
+.jn-kicker{ display:block; margin-bottom:3px; color:#9a554b; font-size:8px; font-weight:600; letter-spacing:.14em; }
+.journal .j-tabs{ gap:14px; padding:3px 14px 7px; border-bottom:1px solid rgba(63,59,51,.08); }
+.journal .j-tab{
+  position:relative; padding:5px 1px 6px; color:#858178; background:transparent;
+  border:0; border-radius:0; font-size:10px; letter-spacing:.04em;
+  transition:color .18s ease;
+}
+.journal .j-tab::after{
+  content:""; position:absolute; left:50%; right:50%; bottom:0; height:1px; background:#a64e43;
+  transition:left .22s cubic-bezier(.2,.8,.2,1),right .22s cubic-bezier(.2,.8,.2,1);
+}
+.journal .j-tab:hover{ color:#2d2c27; background:transparent; }
+.journal .j-tab.cur{ color:#2d2c27; background:transparent; border:0; font-weight:600; }
+.journal .j-tab.cur::after{ left:0; right:0; }
+.journal .j-body{ padding:9px 14px 13px; scroll-behavior:smooth; }
+.journal .j-body.j-swap{ animation:j-body-swap .24s cubic-bezier(.2,.8,.2,1); }
+@keyframes j-body-swap{ from{opacity:.15;transform:translateY(4px)} to{opacity:1;transform:none} }
+.journal .j-body::-webkit-scrollbar{ width:4px; }
+.journal .j-body::-webkit-scrollbar-thumb{ border-radius:4px; background:rgba(91,84,73,.22); }
+.journal .j-day-summary .sigil{ color:#a64e43; }
+.journal .j-tile,.journal .j-sess{
+  background:rgba(255,255,255,.62); border-color:rgba(63,59,51,.12); border-radius:11px; box-shadow:none;
+}
+.journal .j-sess{ border-left-width:2px; transition:transform .18s ease,border-color .18s ease,background .18s ease; }
+.journal .j-sess:hover{ transform:translateY(-1px); background:rgba(255,255,255,.9); }
+.journal .j-sess-head:not(:disabled):hover,.journal .j-li:hover{ background:#eeece6; }
+.journal .j-reflect{ border-color:rgba(63,59,51,.1); }
+.journal .j-reflect button{
+  color:#fffaf4; background:#3d3b36; border:1px solid #3d3b36; border-radius:999px;
+  transition:transform .18s ease,background .18s ease;
+}
+.journal .j-reflect button:hover{ color:#fff; background:#22211e; transform:translateY(-1px); }
+.journal .j-note,.journal .j-sh{ color:#83564c; }
+.journal .j-period,.journal .wk-cell{ border-radius:6px; }
+.journal .j-tip{ color:#faf9f5; background:rgba(39,37,33,.94); border-color:rgba(255,255,255,.12); }
+
+@media (prefers-reduced-motion:reduce){
+  .status-badge,.status-badge-main::after,.journal,.journal .j-sess,.journal .j-tab::after{ transition:none; }
+  .sb-dot,.j-refresh.refreshing,.journal .j-body.j-swap,.j-weave-cell{ animation:none; }
+}
 </style>
 </head>
 <body data-state="idle" data-fam-face="open">
 
 <div class="stage" id="stage">
-  <div class="status-badge" id="statusBadge"><span class="sb-dot"></span><span id="statusText">😐 发发呆</span></div>
+  <div class="status-badge is-hidden" id="statusBadge" onpointerenter="pauseStatusBadgeDismiss()"
+    onpointerleave="scheduleStatusBadgeDismiss()">
+    <button class="status-badge-main" id="statusBadgeMain" type="button" aria-controls="journal"
+      aria-expanded="false" title="打开快览" onclick="famToggleJournal();this.blur()">
+      <span class="sb-dot" aria-hidden="true"></span><span id="statusText">发发呆</span>
+    </button>
+    <button class="status-badge-dismiss" id="statusBadgeDismiss" type="button" title="关闭状态提示"
+      aria-label="关闭状态提示" onclick="famDismissStatusBadge();this.blur()">×</button>
+  </div>
   <div class="pomo-wrap" id="pomoWrap">
     <span class="chip pomo" id="pomoChip" onclick="famPomodoro(0)" title="结束专注">◴ <span id="focusTimerLabel">专注</span> <b id="pomoTime">25:00</b><span class="pomobar"><span id="pomoFill"></span></span></span>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="journal" id="journal">
     <div class="j-head">
-      <span id="journalTitle">✦ 快览</span>
+      <span class="j-mark" aria-hidden="true"></span><span id="journalTitle">快览</span>
       <span style="flex:1"></span>
-      <button class="j-close" id="openPageButton" title="在新页面打开" onclick="bridge({type:'openPage'})">&#8599;</button>
-      <button class="j-close" onclick="famToggleJournal()">✕</button>
+      <span class="j-head-actions">
+        <button class="j-close j-refresh" id="journalRefreshButton" title="刷新" aria-label="刷新" onclick="jRefresh(this)">↻</button>
+        <button class="j-close" id="openPageButton" title="在新页面打开" aria-label="在新页面打开" onclick="bridge({type:'openPage'})">↗</button>
+        <button class="j-close" id="journalCloseButton" title="关闭" aria-label="关闭" onclick="famToggleJournal()">×</button>
+      </span>
     </div>
     <div class="j-now" id="journalNow"></div>
     <div class="j-tabs" id="journalTabs"></div>
@@ -448,9 +591,20 @@ function famSetLanguage(lang){
   document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en';
   document.title = LANG === 'zh' ? 'Mimo 米墨' : 'Mimo';
   const title = document.getElementById('journalTitle');
-  if (title) title.textContent = tx('✦ 快览', "✦ quick look");
+  if (title) title.textContent = tx('快览', "quick look");
+  const badgeMain = document.getElementById('statusBadgeMain');
+  if (badgeMain) badgeMain.title = tx('打开快览', 'open quick look');
+  const badgeDismiss = document.getElementById('statusBadgeDismiss');
+  if (badgeDismiss) {
+    badgeDismiss.title = tx('关闭状态提示', 'dismiss status');
+    badgeDismiss.setAttribute('aria-label', badgeDismiss.title);
+  }
+  const refresh = document.getElementById('journalRefreshButton');
+  if (refresh) { refresh.title = tx('刷新', 'refresh'); refresh.setAttribute('aria-label', refresh.title); }
   const page = document.getElementById('openPageButton');
-  if (page) page.title = tx('在新页面打开', 'open as a page');
+  if (page) { page.title = tx('在新页面打开', 'open as a page'); page.setAttribute('aria-label', page.title); }
+  const close = document.getElementById('journalCloseButton');
+  if (close) { close.title = tx('关闭', 'close'); close.setAttribute('aria-label', close.title); }
   const pomo = document.getElementById('pomoChip');
   if (pomo) pomo.title = tx('结束专注', 'End Focus');
   const focusTimerLabel = document.getElementById('focusTimerLabel');
@@ -1034,7 +1188,8 @@ const Mascot = (() => {
     const stageEl = document.getElementById('stage');
     if (stageEl) stageEl.style.width = displaySize + 'px';
     const badge = document.getElementById('statusBadge');
-    if (badge) badge.style.bottom = (displaySize + 8) + 'px';
+    if (badge) badge.dataset.anchorHeight = String(displaySize);
+    updateStatusBadgeAnchor();
     const aura=pack.aura || {cx:8,cy:8,rx:9,ry:8};
     const paws=pack.paws || [[3,11],[9,11]];
     const displayRows=pack.RASTER_SHEET?null:rowsForDisplay(pack);
@@ -1207,9 +1362,11 @@ const Fam = {
     document.body.dataset.state = visibleState;
     Mascot.setState(mascotStateFor(this.state));
     const st = statusCopy(visibleState);
-    document.getElementById('statusBadge').className =
-      'status-badge' + (st.cls ? ' ' + st.cls : '');
+    const badge=document.getElementById('statusBadge');
+    badge.classList.remove('focus','distract');
+    if(st.cls)badge.classList.add(st.cls);
     document.getElementById('statusText').textContent = st.label;
+    famShowStatusBadge();
   },
 
   continuousFocusMinutes(){
@@ -1234,14 +1391,46 @@ const Fam = {
 
 function statusCopy(state){
   return ({
-    idle:     { cls: '',         label: tx('😐 发发呆', '😐 idle') },
-    focused:  { cls: 'focus',    label: tx('🎯 正在专注', '🎯 focused') },
-    scholar:  { cls: 'focus',    label: tx('📖 专注阅读', '📖 focused · reading') },
-    reflecting:{ cls: 'focus',   label: tx('◌ 一起回看', '◌ looking back together') },
-    dizzy:    { cls: 'distract', label: tx('🌀 有点分心', '🌀 getting distracted') },
-    poisoned: { cls: 'distract', label: tx('◌ 该缓一缓了', '◌ time to pause') },
-    ghost:    { cls: 'distract', label: tx('☁ 注意力飘远了', '☁ attention wandered') },
-  })[state] || { cls:'', label:tx('😐 发发呆','😐 idle') };
+    idle:     { cls: '',         label: tx('发发呆', 'idle') },
+    focused:  { cls: 'focus',    label: tx('正在专注', 'focused') },
+    scholar:  { cls: 'focus',    label: tx('专注阅读', 'focused · reading') },
+    reflecting:{ cls: 'focus',   label: tx('一起回看', 'looking back together') },
+    dizzy:    { cls: 'distract', label: tx('有点分心', 'getting distracted') },
+    poisoned: { cls: 'distract', label: tx('该缓一缓了', 'time to pause') },
+    ghost:    { cls: 'distract', label: tx('注意力飘远了', 'attention wandered') },
+  })[state] || { cls:'', label:tx('发发呆','idle') };
+}
+
+const STATUS_BADGE_TTL_MS=30000;
+let _statusBadgeTimer=null;
+function reportStatusBadgeVisibility(on){ bridge({type:'statusBadge',on:!!on}); }
+function pauseStatusBadgeDismiss(){
+  clearTimeout(_statusBadgeTimer);_statusBadgeTimer=null;
+}
+function scheduleStatusBadgeDismiss(){
+  pauseStatusBadgeDismiss();
+  const badge=document.getElementById('statusBadge');
+  const journal=document.getElementById('journal');
+  if(!badge||badge.classList.contains('is-hidden')||journal?.classList.contains('on'))return;
+  _statusBadgeTimer=setTimeout(famDismissStatusBadge,STATUS_BADGE_TTL_MS);
+}
+function famShowStatusBadge(){
+  const badge=document.getElementById('statusBadge');
+  if(!badge)return;
+  const wasHidden=badge.classList.contains('is-hidden');
+  badge.classList.remove('is-hidden');
+  badge.setAttribute('aria-hidden','false');
+  if(wasHidden)reportStatusBadgeVisibility(true);
+  scheduleStatusBadgeDismiss();
+}
+function famDismissStatusBadge(){
+  pauseStatusBadgeDismiss();
+  const badge=document.getElementById('statusBadge');
+  if(!badge||badge.classList.contains('is-hidden'))return;
+  badge.classList.add('is-hidden');
+  badge.setAttribute('aria-hidden','true');
+  if(badge.contains(document.activeElement))document.activeElement.blur();
+  reportStatusBadgeVisibility(false);
 }
 
 let _toastT;
@@ -1366,9 +1555,17 @@ function famPause(p){
 function famSetNativeHosted(on){
   document.body.classList.toggle('native-hosted', !!on);
 }
+let famDisplayScale=1;
+function updateStatusBadgeAnchor(){
+  const badge=document.getElementById('statusBadge');
+  const base=Math.max(1,Number(badge?.dataset.anchorHeight)||150);
+  document.documentElement.style.setProperty('--status-anchor-height',`${base*famDisplayScale}px`);
+}
 function famSetDisplayScale(value){
   const scale=Math.max(.6,Math.min(1.4,Number(value)||1));
+  famDisplayScale=scale;
   document.documentElement.style.setProperty('--fam-display-scale',String(scale));
+  updateStatusBadgeAnchor();
 }
 
 /* user went idle / screen locked: close the open entry so away-time
@@ -1520,7 +1717,21 @@ function jSessKey(e, id){
   e.preventDefault();
   jToggleSess(id);
 }
-function jSetView(v){ J.view = v; J.openSess = null; renderJournal(); }
+function animateJournalBody(){
+  const body=document.getElementById('journalBody');
+  if(!body)return;
+  body.classList.remove('j-swap');void body.offsetWidth;body.classList.add('j-swap');
+}
+function jSetView(v){
+  if(!J_VIEWS.some(item=>item.id===v)||J.view===v)return;
+  J.view=v;J.openSess=null;renderJournal();animateJournalBody();
+}
+function jRefresh(button){
+  renderJournal();animateJournalBody();
+  if(!button)return;
+  button.classList.remove('refreshing');void button.offsetWidth;button.classList.add('refreshing');
+  setTimeout(()=>button.classList.remove('refreshing'),460);
+}
 function jToggleSec(s){ J.open[s] = !J.open[s]; renderJournal(); }
 function reflectionBrowserEntry(){
   return `<div class="j-reflect"><span>${tx('从快览进入完整的一天','step from the glance into the full day')}</span><button onclick="openReflectionBrowser()">${tx('今日手记 ↗','today journal ↗')}</button></div>`;
@@ -1533,11 +1744,11 @@ function openReflectionBrowser(){
 function renderTabs(){
   const title = document.getElementById('journalTitle');
   if (title) title.textContent = J.view === 'week'
-    ? tx('✦ 本周', '✦ this week')
-    : tx('✦ 快览', "✦ quick look");
+    ? tx('本周', 'this week')
+    : tx('快览', "quick look");
   document.getElementById('journalTabs').innerHTML =
     J_VIEWS.map(v =>
-      `<button class="j-tab ${J.view === v.id ? 'cur' : ''}" onclick="jSetView('${v.id}')">${tx(v.zh,v.en)}</button>`).join('');
+      `<button class="j-tab ${J.view === v.id ? 'cur' : ''}" role="tab" aria-selected="${J.view === v.id}" onclick="jSetView('${v.id}')">${tx(v.zh,v.en)}</button>`).join('');
 }
 
 /* ── segment strip: merged per-activity bars with hover tooltips.
@@ -1630,7 +1841,7 @@ function renderNow(){
   const cur = Fam.cur
     ? tx(`你在 <b>${Fam.cur.app}</b>——${fmtDur(now - Fam.cur.t0)}`, `You're in <b>${Fam.cur.app}</b> — ${fmtDur(now - Fam.cur.t0)}`)
     : tx('暂时离开','away');
-  el.innerHTML = `<div>${cur}</div>`;
+  el.innerHTML = `<span class="jn-kicker">${tx('此刻','NOW')}</span><div>${cur}</div>`;
 }
 
 /* cluster merged segments into sessions (gaps > 10 min split), then
@@ -2099,18 +2310,24 @@ function famExportHTML(){
 function famCloseJournal(){
   const j = document.getElementById('journal');
   const stage = document.getElementById('stage');
+  const badgeMain = document.getElementById('statusBadgeMain');
   j.classList.remove('on');
   stage.classList.remove('journal-open');
+  if(badgeMain){ badgeMain.setAttribute('aria-expanded','false'); badgeMain.title=tx('打开快览','open quick look'); }
+  scheduleStatusBadgeDismiss();
   bridge({ type: 'bubble', on: false });
 }
 
 function famShowJournal(){
   const j = document.getElementById('journal');
   const stage = document.getElementById('stage');
+  const badgeMain = document.getElementById('statusBadgeMain');
   J.view='today';J.openSess=null;
   renderJournal();
   j.classList.add('on');
   stage.classList.add('journal-open');
+  pauseStatusBadgeDismiss();
+  if(badgeMain){ badgeMain.setAttribute('aria-expanded','true'); badgeMain.title=tx('收起快览','close quick look'); }
   bridge({ type: 'bubble', on: true });
 }
 
@@ -2133,8 +2350,16 @@ document.addEventListener('pointerdown',event=>{
   famCloseJournal();
 },true);
 
+document.addEventListener('keydown',event=>{
+  if(!document.getElementById('journal').classList.contains('on'))return;
+  if(event.key==='Escape'){ event.preventDefault();famCloseJournal();return; }
+  if(event.key==='ArrowLeft'){ event.preventDefault();jSetView('today'); }
+  if(event.key==='ArrowRight'){ event.preventDefault();jSetView('week'); }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   Fam.setCharacter(localStorage.getItem('ff-char') || 'lulu');
+  famShowStatusBadge();
 
   // click = complete journal; press-and-move = drag (window moved by Swift).
   const fam = document.getElementById('familiar');
@@ -2179,6 +2404,7 @@ document.addEventListener('DOMContentLoaded', () => {
   famSetLanguage(q.get('lang') || LANG);
   if (q.has('preview')) {
     document.body.style.background = '#1a1534';
+    if (q.get('scale')) famSetDisplayScale(q.get('scale'));
     if (q.get('char')) Fam.setCharacter(q.get('char'));
     if (q.get('state')) Fam.setState(q.get('state'));
     if (q.get('mstate')) Mascot.setState(q.get('mstate'));

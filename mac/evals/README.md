@@ -1,5 +1,7 @@
 # Mimo DIY eval loop
 
+> Current release-evaluation contract, checked 2026-08-31. Default runs are local and provider-free; paid telemetry still requires explicit approval.
+
 This directory turns DIY quality work into a repeatable, falsifiable loop.
 It never calls an image provider.
 

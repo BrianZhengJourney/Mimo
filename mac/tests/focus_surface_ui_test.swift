@@ -31,7 +31,7 @@ struct FocusSurfaceUITests {
                overlay.contains("{ id: 'today', zh: '\u{4eca}\u{5929}', en: 'today' }") &&
                overlay.contains("{ id: 'week', zh: '\u{672c}\u{5468}', en: 'week' }") &&
                overlay.contains("J.view === 'week'") &&
-               overlay.contains("tx('\u{2726} \u{672c}\u{5468}', '\u{2726} this week')") &&
+               overlay.contains("tx('\u{672c}\u{5468}', 'this week')") &&
                !overlay.contains("J_TIMEFRAMES") &&
                !overlay.contains("jSetTf(") &&
                !overlay.contains("renderQuest("),

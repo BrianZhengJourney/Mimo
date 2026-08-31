@@ -1,94 +1,50 @@
-# 伴灵模式计划(Companion Mode Plan)
+# 伴灵模式
 
-把 Mimo 从"角落里会换表情的状态指示器"升级成一个**有物理手感、有行为系统、
-可拖可扔、能被 DIY 生成管线喂养**的桌面伴灵。参照物是 Shimeji / Shimeji-ee。
+> **v0.2 Alpha · `main` · 2026-08-31。** Mimo 已从旧 WebView 状态角色升级为原生 CALayer 桌面伴灵；当前事实只看 [STATUS.md](STATUS.md) 与代码。
 
-**状态**：v0.2 Alpha working baseline 可直接运行。四套默认动作已接入一键顺序
-生成、断点 job、0-call 本机重新抠图、安全 preview/install 与 runtime。等级、
-XP、走路生成和旧实验预览已退出正式产品。当前事实与 rollout gate 见
-[STATUS.md](STATUS.md)。最后更新 2026-07-31。
+## 先读这三份
 
----
+1. [STATUS.md](STATUS.md) — 当前可用能力、质量 baseline、发布门槛、最新版检查方式。
+2. [SESSION-HANDOFF.md](SESSION-HANDOFF.md) — 下一次开发会话的短交接。
+3. [11-custom-pet-integration.md](11-custom-pet-integration.md) — DIY 从参考图到原子安装的完整边界。
 
-## 阅读顺序
+## 当前架构
 
-| 文件 | 含章节 | 内容 | 谁该读 |
-|---|---|---|---|
-| [STATUS.md](STATUS.md) | — | **当前可用 baseline、质量指标、release gate、如何检查版本** | **新会话先读这个** |
-| [SESSION-HANDOFF.md](SESSION-HANDOFF.md) | — | 2026-07-28 前的历史实验与踩坑记录 | 需要考古时 |
-| [00-overview-and-decisions.md](00-overview-and-decisions.md) | TL;DR, §0 | 2026-07-18 架构决策记录；部分产品决定已被取代 | 需要设计依据时 |
-| [01-shimeji-research.md](01-shimeji-research.md) | §1 | Shimeji 交互模型源码级拆解:行为系统、物理、环境模型、资源包、以及**哪些不该抄** | 想理解"为什么这样设计" |
-| [02-mimo-baseline.md](02-mimo-baseline.md) | §2 | Mimo 现状读码结论 + 瓶颈清单 + 要保住的资产 | 上手改代码前 |
-| [03-runtime-architecture.md](03-runtime-architecture.md) | §3, §4.1–4.7 | 设计原则 + 运行时架构:窗口/渲染、引擎分层、行为包格式、物理参数、窗口地形、资源包分级 | 实施 P0–P2、P4 |
-| [04-generation-and-consistency.md](04-generation-and-consistency.md) | §4.8–4.10 | **生成后端 provider 接口、跨帧一致性对比、验收标准与度量** | 实施 P3 |
-| [08-likeness-and-demeanor.md](08-likeness-and-demeanor.md) | §8 | **神似与神态** —— 为什么生成的伴灵"不像本人",prompt 根因与改法。与 §4.9 的一致性**正交** | 实施 P3;人形伴灵相关 |
-| [09-action-inventory.md](09-action-inventory.md) | §9 | **动作清单定稿** —— 分层帧预算、六套气质签名集、道具内嵌决策(D9–D11)、打包规则与首验计划 | 生成任何帧之前 |
-| [10-hybrid-action-generation.md](10-hybrid-action-generation.md) | §10 | **高保真 × 强一致动作生成** —— HatchPet 实证拆解、D12 hybrid coherent-family、慢节奏与新 skill | 生成或修复动作时 |
-| [11-custom-pet-integration.md](11-custom-pet-integration.md) | §11 | **完整 DIY 生成接线** —— canonical master → action family → QA → preview → atomic install | 当前实施入口 |
-| [12-starter-actions.md](12-starter-actions.md) | §12 | **P1 实施记录与验收** —— 四卡、调用预算、断点状态机、runtime 与检查清单 | 当前验收入口 |
-| [05-roadmap.md](05-roadmap.md) | §5 | P00 → P4 分阶段路线与验收标准 | 排期 |
-| [06-open-questions.md](06-open-questions.md) | §6 | 已拍板汇总 + 仍待拍板项 | 决策时 |
-| [07-unverified-and-sources.md](07-unverified-and-sources.md) | §7, 附录 | **未证实的事实断言清单** + 源码/文献引用 | 引用本文任何事实之前 |
+```text
+本地工作事件 ──→ Focus / Journal policy ──→ HUD + companion state
 
-> 拆分前是单个 1138 行的 `docs/companion-mode-plan.md`。章节编号保持全局连续
-> (§0–§8),所以文中的 `§4.8`、`§4.10` 这类交叉引用仍然有效 ——
-> 用下面的对照表定位到文件。
+照片 / 手工参考图 ──→ identity board ──→ canonical familiar
+                                      └─→ Starter Action jobs
+                                           └─→ local QA → preview → accept → install
 
-## 章节 → 文件 对照
+behavior JSON ──→ director / physics ──→ native CALayer companion
+Quick Look HTML ───────────────────────→ transparent HUD panel
+```
 
-| 章节 | 文件 |
+- 原生伴灵负责渲染、物理、命中和行为；WebView 只承载 HUD / Quick Look。
+- 状态条跟随实际可见角色顶部，支持手动关闭与 30 秒自动隐藏；Quick Look 支持刷新、键盘切换和 `Esc`。
+- Studio 保留候选、恢复中断 job，并在新动作成功安装前保住旧动作。
+- Photos 自动分组只提供候选，不声称身份识别；用户确认前不进入付费生成。
+
+## 不可破坏的边界
+
+1. **不静默花钱**：provider 请求必须来自用户明确点击；中断后显式重试。
+2. **不静默安装**：生成资产必须通过本机 QA、桌面预览和用户 Accept。
+3. **不丢草稿/旧动作**：失败、取消或替换未完成时，已有可用资产继续保留。
+4. **本地优先**：活动历史与默认回看留在本机；可选 AI 只处理确认后的有限元数据。
+
+## 文档地图
+
+| 主题 | 文档 |
 |---|---|
-| §0 决策记录 | `00-overview-and-decisions.md` |
-| §1 Shimeji 交互模型 | `01-shimeji-research.md` |
-| §2 Mimo 现状 & 瓶颈 | `02-mimo-baseline.md` |
-| §3 设计原则 | `03-runtime-architecture.md` |
-| §4.1–4.7 运行时架构 | `03-runtime-architecture.md` |
-| §4.8 provider 接口 | `04-generation-and-consistency.md` |
-| §4.9 provider 一致性对比 | `04-generation-and-consistency.md` |
-| §4.10 一致性验收标准 | `04-generation-and-consistency.md` |
-| §5 实施路线 | `05-roadmap.md` |
-| §6 待拍板 | `06-open-questions.md` |
-| §7 待核实断言 + 附录 | `07-unverified-and-sources.md` |
-| §8 神似与神态 | `08-likeness-and-demeanor.md` |
-| §9 动作清单 | `09-action-inventory.md` |
-| §10 高保真 × 强一致动作生成 | `10-hybrid-action-generation.md` |
-| §11 完整 custom pet generation | `11-custom-pet-integration.md` |
-| §12 Starter Actions 实施与验收 | `12-starter-actions.md` |
+| 决策与原则 | [00-overview-and-decisions.md](00-overview-and-decisions.md) |
+| Shimeji 研究 | [01-shimeji-research.md](01-shimeji-research.md) |
+| 基线读码 | [02-mimo-baseline.md](02-mimo-baseline.md) |
+| Runtime / behavior / physics | [03-runtime-architecture.md](03-runtime-architecture.md) |
+| Provider 与一致性 | [04-generation-and-consistency.md](04-generation-and-consistency.md) |
+| Roadmap / open questions | [05-roadmap.md](05-roadmap.md), [06-open-questions.md](06-open-questions.md) |
+| 事实核验与来源 | [07-unverified-and-sources.md](07-unverified-and-sources.md) |
+| 神似、动作、生成 | [08-likeness-and-demeanor.md](08-likeness-and-demeanor.md), [09-action-inventory.md](09-action-inventory.md), [10-hybrid-action-generation.md](10-hybrid-action-generation.md) |
+| Starter Actions | [12-starter-actions.md](12-starter-actions.md) |
 
----
-
-## 已拍板决策速查
-
-| | 决策 | 详见 |
-|---|---|---|
-| **D1** | 渲染宿主 → **原生 CALayer**(每显示器一个透明全屏层,`CVDisplayLink` 单一时钟);WKWebView 退居 HUD | §0, §4.1–4.2 |
-| **D2** | 动画帧 → **扩展生成管线到 N 帧行为包**(一次性批量生成,运行时零成本) | §0, §4.6 |
-| **D3** | 窗口感知 → **分阶段**,P1 只做屏幕/工作区边界,窗口攀爬推到 P4 | §0, §4.5 |
-| **D4-R1** | 正式产品当前只接 **OpenAI**；其他 provider 仅保留为历史研究方向 | STATUS |
-| **D5-R1** | 当前默认 **暖白 matte**；绿幕只留作 eval/legacy 覆盖 | STATUS, eval v3 |
-| **D6** | 漫游默认 = **岗位为主,deepWork 期间永远安静** | §6, §3 |
-| **D7-R2** | 四套动作默认选好，用户**点击一次后顺序生成**；preview/accept 仍逐项确认 | §12, STATUS |
-| **D8** | 代码绘制的角色(内置像素包 / Lane A 抽象伴灵)**不资产化**,渲染保持程序化,但**接入同一套行为引擎** | §6 |
-| — | 自动重掷上限 **3 次**;开发期保留全部 1–3 次尝试用于阈值标定 | §6 |
-| **D9** | 签名动作**按气质共享 6 套**(设计/prompt/行为包共享,图仍按每只生成) | §9 |
-| **D10** | **Mimo 状态集要做**(得意/萎靡/困倦/深工 + 音乐律动) | §9 |
-| **D11-R1** | Tennis 不在图中画球；runtime 只合成一个确定性球。其他道具逐动作决定 | §9, §12 |
-| **D12** | 动作采用 **512px high-fidelity canonical master + coherent family artifact graph**；ambient 以 authored hold 放慢，locomotion 按距离驱动 | §10 |
-| ~~Q11~~ | 已被取代:去掉视觉进化轴,永远画最成熟形态(2026-07-20) | §8.3, handoff §8 |
-
-## 三条最重要的约束(读完就走也要记住这三条)
-
-1. **两家 provider 都没有 seed 参数。** 一致性**只能"生成后验证并修复"**,
-   不能"事前保证"。这把一致性度量循环从可选项变成架构承重件。(§4.9)
-2. **"nano banana 角色一致性更好"未能证实**,现有唯一可核实的公开榜单
-   反而指向 gpt-image-2。但那个榜测的不是跨帧身份保持。
-   **用自己的角色跑 A/B,不凭口碑。**(§4.9)
-3. **外部生成结果不能自行安装。** 所有动作先进入持久化 job store，
-   通过 hard QA，并由用户在桌面预览后显式接受；失败结果保留用于诊断，
-   不覆盖已安装资产。(§10–§11)
-
-## 下一步
-
-先按 [STATUS](STATUS.md) 补齐新 telemetry 的真实 provider p95 baseline 与
-candidate cohort，再按 `5% → 25% → 100%` 扩大用户访问。产品侧优先保持
-“上传参考图 → 自动找人物 → 一键默认动作 → 预览接受”的单一路径。
+历史实验仍可用于考古，但不得覆盖 STATUS 中的当前产品事实或 release gate。

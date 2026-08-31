@@ -1,5 +1,7 @@
 # Walk rig prototype (throwaway)
 
+> Archived experiment, checked 2026-08-31. It never modifies the current Mimo runtime or installed character.
+
 Question: can a deterministic 8-phase, support-foot-aware 2D rig produce a more
 believable walk cycle than generated in-between images?
 
